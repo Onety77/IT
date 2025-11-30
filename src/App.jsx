@@ -644,390 +644,335 @@ const ArenaOverlay = ({ onExit }) => {
     const requestRef = useRef();
     
     // UI State
-    const [status, setStatus] = useState("SYSTEM_READY");
-    const [bounces, setBounces] = useState(0);
-    const [highScore, setHighScore] = useState(0);
+    const [formationName, setFormationName] = useState("ORBIT [STABLE]");
+    const [systemEnergy, setSystemEnergy] = useState(0); // 0-100%
 
-    // MUTABLE PHYSICS STATE
-    const state = useRef({
-        pos: { x: 0, y: 0 },
-        vel: { x: 0, y: 0 },         // Linear Velocity
-        rot: { x: 0, y: 0, z: 0 },
-        rotVel: { x: 0.01, y: 0.02 }, // Angular Velocity
-        
-        mouse: { x: 0, y: 0 },
-        prevMouse: { x: 0, y: 0 },
-        isDragging: false,
-        
-        currentCombo: 0,
-        gridOffset: { x: 0, y: 0 },
-        frame: 0
+    // Simulation State
+    const sim = useRef({
+        particles: [],
+        touchX: 0,
+        touchY: 0,
+        isTouching: false,
+        targetRotationX: 0,
+        targetRotationY: 0,
+        currentRotationX: 0,
+        currentRotationY: 0,
+        time: 0,
+        formation: 0, // 0: Sphere, 1: Vortex, 2: Tube
+        shockwave: 0
     });
 
-    const audioRef = useRef(null);
-
-    // --- 3D MATH HELPER ---
-    const project = (x, y, z, width, height, offsetX, offsetY) => {
-        const scale = 600 / (600 + z); 
-        const x2d = (x * scale) + (width / 2) + offsetX;
-        const y2d = (y * scale) + (height / 2) + offsetY;
-        return { x: x2d, y: y2d, scale };
-    };
-
-    const rotateX = (x, y, z, angle) => {
-        const cos = Math.cos(angle);
-        const sin = Math.sin(angle);
-        return { x, y: y * cos - z * sin, z: y * sin + z * cos };
-    };
-
-    const rotateY = (x, y, z, angle) => {
-        const cos = Math.cos(angle);
-        const sin = Math.sin(angle);
-        return { x: x * cos - z * sin, y, z: x * sin + z * cos };
-    };
-
-    // --- AUDIO ---
-    const initAudio = () => {
-        if (!audioRef.current) {
-            const AudioContext = window.AudioContext || window.webkitAudioContext;
-            const ctx = new AudioContext();
-            
-            // 1. Engine Hum
-            const osc = ctx.createOscillator();
-            const gain = ctx.createGain();
-            osc.type = 'triangle';
-            osc.connect(gain);
-            gain.connect(ctx.destination);
-            osc.start();
-            gain.gain.value = 0;
-
-            // 2. Impact Synth
-            const impactGain = ctx.createGain();
-            impactGain.connect(ctx.destination);
-            impactGain.gain.value = 0.5;
-
-            audioRef.current = { ctx, osc, gain, impactGain };
-        } else if (audioRef.current.ctx.state === 'suspended') {
-            audioRef.current.ctx.resume();
-        }
-    };
-
-    const playBounce = (intensity) => {
-        if (!audioRef.current) return;
-        const { ctx, impactGain } = audioRef.current;
-        const t = ctx.currentTime;
-        
-        const osc = ctx.createOscillator();
-        osc.connect(impactGain);
-        
-        const pitch = 200 + (intensity * 100);
-        osc.frequency.setValueAtTime(pitch, t);
-        osc.frequency.exponentialRampToValueAtTime(50, t + 0.15);
-        
-        const vol = Math.min(0.8, intensity * 0.1);
-        impactGain.gain.setValueAtTime(vol, t);
-        impactGain.gain.exponentialRampToValueAtTime(0.01, t + 0.15);
-        
-        osc.type = intensity > 10 ? 'sawtooth' : 'sine';
-        osc.start(t);
-        osc.stop(t + 0.15);
-    };
-
-    const updateAudio = (speed) => {
-        if (!audioRef.current) return;
-        const { ctx, osc, gain } = audioRef.current;
-        const t = ctx.currentTime;
-        const vol = Math.min(0.15, speed * 0.005); 
-        gain.gain.setTargetAtTime(vol, t, 0.1);
-        osc.frequency.setTargetAtTime(60 + (speed * 5), t, 0.1);
-    };
-
-    // --- MAIN LOOP ---
     useEffect(() => {
         const canvas = canvasRef.current;
         const ctx = canvas.getContext('2d');
-        const storedScore = localStorage.getItem('w_ricochet_highscore');
-        if (storedScore) setHighScore(parseInt(storedScore));
+        
+        let width, height;
 
-        // GEOMETRY (The W)
-        const baseW = 120;
-        const h = 120;
-        const d = 40; 
-        const vRaw = [
-            { x: -1.0, y: -0.8 }, { x: -0.8, y: -0.8 }, { x: -0.5, y: 0.5 },
-            { x: 0.0, y: -0.5 }, { x: 0.5, y: 0.5 }, { x: 0.8, y: -0.8 },
-            { x: 1.0, y: -0.8 }, { x: 0.6, y: 0.8 }, { x: 0.0, y: -0.2 },
-            { x: -0.6, y: 0.8 }
-        ];
-        const vertices = [];
-        vRaw.forEach(v => vertices.push({ x: v.x * baseW, y: v.y * h, z: -d }));
-        vRaw.forEach(v => vertices.push({ x: v.x * baseW, y: v.y * h, z: d }));
-        const edges = [
-            [0,1], [1,2], [2,3], [3,4], [4,5], [5,6], [6,7], [7,8], [8,9], [9,0],
-            [10,11], [11,12], [12,13], [13,14], [14,15], [15,16], [16,17], [17,18], [18,19], [19,10],
-            [0,10], [1,11], [2,12], [3,13], [4,14], [5,15], [6,16], [7,17], [8,18], [9,19]
-        ];
+        // --- CONFIGURATION ---
+        const PARTICLE_COUNT = 2200; 
+        const FOCAL_LENGTH = 800;
+        const RADIUS = 300;
+        
+        // --- INITIALIZATION ---
+        const init = () => {
+            width = window.innerWidth;
+            height = window.innerHeight;
+            canvas.width = width;
+            canvas.height = height;
 
-        // --- BACKGROUND GRID ---
-        const drawGrid = (width, height, offsetX, offsetY) => {
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)'; 
-            ctx.lineWidth = 1;
-            const gridSize = 100;
-            const scrollX = offsetX % gridSize;
-            const scrollY = offsetY % gridSize;
-
-            for (let x = scrollX - gridSize; x < width; x += gridSize) {
-                ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke();
-            }
-            for (let y = scrollY - gridSize; y < height; y += gridSize) {
-                ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke();
-            }
-
-            const gradient = ctx.createRadialGradient(width/2, height/2, 100, width/2, height/2, width);
-            gradient.addColorStop(0, 'rgba(0,0,0,0)');
-            gradient.addColorStop(1, 'rgba(0,0,0,0.8)');
-            ctx.fillStyle = gradient;
-            ctx.fillRect(0,0,width,height);
-        };
-
-        // --- INPUT LOGIC ---
-        const handleStart = (x, y) => {
-            if(!audioRef.current) initAudio();
-            const cx = (canvas.width / 2) + state.current.pos.x;
-            const cy = (canvas.height / 2) + state.current.pos.y;
-            const dist = Math.sqrt((x-cx)**2 + (y-cy)**2);
+            sim.current.particles = [];
             
-            // Large hitbox for easy grabbing
-            if (dist < 200) {
-                state.current.isDragging = true;
-                state.current.prevMouse = { x, y };
-                // Zero out velocity when grabbed (stops dead)
-                state.current.vel = { x: 0, y: 0 };
-                state.current.rotVel = { x: 0, y: 0 };
-                
-                // Reset Combo
-                state.current.currentCombo = 0;
-                setBounces(0);
-                setStatus("LOCKED");
+            // Create Particles
+            for (let i = 0; i < PARTICLE_COUNT; i++) {
+                // Initialize in Sphere Formation logic (Orbit)
+                const y = 1 - (i / (PARTICLE_COUNT - 1)) * 2;
+                const radiusAtY = Math.sqrt(1 - y * y);
+                const theta = i * 2.3999632; // Golden Angle
+
+                const x = Math.cos(theta) * radiusAtY;
+                const z = Math.sin(theta) * radiusAtY;
+
+                sim.current.particles.push({
+                    // Formation 0: Sphere Coords
+                    sx: x * RADIUS, sy: y * RADIUS, sz: z * RADIUS,
+                    
+                    // Current Pos
+                    x: x * RADIUS, y: y * RADIUS, z: z * RADIUS,
+                    
+                    // Velocity
+                    vx: 0, vy: 0, vz: 0,
+                    
+                    // Traits
+                    index: i,
+                    size: Math.random() * 2 + 0.5,
+                    baseColor: Math.random() > 0.85 ? '#ffffff' : '#ccff00',
+                    color: '#ccff00'
+                });
             }
         };
 
-        const handleMove = (x, y) => {
-            if (state.current.isDragging) {
-                const dx = x - state.current.prevMouse.x;
-                const dy = y - state.current.prevMouse.y;
-                
-                // 1. Move Position directly (1:1 control)
-                state.current.pos.x += dx;
-                state.current.pos.y += dy;
-                
-                // 2. Parallax
-                state.current.gridOffset.x -= dx * 0.2;
-                state.current.gridOffset.y -= dy * 0.2;
-                
-                // 3. Tumble Object (Spin it with your hand)
-                state.current.rot.y += dx * 0.01;
-                state.current.rot.x -= dy * 0.01;
-                
-                // 4. THROW PHYSICS (The fix)
-                // We multiply dx/dy to give it a "power boost" on release
-                state.current.vel = { x: dx * 1.5, y: dy * 1.5 };
-                state.current.rotVel = { x: dy * 0.01, y: -dx * 0.01 };
+        // --- MATH HELPERS ---
+        const rotateX = (y, z, angle) => ({ y: y * Math.cos(angle) - z * Math.sin(angle), z: y * Math.sin(angle) + z * Math.cos(angle) });
+        const rotateY = (x, z, angle) => ({ x: x * Math.cos(angle) - z * Math.sin(angle), z: x * Math.sin(angle) + z * Math.cos(angle) });
 
-                state.current.prevMouse = { x, y };
+        // --- FORMATION LOGIC ---
+        const getTargetPosition = (p, formation, time) => {
+            let tx, ty, tz;
+
+            if (formation === 0) { 
+                // [ ORBIT ] - Golden Spiral Sphere
+                tx = p.sx;
+                ty = p.sy;
+                tz = p.sz;
+
+                // Gentle breathing
+                const breath = Math.sin(time * 2 + p.sy * 0.01) * 10;
+                tx += (tx / RADIUS) * breath;
+                ty += (ty / RADIUS) * breath;
+                tz += (tz / RADIUS) * breath;
+
+            } else if (formation === 1) { 
+                // [ VORTEX ] - Accretion Disk
+                const angle = p.index * 0.1 + time * 0.5;
+                const r = 100 + (p.index / sim.current.particles.length) * 400; // Spread out
+                
+                tx = Math.cos(angle) * r;
+                ty = Math.sin(angle * 2) * 20; // Slight wave in height
+                tz = Math.sin(angle) * r;
+
+            } else { 
+                // [ HYPER-TUBE ] - Infinite Tunnel
+                const angle = p.index * 0.5;
+                const cylinderRadius = 250;
+                const tunnelLength = 2000;
+                
+                tx = Math.cos(angle) * cylinderRadius;
+                ty = Math.sin(angle) * cylinderRadius;
+                
+                // Scrolling Z
+                const zOffset = (p.index * 2 + time * 500) % tunnelLength;
+                tz = zOffset - (tunnelLength / 2);
             }
+
+            return { tx, ty, tz };
         };
 
-        const handleEnd = () => {
-            if (state.current.isDragging) {
-                state.current.isDragging = false;
-                setStatus("RELEASED");
-            }
+        const cycleFormation = () => {
+            sim.current.formation = (sim.current.formation + 1) % 3;
+            sim.current.shockwave = 50; // Visual pop on change
+            
+            const names = ["ORBIT [STABLE]", "VORTEX [HIGH VELOCITY]", "HYPER-TUBE [DATA STREAM]"];
+            setFormationName(names[sim.current.formation]);
         };
 
-        // Input Listeners
-        window.addEventListener('mousedown', e => handleStart(e.clientX, e.clientY));
-        window.addEventListener('mousemove', e => handleMove(e.clientX, e.clientY));
-        window.addEventListener('mouseup', handleEnd);
-        canvas.addEventListener('touchstart', e => handleStart(e.touches[0].clientX, e.touches[0].clientY), {passive: false});
-        canvas.addEventListener('touchmove', e => { e.preventDefault(); handleMove(e.touches[0].clientX, e.touches[0].clientY); }, {passive: false});
-        canvas.addEventListener('touchend', handleEnd);
+        // --- INPUT HANDLING ---
+        const handleInputMove = (x, y) => {
+            const { innerWidth, innerHeight } = window;
+            sim.current.targetRotationY = (x / innerWidth) * Math.PI * 2;
+            sim.current.targetRotationX = (y / innerHeight) * Math.PI * 2;
+            sim.current.touchX = (x - innerWidth / 2);
+            sim.current.touchY = (y - innerHeight / 2);
+        };
+
+        const onMouseMove = (e) => handleInputMove(e.clientX, e.clientY);
+        const onTouchMove = (e) => {
+            e.preventDefault();
+            handleInputMove(e.touches[0].clientX, e.touches[0].clientY);
+        };
+
+        const startInteraction = () => { sim.current.isTouching = true; };
+        const endInteraction = () => { 
+            sim.current.isTouching = false; 
+            sim.current.shockwave = 100; // Big Bang on release
+        };
 
         // --- RENDER LOOP ---
         const render = () => {
-            const { width, height } = canvas;
-            state.current.frame++;
-            
-            ctx.fillStyle = '#050505'; 
+            sim.current.time += 0.01;
+            const gs = sim.current;
+            const cx = width / 2;
+            const cy = height / 2;
+
+            // 1. Rotation Smoothing
+            gs.currentRotationX += (gs.targetRotationX - gs.currentRotationX) * 0.05;
+            gs.currentRotationY += (gs.targetRotationY - gs.currentRotationY) * 0.05;
+
+            // 2. Shockwave Decay
+            gs.shockwave *= 0.9;
+
+            // 3. Clear
+            ctx.fillStyle = 'rgba(5, 5, 5, 0.4)'; // Trail effect
             ctx.fillRect(0, 0, width, height);
-            drawGrid(width, height, state.current.gridOffset.x, state.current.gridOffset.y);
 
-            // PHYSICS
-            if (!state.current.isDragging) {
-                // Apply Velocity
-                state.current.pos.x += state.current.vel.x;
-                state.current.pos.y += state.current.vel.y;
-                
-                // FRICTION (The tweak you wanted)
-                // 0.995 = Nearly no friction (Space feel)
-                state.current.vel.x *= 0.995;
-                state.current.vel.y *= 0.995;
-                state.current.rotVel.x *= 0.995;
-                state.current.rotVel.y *= 0.995;
-
-                // Idle Spin
-                state.current.rot.y += 0.005; 
-                state.current.rot.x += state.current.rotVel.x;
-                state.current.rot.y += state.current.rotVel.y;
-
-                // BOUNCES
-                const boundsX = width / 2 - 120;
-                const boundsY = height / 2 - 120;
-                let didBounce = false;
-                const speed = Math.sqrt(state.current.vel.x**2 + state.current.vel.y**2);
-
-                if (state.current.pos.x > boundsX || state.current.pos.x < -boundsX) {
-                    state.current.vel.x *= -0.9; // High Elasticity (Bouncy)
-                    state.current.pos.x = state.current.pos.x > 0 ? boundsX : -boundsX;
-                    state.current.rotVel.y += (Math.random()-0.5) * 0.1; 
-                    didBounce = true;
-                }
-                if (state.current.pos.y > boundsY || state.current.pos.y < -boundsY) {
-                    state.current.vel.y *= -0.9;
-                    state.current.pos.y = state.current.pos.y > 0 ? boundsY : -boundsY;
-                    state.current.rotVel.x += (Math.random()-0.5) * 0.1;
-                    didBounce = true;
-                }
-
-                if (didBounce && speed > 2) {
-                    state.current.currentCombo += 1;
-                    setBounces(state.current.currentCombo);
-                    playBounce(speed);
-                }
+            // 4. Update UI Energy Meter
+            if (gs.isTouching) {
+                setSystemEnergy(prev => Math.min(100, prev + 2));
             } else {
-                setBounces(0);
-            }
-            
-            // Highscore
-            if (state.current.currentCombo > highScore) {
-                setHighScore(state.current.currentCombo);
-                localStorage.setItem('w_ricochet_highscore', state.current.currentCombo);
+                setSystemEnergy(prev => Math.max(0, prev - 5));
             }
 
-            // Audio
-            const speed = Math.sqrt(state.current.vel.x**2 + state.current.vel.y**2);
-            updateAudio(speed);
+            // 5. Particle Physics
+            gs.particles.forEach(p => {
+                let { tx, ty, tz } = getTargetPosition(p, gs.formation, gs.time);
 
-            // DRAW OBJECT
-            const drawObject = (offsetX, offsetY, color) => {
-                const projectedPoints = vertices.map(v => {
-                    let r = rotateX(v.x, v.y, v.z, state.current.rot.x);
-                    r = rotateY(r.x, r.y, r.z, state.current.rot.y);
-                    return project(r.x, r.y, r.z, width, height, state.current.pos.x + offsetX, state.current.pos.y + offsetY);
-                });
-
-                ctx.strokeStyle = color;
-                ctx.lineWidth = 2;
-                ctx.beginPath();
-                edges.forEach(edge => {
-                    const p1 = projectedPoints[edge[0]];
-                    const p2 = projectedPoints[edge[1]];
-                    ctx.moveTo(p1.x, p1.y);
-                    ctx.lineTo(p2.x, p2.y);
-                });
-                ctx.stroke();
-
-                if (color === '#ccff00' || color === '#ffffff') {
-                    ctx.fillStyle = '#000';
-                    projectedPoints.forEach(p => {
-                        ctx.beginPath();
-                        ctx.arc(p.x, p.y, 3 * p.scale, 0, Math.PI*2);
-                        ctx.fill();
-                        ctx.stroke();
-                    });
+                // INTERACTION: SINGULARITY (Gravity Well)
+                if (gs.isTouching) {
+                    // Pull everything to center (or touch point)
+                    // If formation is Tube, pull to center line. If Sphere, pull to center point.
+                    
+                    const pullX = gs.touchX * 2; // Map touch to world space approx
+                    const pullY = gs.touchY * 2;
+                    
+                    tx = tx * 0.2 + pullX * 0.8;
+                    ty = ty * 0.2 + pullY * 0.8;
+                    tz = tz * 0.2; // Flatten depth
+                    
+                    // Jitter (Energy buildup)
+                    tx += (Math.random() - 0.5) * 20;
+                    ty += (Math.random() - 0.5) * 20;
+                    
+                    p.color = '#ffffff'; // White hot
+                } else {
+                    p.color = p.baseColor;
                 }
-            };
 
-            // RGB GLITCH
-            const glitchOffset = Math.min(20, speed * 0.5); 
-            if (glitchOffset > 1) {
-                ctx.globalCompositeOperation = 'screen'; 
-                ctx.globalAlpha = 0.8;
-                drawObject(-glitchOffset, 0, '#ff0000'); 
-                drawObject(glitchOffset, 0, '#0000ff');  
+                // SHOCKWAVE EFFECT
+                if (gs.shockwave > 1) {
+                    const dist = Math.sqrt(p.x*p.x + p.y*p.y + p.z*p.z) + 1;
+                    const blast = gs.shockwave * 5;
+                    p.vx += (p.x / dist) * blast;
+                    p.vy += (p.y / dist) * blast;
+                    p.vz += (p.z / dist) * blast;
+                }
+
+                // Physics: Move towards target
+                const dx = tx - p.x;
+                const dy = ty - p.y;
+                const dz = tz - p.z;
+
+                p.vx += dx * 0.05;
+                p.vy += dy * 0.05;
+                p.vz += dz * 0.05;
+
+                // Update Pos
+                p.x += p.vx;
+                p.y += p.vy;
+                p.z += p.vz;
+
+                // Friction
+                p.vx *= 0.8; 
+                p.vy *= 0.8;
+                p.vz *= 0.8;
+
+                // 6. Projection
+                let r = rotateY(p.x, p.z, gs.currentRotationY + gs.time * 0.1);
+                let x = r.x;
+                let z = r.z;
+                r = rotateX(p.y, z, gs.currentRotationX);
+                let y = r.y;
+                z = r.z;
+
+                const scale = FOCAL_LENGTH / (FOCAL_LENGTH + z);
+                
+                // Cull behind camera
+                if (scale < 0) return;
+
+                const screenX = cx + x * scale;
+                const screenY = cy + y * scale;
+
+                // Draw
+                ctx.fillStyle = p.color;
+                
+                // Distance fading
+                ctx.globalAlpha = Math.min(1, scale);
+                
+                if (scale < 0.8) {
+                    ctx.fillRect(screenX, screenY, 2 * scale, 2 * scale);
+                } else {
+                    ctx.font = `bold ${12 * scale}px Arial`;
+                    ctx.fillText("W", screenX, screenY);
+                }
                 ctx.globalAlpha = 1.0;
-                ctx.globalCompositeOperation = 'source-over';
-            }
-            
-            const mainColor = state.current.isDragging ? '#ffffff' : '#ccff00';
-            ctx.shadowColor = mainColor;
-            ctx.shadowBlur = Math.min(50, speed * 2 + 15);
-            drawObject(0, 0, mainColor);
-            ctx.shadowBlur = 0;
+            });
 
             requestRef.current = requestAnimationFrame(render);
         };
 
-        const handleResize = () => {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-        };
-        window.addEventListener('resize', handleResize);
-        handleResize();
+        init();
+        
+        window.addEventListener('resize', init);
+        window.addEventListener('mousemove', onMouseMove);
+        window.addEventListener('mousedown', startInteraction);
+        window.addEventListener('mouseup', endInteraction);
+        
+        canvas.addEventListener('touchmove', onTouchMove, { passive: false });
+        canvas.addEventListener('touchstart', startInteraction, { passive: false });
+        canvas.addEventListener('touchend', endInteraction);
 
         requestRef.current = requestAnimationFrame(render);
 
         return () => {
+            window.removeEventListener('resize', init);
+            window.removeEventListener('mousemove', onMouseMove);
+            window.removeEventListener('mousedown', startInteraction);
+            window.removeEventListener('mouseup', endInteraction);
+            
+            canvas.removeEventListener('touchmove', onTouchMove);
+            canvas.removeEventListener('touchstart', startInteraction);
+            canvas.removeEventListener('touchend', endInteraction);
+            
             if (requestRef.current) cancelAnimationFrame(requestRef.current);
-            window.removeEventListener('resize', handleResize);
-            window.removeEventListener('mousedown', handleStart);
-            window.removeEventListener('mousemove', handleMove);
-            window.removeEventListener('mouseup', handleEnd);
-            if (audioRef.current && audioRef.current.ctx) audioRef.current.ctx.close();
         };
-    }, [highScore]); 
+    }, []);
 
     return (
-        <div className="fixed inset-0 z-[10000] bg-black cursor-grab active:cursor-grabbing overflow-hidden font-mono select-none touch-none">
-            <canvas ref={canvasRef} className="absolute inset-0 block w-full h-full" />
+        <div className="fixed inset-0 z-[9999] bg-black cursor-crosshair overflow-hidden select-none">
+            <canvas ref={canvasRef} className="block w-full h-full touch-none" />
             
-            {/* HUD */}
-            <div className="absolute top-0 left-0 w-full p-6 flex justify-between pointer-events-none mix-blend-exclusion text-white z-20">
-                <div className="flex flex-col gap-1">
-                    <h1 className="text-[10px] font-bold tracking-[0.5em] uppercase opacity-50">Ricochet_System</h1>
-                    <div className="flex items-center gap-2">
-                        <div className={`w-2 h-2 rounded-full ${state.current?.isDragging ? 'bg-white' : 'bg-[#ccff00] animate-pulse'}`}></div>
-                        <span className="text-xs font-bold tracking-widest">{status}</span>
-                    </div>
+            {/* VIGNETTE & SCANLINES */}
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,black_120%)]" />
+            <div className="pointer-events-none absolute inset-0 opacity-10 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))]" style={{backgroundSize: "100% 2px, 3px 100%"}} />
+
+            {/* TOP LEFT UI */}
+            <div className="absolute top-6 left-6 mix-blend-difference text-[#ccff00] font-mono pointer-events-none">
+                <div className="text-[10px] tracking-[0.5em] mb-1 opacity-50">GEOMETRY PROTOCOL</div>
+                <div className="text-lg font-bold tracking-widest uppercase">{formationName}</div>
+                
+                {/* ENERGY BAR */}
+                <div className="w-32 h-1 bg-white/20 mt-2 overflow-hidden">
+                    <div 
+                        className="h-full bg-[#ccff00] transition-all duration-75"
+                        style={{ width: `${systemEnergy}%` }} 
+                    />
+                </div>
+            </div>
+
+            {/* BOTTOM CENTER ACTION BUTTON (Visible on Mobile mostly) */}
+            <div className="absolute bottom-12 w-full flex flex-col items-center pointer-events-none gap-4">
+                <div className="text-white/40 font-mono text-[10px] tracking-[0.5em] animate-pulse">
+                    HOLD TO CHARGE SINGULARITY
                 </div>
                 
-                <div className="text-right">
-                    <div className="text-[10px] uppercase opacity-50 tracking-widest mb-1">Impact Record</div>
-                    <div className="text-2xl font-black text-white">{highScore}</div>
-                </div>
+                {/* Phase Shift Button */}
+                <button 
+                    onClick={() => {
+                        sim.current.formation = (sim.current.formation + 1) % 3;
+                        sim.current.shockwave = 50;
+                        const names = ["ORBIT [STABLE]", "VORTEX [HIGH VELOCITY]", "HYPER-TUBE [DATA STREAM]"];
+                        setFormationName(names[sim.current.formation]);
+                    }}
+                    className="pointer-events-auto border border-[#ccff00]/30 hover:bg-[#ccff00]/10 text-[#ccff00] px-6 py-2 font-mono text-xs tracking-widest uppercase transition-all"
+                >
+                    [ PHASE SHIFT ]
+                </button>
             </div>
 
-            {/* COMBO */}
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                 <div className={`text-center transition-all duration-100 ${bounces > 0 ? 'opacity-100 scale-100' : 'opacity-0 scale-50'}`}>
-                    <div className="text-[10vw] font-black text-[#ccff00] leading-none drop-shadow-[0_0_30px_rgba(204,255,0,0.5)]">
-                        {bounces}
-                    </div>
-                    <div className="text-white text-xs tracking-[1em] uppercase">Impacts</div>
-                 </div>
-            </div>
-
-            {/* HINT */}
-            <div className="absolute bottom-8 w-full text-center text-white/30 text-[10px] animate-pulse pointer-events-none tracking-widest">
-                GRAB // SPIN // THROW
-            </div>
-
-            {/* EXIT */}
+            {/* EXIT BUTTON */}
             <button 
-                onClick={onExit} 
-                className="absolute top-6 right-1/2 translate-x-1/2 pointer-events-auto border border-white/20 px-6 py-2 hover:bg-white hover:text-black transition-all uppercase text-[10px] tracking-widest z-50 backdrop-blur-sm"
+                onClick={onExit}
+                className="absolute top-6 right-6 text-white/30 hover:text-[#ccff00] hover:bg-white/5 border border-transparent hover:border-[#ccff00]/20 px-4 py-2 font-mono text-xs tracking-[0.2em] transition-all z-50"
             >
-                EXIT
+                [ DISCONNECT ]
             </button>
         </div>
     );
