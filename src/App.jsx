@@ -637,254 +637,416 @@ const DidYouKnowBox = () => {
 
 
 // ARENA MODE: THE HIVEMIND (3D Neural Network)
+
 const ArenaOverlay = ({ onExit }) => {
     const canvasRef = useRef(null);
     const requestRef = useRef();
-    const [nodeCount, setNodeCount] = useState(0); 
     
-    // Mutable State for Physics
+    // UI State
+    const [status, setStatus] = useState("SYSTEM_READY");
+    const [bounces, setBounces] = useState(0);
+    const [highScore, setHighScore] = useState(0);
+
+    // Mutable Physics State (Restored to the "Good" Physics)
     const state = useRef({
-        nodes: [],
-        pulses: [], 
-        rotation: { x: 0, y: 0 },
-        targetRotation: { x: 0, y: 0 },
+        pos: { x: 0, y: 0 },
+        vel: { x: 0, y: 0 },
+        rot: { x: 0, y: 0, z: 0 },
+        rotVel: { x: 0.01, y: 0.02 },
         mouse: { x: 0, y: 0 },
-        active: true
+        prevMouse: { x: 0, y: 0 },
+        isDragging: false,
+        currentCombo: 0,
+        gridOffset: { x: 0, y: 0 }, // Parallax tracking
+        frame: 0
     });
 
-    useEffect(() => {
-        // 1. Audio Start
-        if (typeof SoundEngine !== 'undefined') {
-            SoundEngine.init();
-            SoundEngine.startArenaLoop(); 
-        }
+    const audioRef = useRef(null);
 
+    // --- 3D MATH ENGINE ---
+    const project = (x, y, z, width, height, offsetX, offsetY) => {
+        const scale = 500 / (500 + z); 
+        const x2d = (x * scale) + (width / 2) + offsetX;
+        const y2d = (y * scale) + (height / 2) + offsetY;
+        return { x: x2d, y: y2d, scale }; 
+    };
+
+    const rotateX = (x, y, z, angle) => {
+        const cos = Math.cos(angle);
+        const sin = Math.sin(angle);
+        return { x, y: y * cos - z * sin, z: y * sin + z * cos };
+    };
+
+    const rotateY = (x, y, z, angle) => {
+        const cos = Math.cos(angle);
+        const sin = Math.sin(angle);
+        return { x: x * cos - z * sin, y, z: x * sin + z * cos };
+    };
+
+    // --- AUDIO SYSTEM ---
+    const initAudio = () => {
+        if (!audioRef.current) {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            const ctx = new AudioContext();
+            
+            // 1. Engine Hum
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'triangle';
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start();
+            gain.gain.value = 0;
+
+            // 2. Impact Synth
+            const impactGain = ctx.createGain();
+            impactGain.connect(ctx.destination);
+            impactGain.gain.value = 0.5;
+
+            audioRef.current = { ctx, osc, gain, impactGain };
+        } else if (audioRef.current.ctx.state === 'suspended') {
+            audioRef.current.ctx.resume();
+        }
+    };
+
+    const playBounce = (intensity) => {
+        if (!audioRef.current) return;
+        const { ctx, impactGain } = audioRef.current;
+        const t = ctx.currentTime;
+        
+        const osc = ctx.createOscillator();
+        osc.connect(impactGain);
+        
+        const pitch = 200 + (intensity * 100);
+        osc.frequency.setValueAtTime(pitch, t);
+        osc.frequency.exponentialRampToValueAtTime(50, t + 0.15);
+        
+        const vol = Math.min(0.8, intensity * 0.1);
+        impactGain.gain.setValueAtTime(vol, t);
+        impactGain.gain.exponentialRampToValueAtTime(0.01, t + 0.15);
+        
+        osc.type = intensity > 10 ? 'sawtooth' : 'sine'; 
+        osc.start(t);
+        osc.stop(t + 0.15);
+    };
+
+    const updateAudio = (speed) => {
+        if (!audioRef.current) return;
+        const { ctx, osc, gain } = audioRef.current;
+        const t = ctx.currentTime;
+        const vol = Math.min(0.15, speed * 0.005); 
+        gain.gain.setTargetAtTime(vol, t, 0.1);
+        osc.frequency.setTargetAtTime(60 + (speed * 5), t, 0.1);
+    };
+
+    // --- MAIN LOOP ---
+    useEffect(() => {
         const canvas = canvasRef.current;
         const ctx = canvas.getContext('2d');
-        
-        let width = window.innerWidth;
-        let height = window.innerHeight;
-        canvas.width = width;
-        canvas.height = height;
+        const storedScore = localStorage.getItem('w_ricochet_highscore');
+        if (storedScore) setHighScore(parseInt(storedScore));
 
-        // --- CONFIGURATION ---
-        const NODE_COUNT = width < 768 ? 80 : 180;
-        const CONNECTION_DIST = 100; // Define locally for use in render loop
-        const ROTATION_SPEED = 0.05;
-        
-        // --- INITIALIZE 3D NODES ---
-        for (let i = 0; i < NODE_COUNT; i++) {
-            const theta = Math.random() * Math.PI * 2;
-            const phi = Math.acos((Math.random() * 2) - 1);
-            const r = 200 + Math.random() * 200; 
+        // DEFINE "W" GEOMETRY
+        const baseW = 120;
+        const h = 120;
+        const d = 40; 
+        const vRaw = [
+            { x: -1.0, y: -0.8 }, { x: -0.8, y: -0.8 }, { x: -0.5, y: 0.5 },
+            { x: 0.0, y: -0.5 }, { x: 0.5, y: 0.5 }, { x: 0.8, y: -0.8 },
+            { x: 1.0, y: -0.8 }, { x: 0.6, y: 0.8 }, { x: 0.0, y: -0.2 },
+            { x: -0.6, y: 0.8 }
+        ];
+        const vertices = [];
+        vRaw.forEach(v => vertices.push({ x: v.x * baseW, y: v.y * h, z: -d }));
+        vRaw.forEach(v => vertices.push({ x: v.x * baseW, y: v.y * h, z: d }));
+        const edges = [
+            [0,1], [1,2], [2,3], [3,4], [4,5], [5,6], [6,7], [7,8], [8,9], [9,0],
+            [10,11], [11,12], [12,13], [13,14], [14,15], [15,16], [16,17], [17,18], [18,19], [19,10],
+            [0,10], [1,11], [2,12], [3,13], [4,14], [5,15], [6,16], [7,17], [8,18], [9,19]
+        ];
+
+        // --- BACKGROUND: THE HOLO-GRID ---
+        const drawGrid = (width, height, offsetX, offsetY) => {
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)'; 
+            ctx.lineWidth = 1;
             
-            state.current.nodes.push({
-                x: r * Math.sin(phi) * Math.cos(theta),
-                y: r * Math.sin(phi) * Math.sin(theta),
-                z: r * Math.cos(phi),
-                baseX: r * Math.sin(phi) * Math.cos(theta),
-                baseY: r * Math.sin(phi) * Math.sin(theta),
-                baseZ: r * Math.cos(phi),
-                pulse: 0, 
-                id: Math.random().toString(36).substr(2, 4).toUpperCase()
-            });
-        }
+            const gridSize = 100;
+            // Wrap the grid offset so it loops infinitely
+            const scrollX = offsetX % gridSize;
+            const scrollY = offsetY % gridSize;
 
-        // --- EVENTS ---
-        const handleResize = () => {
-            width = window.innerWidth;
-            height = window.innerHeight;
-            canvas.width = width;
-            canvas.height = height;
-        };
-        
-        const handleMouseMove = (e) => {
-            const nx = (e.clientX / width) * 2 - 1;
-            const ny = (e.clientY / height) * 2 - 1;
-            state.current.targetRotation.y = nx * 2;
-            state.current.targetRotation.x = -ny * 2;
-            state.current.mouse = { x: e.clientX, y: e.clientY };
-        };
+            // Vertical lines
+            for (let x = scrollX - gridSize; x < width; x += gridSize) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, height);
+                ctx.stroke();
+            }
 
-        const handleClick = () => {
-            // NO SOUND HERE if clicking nodes? 
-            // The arena is special, let's keep sound for "signal broadcasting" as it is abstract
-            if (typeof SoundEngine !== 'undefined') SoundEngine.click();
-            state.current.pulses.push({
-                r: 0,
-                speed: 15,
-                life: 1.0
-            });
+            // Horizontal lines
+            for (let y = scrollY - gridSize; y < height; y += gridSize) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(width, y);
+                ctx.stroke();
+            }
+
+            // Radial Vignette
+            const gradient = ctx.createRadialGradient(width/2, height/2, 100, width/2, height/2, width);
+            gradient.addColorStop(0, 'rgba(0,0,0,0)');
+            gradient.addColorStop(1, 'rgba(0,0,0,0.8)');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0,0,width,height);
         };
 
-        window.addEventListener('resize', handleResize);
-        window.addEventListener('mousemove', handleMouseMove);
-        window.addEventListener('click', handleClick);
-
-        // --- 3D MATH HELPERS ---
-        const rotate3D = (x, y, z, rotX, rotY) => {
-            let cosY = Math.cos(rotY);
-            let sinY = Math.sin(rotY);
-            let x1 = x * cosY - z * sinY;
-            let z1 = z * cosY + x * sinY;
+        // --- INPUTS (The "Unchained" Physics) ---
+        const handleStart = (x, y) => {
+            if(!audioRef.current) initAudio();
+            const cx = (canvas.width / 2) + state.current.pos.x;
+            const cy = (canvas.height / 2) + state.current.pos.y;
+            const dist = Math.sqrt((x-cx)**2 + (y-cy)**2);
             
-            let cosX = Math.cos(rotX);
-            let sinX = Math.sin(rotX);
-            let y2 = y * cosX - z1 * sinX;
-            let z2 = z1 * cosX + y * sinX;
-            
-            return { x: x1, y: y2, z: z2 };
+            // Hitbox
+            if (dist < 180) {
+                state.current.isDragging = true;
+                state.current.prevMouse = { x, y };
+                // Reset velocity while holding so it doesn't drift
+                state.current.vel = { x: 0, y: 0 };
+                state.current.rotVel = { x: 0, y: 0 };
+                
+                // Reset Combo
+                state.current.currentCombo = 0;
+                setBounces(0);
+                setStatus("LOCKED");
+            }
         };
+
+        const handleMove = (x, y) => {
+            if (state.current.isDragging) {
+                const dx = x - state.current.prevMouse.x;
+                const dy = y - state.current.prevMouse.y;
+                
+                // Direct movement (Tight control)
+                state.current.pos.x += dx;
+                state.current.pos.y += dy;
+                
+                // Background Parallax
+                state.current.gridOffset.x -= dx * 0.2;
+                state.current.gridOffset.y -= dy * 0.2;
+                
+                // Tumble Object
+                state.current.rot.y += dx * 0.01;
+                state.current.rot.x -= dy * 0.01;
+                
+                // CRITICAL: Calculate velocity continuously for the throw
+                state.current.vel = { x: dx, y: dy };
+                state.current.rotVel = { x: dy * 0.005, y: -dx * 0.005 };
+
+                state.current.prevMouse = { x, y };
+            }
+        };
+
+        const handleEnd = () => {
+            if (state.current.isDragging) {
+                state.current.isDragging = false;
+                setStatus("RELEASED");
+            }
+        };
+
+        // Listeners
+        window.addEventListener('mousedown', e => handleStart(e.clientX, e.clientY));
+        window.addEventListener('mousemove', e => handleMove(e.clientX, e.clientY));
+        window.addEventListener('mouseup', handleEnd);
+        canvas.addEventListener('touchstart', e => handleStart(e.touches[0].clientX, e.touches[0].clientY), {passive: false});
+        canvas.addEventListener('touchmove', e => { e.preventDefault(); handleMove(e.touches[0].clientX, e.touches[0].clientY); }, {passive: false});
+        canvas.addEventListener('touchend', handleEnd);
 
         // --- RENDER LOOP ---
-        const loop = () => {
-            if (!state.current.active) return;
+        const render = () => {
+            const { width, height } = canvas;
+            state.current.frame++;
             
-            setNodeCount(prev => Math.min(prev + 11, NODE_COUNT * 442));
-
-            state.current.rotation.x += (state.current.targetRotation.x - state.current.rotation.x) * ROTATION_SPEED;
-            state.current.rotation.y += (state.current.targetRotation.y - state.current.rotation.y) * ROTATION_SPEED;
-            state.current.rotation.y += 0.002;
-
-            ctx.fillStyle = '#000';
+            // 1. BACKGROUND
+            ctx.fillStyle = '#050505'; 
             ctx.fillRect(0, 0, width, height);
+            drawGrid(width, height, state.current.gridOffset.x, state.current.gridOffset.y);
 
-            const centerX = width / 2;
-            const centerY = height / 2;
-            
-            const projectedNodes = state.current.nodes.map(node => {
-                if (node.pulse > 0) node.pulse -= 0.05;
-
-                const r = rotate3D(node.baseX, node.baseY, node.baseZ, state.current.rotation.x, state.current.rotation.y);
+            // 2. PHYSICS UPDATE
+            if (!state.current.isDragging) {
+                // Apply Momentum
+                state.current.pos.x += state.current.vel.x;
+                state.current.pos.y += state.current.vel.y;
                 
-                const fov = 800;
-                const scale = fov / (fov + r.z + 400); 
-                const x2d = (r.x * scale) + centerX;
-                const y2d = (r.y * scale) + centerY;
+                // Apply Friction (Make it drift)
+                state.current.vel.x *= 0.98;
+                state.current.vel.y *= 0.98;
+                
+                // Apply Rotation
+                state.current.rot.x += state.current.rotVel.x;
+                state.current.rot.y += state.current.rotVel.y;
+                // Idle Rotation (Slow spin)
+                state.current.rot.y += 0.01; 
 
-                state.current.pulses.forEach(p => {
-                     const distFromCenter = Math.sqrt(node.baseX**2 + node.baseY**2 + node.baseZ**2);
-                     if (Math.abs(distFromCenter - p.r) < 30) {
-                         node.pulse = 1.0;
-                     }
-                });
+                // WALL BOUNCING (The Hook)
+                const boundsX = width / 2 - 120;
+                const boundsY = height / 2 - 120;
+                let didBounce = false;
+                const speed = Math.sqrt(state.current.vel.x**2 + state.current.vel.y**2);
 
-                return { ...node, x2d, y2d, scale, z: r.z };
-            });
+                if (state.current.pos.x > boundsX || state.current.pos.x < -boundsX) {
+                    state.current.vel.x *= -0.8; // Bouncy
+                    state.current.pos.x = state.current.pos.x > 0 ? boundsX : -boundsX;
+                    state.current.rotVel.y += (Math.random()-0.5) * 0.1; // Add chaotic spin
+                    didBounce = true;
+                }
+                if (state.current.pos.y > boundsY || state.current.pos.y < -boundsY) {
+                    state.current.vel.y *= -0.8;
+                    state.current.pos.y = state.current.pos.y > 0 ? boundsY : -boundsY;
+                    state.current.rotVel.x += (Math.random()-0.5) * 0.1;
+                    didBounce = true;
+                }
 
-            projectedNodes.sort((a, b) => b.z - a.z);
-
-            // 3. Draw Connections
-            ctx.lineWidth = 1;
-            for (let i = 0; i < projectedNodes.length; i++) {
-                const n1 = projectedNodes[i];
-                for (let j = i + 1; j < projectedNodes.length; j++) {
-                    const n2 = projectedNodes[j];
-                    const dx = n1.x2d - n2.x2d;
-                    const dy = n1.y2d - n2.y2d;
-                    const dist = Math.sqrt(dx*dx + dy*dy);
-
-                    if (dist < CONNECTION_DIST * n1.scale) {
-                        const alpha = 1 - (dist / (CONNECTION_DIST * n1.scale));
-                        const pulseFactor = Math.max(n1.pulse, n2.pulse);
-                        
-                        ctx.strokeStyle = pulseFactor > 0.1 
-                            ? `rgba(255, 255, 255, ${alpha})` 
-                            : `rgba(204, 255, 0, ${alpha * 0.3})`; 
-                        
-                        ctx.beginPath();
-                        ctx.moveTo(n1.x2d, n1.y2d);
-                        ctx.lineTo(n2.x2d, n2.y2d);
-                        ctx.stroke();
+                if (didBounce && speed > 2) {
+                    state.current.currentCombo += 1;
+                    setBounces(state.current.currentCombo);
+                    playBounce(speed);
+                    
+                    // High Score Logic
+                    if (state.current.currentCombo > state.current.sessionHigh) {
+                        // handled via state sync below
                     }
                 }
+            } else {
+                setBounces(0); // Reset score on grab
+            }
+            
+            // Sync High Score
+            if (state.current.currentCombo > highScore) {
+                setHighScore(state.current.currentCombo);
+                localStorage.setItem('w_ricochet_highscore', state.current.currentCombo);
             }
 
-            // 4. Draw Nodes
-            projectedNodes.forEach(node => {
-                const size = 3 * node.scale + (node.pulse * 5);
-                ctx.fillStyle = node.pulse > 0.1 ? '#fff' : '#ccff00';
-                
+            // Audio
+            const speed = Math.sqrt(state.current.vel.x**2 + state.current.vel.y**2);
+            updateAudio(speed);
+
+            // 3. DRAW OBJECT
+            const drawObject = (offsetX, offsetY, color) => {
+                const projectedPoints = vertices.map(v => {
+                    let r = rotateX(v.x, v.y, v.z, state.current.rot.x);
+                    r = rotateY(r.x, r.y, r.z, state.current.rot.y);
+                    return project(r.x, r.y, r.z, width, height, state.current.pos.x + offsetX, state.current.pos.y + offsetY);
+                });
+
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 2;
                 ctx.beginPath();
-                ctx.arc(node.x2d, node.y2d, size, 0, Math.PI * 2);
-                ctx.fill();
+                edges.forEach(edge => {
+                    const p1 = projectedPoints[edge[0]];
+                    const p2 = projectedPoints[edge[1]];
+                    ctx.moveTo(p1.x, p1.y);
+                    ctx.lineTo(p2.x, p2.y);
+                });
+                ctx.stroke();
 
-                if (node.scale > 0.8 && node.pulse > 0.1) {
-                    ctx.font = '10px monospace';
-                    ctx.fillStyle = '#fff';
-                    ctx.fillText(node.id, node.x2d + 10, node.y2d);
+                if (color === '#ccff00' || color === '#ffffff') {
+                    ctx.fillStyle = '#000';
+                    projectedPoints.forEach(p => {
+                        ctx.beginPath();
+                        ctx.arc(p.x, p.y, 3 * p.scale, 0, Math.PI*2);
+                        ctx.fill();
+                        ctx.stroke();
+                    });
                 }
-            });
+            };
 
-            // 5. Update Pulses
-            for (let i = state.current.pulses.length - 1; i >= 0; i--) {
-                const p = state.current.pulses[i];
-                p.r += p.speed;
-                p.life -= 0.01;
-                if (p.life <= 0 || p.r > 1000) state.current.pulses.splice(i, 1);
+            // CHROMATIC ABERRATION (RGB Split on high speed)
+            const glitchOffset = Math.min(20, speed * 0.5); 
+            
+            if (glitchOffset > 1) {
+                ctx.globalCompositeOperation = 'screen'; 
+                ctx.globalAlpha = 0.8;
+                drawObject(-glitchOffset, 0, '#ff0000'); // Red
+                drawObject(glitchOffset, 0, '#0000ff');  // Blue
+                ctx.globalAlpha = 1.0;
+                ctx.globalCompositeOperation = 'source-over';
             }
+            
+            const mainColor = state.current.isDragging ? '#ffffff' : '#ccff00';
+            ctx.shadowColor = mainColor;
+            ctx.shadowBlur = Math.min(50, speed * 2 + 15);
+            drawObject(0, 0, mainColor);
+            ctx.shadowBlur = 0;
 
-            requestRef.current = requestAnimationFrame(loop);
+            requestRef.current = requestAnimationFrame(render);
         };
 
-        requestRef.current = requestAnimationFrame(loop);
+        const handleResize = () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        };
+        window.addEventListener('resize', handleResize);
+        handleResize();
+
+        requestRef.current = requestAnimationFrame(render);
 
         return () => {
-            window.removeEventListener('resize', handleResize);
-            window.removeEventListener('mousemove', handleMouseMove);
-            window.removeEventListener('click', handleClick);
             if (requestRef.current) cancelAnimationFrame(requestRef.current);
-            if (typeof SoundEngine !== 'undefined') SoundEngine.stopArenaLoop();
+            window.removeEventListener('resize', handleResize);
+            window.removeEventListener('mousedown', handleStart);
+            window.removeEventListener('mousemove', handleMove);
+            window.removeEventListener('mouseup', handleEnd);
+            if (audioRef.current && audioRef.current.ctx) audioRef.current.ctx.close();
         };
-    }, []);
+    }, [highScore]); 
 
     return (
-        <div className="fixed inset-0 z-[10000] bg-black cursor-crosshair overflow-hidden">
-            <canvas ref={canvasRef} className="block w-full h-full" />
+        <div className="fixed inset-0 z-[10000] bg-black cursor-grab active:cursor-grabbing overflow-hidden font-mono select-none touch-none">
+            <canvas ref={canvasRef} className="absolute inset-0 block w-full h-full" />
             
-            {/* UI OVERLAY */}
-            <div className="absolute top-0 left-0 w-full h-full pointer-events-none p-8 flex flex-col justify-between">
+            {/* TOP UI */}
+            <div className="absolute top-0 left-0 w-full p-6 flex justify-between pointer-events-none mix-blend-exclusion text-white z-20">
+                <div className="flex flex-col gap-1">
+                    <h1 className="text-[10px] font-bold tracking-[0.5em] uppercase opacity-50">Ricochet_System</h1>
+                    <div className="flex items-center gap-2">
+                        <div className={`w-2 h-2 rounded-full ${state.current?.isDragging ? 'bg-white' : 'bg-[#ccff00] animate-pulse'}`}></div>
+                        <span className="text-xs font-bold tracking-widest">{status}</span>
+                    </div>
+                </div>
                 
-                {/* Header */}
-                <div className="flex justify-between items-start">
-                    <div>
-                        <div className="text-[var(--accent)] font-black font-anton text-2xl tracking-widest animate-pulse">
-                            THE HIVEMIND
-                        </div>
-                        <div className="text-white font-mono text-xs opacity-70">
-                            GLOBAL CONSENSUS: 100%
-                        </div>
-                    </div>
-                    <div className="text-right font-mono text-xs text-[var(--accent)]">
-                        <div>ACTIVE NODES: {nodeCount}</div>
-                        <div>LATENCY: 0ms</div>
-                    </div>
-                </div>
-
-                {/* Center Message */}
-                <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center mix-blend-difference">
-                    <div className="text-white font-mono text-xs tracking-[0.5em] mb-4 opacity-50">
-                        CLICK TO BROADCAST SIGNAL
-                    </div>
-                </div>
-
-                {/* Footer */}
-                <div className="flex justify-between items-end">
-                    <div className="font-mono text-xs text-neutral-500 max-w-xs">
-                        Connected to mainnet. You are Node #001. 
-                        Do not break the chain.
-                    </div>
-                    <button 
-                        onClick={onExit}
-                        className="pointer-events-auto border border-white text-white hover:bg-white hover:text-black px-8 py-3 font-mono font-bold tracking-widest uppercase transition-all flex items-center gap-2 backdrop-blur-md"
-                    >
-                        <Power size={18} /> DISCONNECT
-                    </button>
+                <div className="text-right">
+                    <div className="text-[10px] uppercase opacity-50 tracking-widest mb-1">Impact Record</div>
+                    <div className="text-2xl font-black text-white">{highScore}</div>
                 </div>
             </div>
+
+            {/* COMBO COUNTER */}
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                 <div className={`text-center transition-all duration-100 ${bounces > 0 ? 'opacity-100 scale-100' : 'opacity-0 scale-50'}`}>
+                    <div className="text-[10vw] font-black text-[#ccff00] leading-none drop-shadow-[0_0_30px_rgba(204,255,0,0.5)]">
+                        {bounces}
+                    </div>
+                    <div className="text-white text-xs tracking-[1em] uppercase">Impacts</div>
+                 </div>
+            </div>
+
+            {/* INSTRUCTIONS */}
+            <div className="absolute bottom-8 w-full text-center text-white/30 text-[10px] animate-pulse pointer-events-none tracking-widest">
+                GRAB // SPIN // THROW
+            </div>
+
+            {/* EXIT */}
+            <button 
+                onClick={onExit} 
+                className="absolute top-6 right-1/2 translate-x-1/2 pointer-events-auto border border-white/20 px-6 py-2 hover:bg-white hover:text-black transition-all uppercase text-[10px] tracking-widest z-50 backdrop-blur-sm"
+            >
+                EXIT
+            </button>
         </div>
     );
 };
+
+
 
 /* --- 5. MAIN APP --- */
 const App = () => {
