@@ -1,7 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Twitter, ArrowUpRight, Trophy, Zap, MessageCircle, Heart, Repeat, Ban, TrendingUp, AlertTriangle, X as XIcon, Terminal, Power, Copy, Check, ScanLine, Activity, Globe, Shield, Radar } from 'lucide-react';
+import { Twitter, ArrowUpRight, Trophy, Zap, MessageCircle, Heart, Repeat, Ban, TrendingUp, AlertTriangle, X as XIcon, Terminal, Power, Copy, Check, ScanLine, Activity, Globe, Shield, Radar, DollarSign, BarChart3 } from 'lucide-react';
 
-/* --- 1. MASTER STYLES (GOD MODE) --- */
+/* --- 1. CONFIGURATION --- */
+// PASTE YOUR TOKEN CONTRACT ADDRESS HERE TO SEE LIVE DATA
+const TOKEN_CA = "A9E2AopuG56LWYiXsvGLLTcLjUjQ539PY6k5Fhfepump"; 
+
+/* --- 2. MASTER STYLES (GOD MODE) --- */
 const GlobalStyles = () => (
   <style>{`
     @import url('https://fonts.googleapis.com/css2?family=Anton&family=Jacquard+12&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap');
@@ -62,17 +66,14 @@ const GlobalStyles = () => (
       animation: pop-fade 0.5s ease-out forwards;
     }
 
-    /* SCANLINE SWEEP */
-    @keyframes scanline {
-        0% { transform: translateY(-100%); opacity: 0; }
+    /* SCANLINE SWEEP ANIMATION */
+    @keyframes scanline-anim {
+        0% { top: -100%; opacity: 0; }
         50% { opacity: 1; }
-        100% { transform: translateY(200%); opacity: 0; }
+        100% { top: 200%; opacity: 0; }
     }
-    .scan-overlay {
-        position: absolute; top: 0; left: 0; right: 0; height: 100px;
-        background: linear-gradient(to bottom, transparent, var(--accent), transparent);
-        opacity: 0.1; pointer-events: none;
-        animation: scanline 4s linear infinite;
+    .scanline {
+        animation: scanline-anim 2s linear infinite;
     }
 
     /* CARD HOVER PHYSICS */
@@ -97,7 +98,7 @@ const GlobalStyles = () => (
   `}</style>
 );
 
-/* --- 2. AUDIO KERNEL --- */
+/* --- 3. AUDIO KERNEL --- */
 const AudioKernel = {
     ctx: null,
     init: () => {
@@ -131,7 +132,7 @@ const AudioKernel = {
     }
 };
 
-/* --- 3. DATA MATRIX --- */
+/* --- 4. DATA MATRIX --- */
 const INTEL_LOGS = [
   { id: 1, handle: "@Jeremybtc", pfp: "/pfp1.jpg", content: "Manifesting big W’s in november 🙏", stats: { l: 9, r: 1 }, url: "https://x.com/Jeremybtc/status/1983924895927996450?s=20", highlight: false },
   { id: 2, handle: "@a1lon9", pfp: "/pfp2.jpg", content: "W Shadow", stats: { l: 189, r: 11 }, url: "https://x.com/a1lon9/status/1963049475858985395?s=20", highlight: true },
@@ -161,35 +162,84 @@ const FACTS = [
     "If you're reading this, you're already early."
 ];
 
-/* --- 4. TACTICAL COMPONENTS --- */
+/* --- 5. TACTICAL COMPONENTS --- */
 
-const LiveStatsTicker = () => (
-    <div className="w-full bg-black border-y border-neutral-900 py-3 overflow-hidden flex justify-center relative z-20">
-        <div className="flex gap-12 font-mono text-xs text-neutral-500 uppercase tracking-widest animate-pulse">
-            <span className="flex items-center gap-2"><div className="w-2 h-2 bg-[var(--accent)] rounded-full"/> Status: ONLINE</span>
-            <span className="flex items-center gap-2">Price: $0.0000W</span>
-            <span className="flex items-center gap-2">Holders: <span className="text-white">DIAMOND</span></span>
-            <span className="flex items-center gap-2">Market Cap: <span className="text-[var(--accent)]">INFINITE</span></span>
+// LIVE PRICE TICKER (NOW WITH REAL DATA)
+const LiveStatsTicker = () => {
+    const [stats, setStats] = useState({ price: null, mcap: null, change: null });
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchData = async () => {
+            try {
+                // Using DexScreener API
+                const res = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${TOKEN_CA}`);
+                const data = await res.json();
+                
+                if (data.pairs && data.pairs.length > 0) {
+                    const pair = data.pairs[0];
+                    setStats({
+                        price: pair.priceUsd,
+                        mcap: pair.fdv, // Fully Diluted Valuation usually acts as MC
+                        change: pair.priceChange.h24
+                    });
+                }
+                setLoading(false);
+            } catch (e) {
+                console.error("Failed to fetch market data", e);
+                setLoading(false);
+            }
+        };
+
+        fetchData();
+        const interval = setInterval(fetchData, 30000); // Update every 30s
+        return () => clearInterval(interval);
+    }, []);
+
+    // Format Helpers
+    const formatPrice = (p) => p ? `$${parseFloat(p).toFixed(8)}` : "---";
+    const formatMC = (m) => m ? `$${(m / 1000000).toFixed(2)}M` : "---";
+    const formatChange = (c) => c ? `${c > 0 ? '+' : ''}${c}%` : "---";
+    const changeColor = stats.change && stats.change >= 0 ? "text-[var(--accent)]" : "text-red-500";
+
+    return (
+        <div className="w-full bg-black border-y border-neutral-900 py-3 overflow-hidden flex justify-center relative z-20">
+            <div className="flex gap-8 md:gap-16 font-mono text-xs text-neutral-500 uppercase tracking-widest animate-pulse whitespace-nowrap">
+                <span className="flex items-center gap-2">
+                    <div className={`w-2 h-2 rounded-full ${loading ? 'bg-yellow-500' : 'bg-[var(--accent)]'}`}/> 
+                    Status: {loading ? "SCANNING..." : "LIVE UPLINK"}
+                </span>
+                
+                <span className="flex items-center gap-2">
+                    Price: <span className="text-white font-bold">{loading ? "CALCULATING..." : formatPrice(stats.price)}</span>
+                </span>
+                
+                <span className="flex items-center gap-2">
+                    24H: <span className={`font-bold ${changeColor}`}>{loading ? "---" : formatChange(stats.change)}</span>
+                </span>
+
+                <span className="flex items-center gap-2">
+                    M.CAP: <span className="text-white font-bold">{loading ? "---" : formatMC(stats.mcap)}</span>
+                </span>
+            </div>
         </div>
-    </div>
-);
+    );
+};
 
 const ContractBadge = () => {
     const [copied, setCopied] = useState(false);
-    const ca = "0xW000000000000000000000000000000000000000"; 
     
     const copyToClip = async (e) => {
         e.stopPropagation();
         try {
-            await navigator.clipboard.writeText(ca);
+            await navigator.clipboard.writeText(TOKEN_CA);
             AudioKernel.triggerClick();
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
         } catch (err) {
-            console.error("Copy failed", err);
-            // Fallback for some environments
+            // Fallback
             const textArea = document.createElement("textarea");
-            textArea.value = ca;
+            textArea.value = TOKEN_CA;
             document.body.appendChild(textArea);
             textArea.select();
             document.execCommand("copy");
@@ -206,7 +256,9 @@ const ContractBadge = () => {
                 <div className="flex flex-col items-start">
                     <span className="font-mono text-[10px] text-neutral-500 uppercase tracking-widest">Contract Address</span>
                     <div className="flex items-center gap-2">
-                        <span className="font-mono text-xs md:text-sm text-neutral-300 group-hover:text-white transition-colors">{ca.substring(0, 6)}...{ca.substring(ca.length - 6)}</span>
+                        <span className="font-mono text-xs md:text-sm text-neutral-300 group-hover:text-white transition-colors">
+                            {TOKEN_CA.substring(0, 6)}...{TOKEN_CA.substring(TOKEN_CA.length - 6)}
+                        </span>
                         {copied ? <Check size={14} className="text-[var(--accent)]"/> : <Copy size={14} className="text-neutral-600 group-hover:text-[var(--accent)]"/>}
                     </div>
                 </div>
@@ -243,7 +295,7 @@ const HUD = ({ scrolled }) => {
 
                 {/* ACQUIRE BUTTON */}
                 <button 
-                    className="group relative px-6 py-2 bg-transparent overflow-hidden"
+                    className="group relative px-6 py-2 bg-transparent overflow-hidden cursor-pointer"
                     onClick={(e) => { e.stopPropagation(); window.open('https://app.uniswap.org/', '_blank'); }}
                 >
                     <div className="absolute inset-0 border border-neutral-700 group-hover:border-[var(--accent)] transition-colors skew-x-[-12deg] bg-black"/>
@@ -261,7 +313,6 @@ const DriftingBackground = () => {
     const [nodes, setNodes] = useState([]);
     const [scrollY, setScrollY] = useState(0);
 
-    // RESTORED: Scroll Listener for Parallax
     useEffect(() => {
         const handleScroll = () => requestAnimationFrame(() => setScrollY(window.scrollY));
         window.addEventListener('scroll', handleScroll);
@@ -285,8 +336,8 @@ const DriftingBackground = () => {
     return (
         <div 
             className="fixed inset-0 z-0 pointer-events-none overflow-hidden"
-            // RESTORED: Parallax Effect
-            style={{ transform: `translateY(${scrollY * 0.2}px)` }} 
+            // PHYSICS: 0.5 Factor
+            style={{ transform: `translateY(${scrollY * 0.5}px)` }} 
         >
             {nodes.map(n => (
                 <div 
@@ -295,7 +346,7 @@ const DriftingBackground = () => {
                     style={{
                         left: `${n.left}%`, top: `${n.top}%`,
                         fontSize: `${n.size}rem`,
-                        opacity: 0.3, 
+                        opacity: 0.5, 
                         '--duration': n.duration, '--dx': n.dx, '--dy': n.dy, '--rot': n.rot,
                         animationDelay: n.delay
                     }}
@@ -305,7 +356,7 @@ const DriftingBackground = () => {
     );
 };
 
-/* --- 5. SECTIONS --- */
+/* --- 6. SECTIONS --- */
 
 const Hero = ({ onEnter }) => {
     return (
@@ -322,25 +373,21 @@ const Hero = ({ onEnter }) => {
 
                 <p className="mt-8 max-w-xl font-mono text-sm md:text-base text-neutral-400 px-6 leading-relaxed">
                     THE ONLY METRIC IS VICTORY. <br/>
-                    <span className="text-[var(--accent)]">NO ROADMAP. NO APOLOGIES. JUST UP ONLY.</span>
+                    <span className="text-[var(--accent)]">WE ARE THE SYSTEM, YOU ARE EITHER WINNING OR YOU ARE NOISE.</span>
                 </p>
 
                 <ContractBadge />
 
-                {/* FINAL "ENTER ARENA" BUTTON DESIGN */}
                 <div className="mt-8 relative group cursor-pointer" onClick={onEnter}>
-                    {/* Decorative Brackets */}
                     <div className="absolute -left-4 top-0 bottom-0 w-[2px] bg-neutral-800 group-hover:bg-[var(--accent)] transition-colors"/>
                     <div className="absolute -right-4 top-0 bottom-0 w-[2px] bg-neutral-800 group-hover:bg-[var(--accent)] transition-colors"/>
                     
-                    <button className="relative px-12 py-4 bg-transparent border-y border-neutral-800 group-hover:border-[var(--accent)] transition-all overflow-hidden">
+                    <button className="relative px-12 py-4 bg-transparent border-y border-neutral-800 group-hover:border-[var(--accent)] transition-all overflow-hidden cursor-pointer">
                         <span className="relative z-10 font-mono text-sm font-bold uppercase tracking-[0.3em] text-white group-hover:text-[var(--accent)] transition-colors flex items-center gap-3">
                             Initialize Protocol <ScanLine size={16} className="hidden group-hover:block animate-pulse"/>
                         </span>
-                        {/* Hover Scan Fill */}
                         <div className="absolute inset-0 bg-[var(--accent)] opacity-0 group-hover:opacity-10 transition-opacity duration-200"/>
-                        {/* Scanline Sweep */}
-                        <div className="scanline absolute left-0 top-0 w-full h-[1px] bg-[var(--accent)] opacity-0 group-hover:opacity-100 z-20"/>
+                        <div className="scanline absolute left-0 top-0 w-full h-[1px] bg-[var(--accent)] opacity-0 group-hover:opacity-100 z-20 pointer-events-none"/>
                     </button>
                 </div>
             </div>
@@ -352,7 +399,6 @@ const Hero = ({ onEnter }) => {
     );
 };
 
-// VELOCITY SENSITIVE MARQUEE
 const VelocityMarquee = () => {
   const [offset, setOffset] = useState(0);
   const rafRef = useRef();
@@ -387,38 +433,38 @@ const VelocityMarquee = () => {
   );
 };
 
-const TacticalChart = () => (
-    <div className="break-inside-avoid w-full bg-[#080808] border border-neutral-800 relative overflow-hidden group mb-8">
-        <div className="flex justify-between items-center p-3 border-b border-neutral-900 bg-[#0c0c0c]">
-            <span className="font-mono text-[10px] text-[var(--accent)] uppercase tracking-widest flex items-center gap-2">
-                <Activity size={12}/> Market Surveillance
-            </span>
-            <div className="flex gap-1">
-                <div className="w-2 h-2 rounded-full bg-red-500/20"/>
-                <div className="w-2 h-2 rounded-full bg-yellow-500/20"/>
-                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"/>
+// --- UPDATED TACTICAL CHART WITH LIVE EMBED ---
+const TacticalChart = () => {
+    // DexScreener embed URL for Solana
+    const chartUrl = `https://dexscreener.com/solana/${TOKEN_CA}?embed=1&theme=dark&trades=0&info=0`;
+
+    return (
+        <div className="break-inside-avoid w-full bg-[#080808] border border-neutral-800 relative overflow-hidden group mb-8 h-[450px] flex flex-col">
+            <div className="flex justify-between items-center p-3 border-b border-neutral-900 bg-[#0c0c0c]">
+                <span className="font-mono text-[10px] text-[var(--accent)] uppercase tracking-widest flex items-center gap-2">
+                    <Activity size={12}/> Market Surveillance
+                </span>
+                <div className="flex gap-1">
+                    <div className="w-2 h-2 rounded-full bg-red-500/20"/>
+                    <div className="w-2 h-2 rounded-full bg-yellow-500/20"/>
+                    <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"/>
+                </div>
+            </div>
+            
+            {/* LIVE CHART IFRAME */}
+            <div className="relative flex-grow w-full bg-black">
+                 <iframe 
+                    src={chartUrl}
+                    title="DexScreener Chart"
+                    className="absolute inset-0 w-full h-full border-0"
+                />
             </div>
         </div>
-        
-        {/* Mock Chart Visualization */}
-        <div className="relative h-[300px] w-full flex items-center justify-center overflow-hidden">
-            {/* Grid */}
-            <div className="absolute inset-0" style={{ backgroundImage: 'linear-gradient(#111 1px, transparent 1px), linear-gradient(90deg, #111 1px, transparent 1px)', backgroundSize: '20px 20px', opacity: 0.5 }}></div>
-            
-            {/* Radar Sweep */}
-            <div className="absolute inset-0 bg-gradient-to-t from-[var(--accent-dim)] to-transparent opacity-0 group-hover:opacity-20 transition-opacity duration-700"/>
-            
-            <div className="relative z-10 text-center">
-                <Radar size={48} className="text-[var(--accent)] mx-auto mb-4 opacity-50 animate-spin-slow"/>
-                <p className="font-mono text-xs text-neutral-500">ESTABLISHING UPLINK...</p>
-            </div>
-        </div>
-    </div>
-);
+    );
+};
 
 const IntelLog = ({ data }) => (
     <div className="break-inside-avoid mb-6 intel-card p-5 relative overflow-hidden group cursor-pointer" onClick={() => window.open(data.url, '_blank')}>
-        {/* Header */}
         <div className="flex justify-between items-start mb-4">
             <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-neutral-900 rounded-sm overflow-hidden border border-neutral-800 group-hover:border-white transition-colors">
@@ -435,13 +481,9 @@ const IntelLog = ({ data }) => (
             </div>
             <Twitter size={16} className="text-neutral-600 group-hover:text-white"/>
         </div>
-
-        {/* Content */}
         <div className="font-mono text-sm text-neutral-300 leading-relaxed mb-4 border-l-2 border-neutral-800 pl-3 group-hover:border-[var(--accent)] transition-colors">
             {data.content}
         </div>
-
-        {/* Footer Stats */}
         <div className="flex gap-4 pt-3 border-t border-dashed border-neutral-800 font-mono text-xs text-neutral-600">
             <span className="flex items-center gap-1 hover:text-red-500 transition-colors"><Heart size={12}/> {data.stats.l}</span>
             <span className="flex items-center gap-1 hover:text-green-500 transition-colors"><Repeat size={12}/> {data.stats.r}</span>
@@ -449,7 +491,6 @@ const IntelLog = ({ data }) => (
     </div>
 );
 
-// RESTORED: Wisdom Node with Interaction
 const WisdomNode = () => {
     const [index, setIndex] = useState(0);
     const [animating, setAnimating] = useState(false);
@@ -466,7 +507,7 @@ const WisdomNode = () => {
     return (
         <div 
             onClick={handleNext}
-            className="break-inside-avoid mb-6 p-6 bg-[var(--accent)] text-black relative group cursor-pointer select-none transition-all hover:scale-[1.02] hover:shadow-[0_0_20px_rgba(204,255,0,0.3)]"
+            className="break-inside-avoid mb-6 p-6 bg-[var(--accent)] text-black relative group cursor-pointer select-none transition-all hover:scale-[1.02] hover:shadow-[0_0_20px_rgba(204,255,0,0.3)] z-30"
         >
             <h3 className="font-anton text-3xl mb-2">WISDOM NODE</h3>
             <p className={`font-mono text-xs font-bold leading-relaxed min-h-[60px] ${animating ? 'text-fade' : ''}`}>
@@ -481,9 +522,8 @@ const WisdomNode = () => {
 };
 
 const Feed = () => {
-    const [filter, setFilter] = useState('ALL'); // 'ALL' or 'ALPHA'
+    const [filter, setFilter] = useState('ALL'); 
 
-    // Filter logic
     const displayedLogs = filter === 'ALL' 
         ? INTEL_LOGS 
         : INTEL_LOGS.filter(log => log.highlight);
@@ -498,13 +538,13 @@ const Feed = () => {
                 <div className="flex gap-2 mt-4 md:mt-0">
                      <button 
                         onClick={() => setFilter('ALL')}
-                        className={`px-4 py-1 border font-mono text-xs font-bold uppercase transition-colors ${filter === 'ALL' ? 'border-[var(--accent)] bg-[var(--accent)] text-black' : 'border-neutral-800 text-neutral-500 hover:text-white'}`}
+                        className={`px-4 py-1 border font-mono text-xs font-bold uppercase transition-colors cursor-pointer ${filter === 'ALL' ? 'border-[var(--accent)] bg-[var(--accent)] text-black' : 'border-neutral-800 text-neutral-500 hover:text-white'}`}
                      >
                         All Signals
                      </button>
                      <button 
                         onClick={() => setFilter('ALPHA')}
-                        className={`px-4 py-1 border font-mono text-xs font-bold uppercase transition-colors ${filter === 'ALPHA' ? 'border-[var(--accent)] bg-[var(--accent)] text-black' : 'border-neutral-800 text-neutral-500 hover:text-white'}`}
+                        className={`px-4 py-1 border font-mono text-xs font-bold uppercase transition-colors cursor-pointer ${filter === 'ALPHA' ? 'border-[var(--accent)] bg-[var(--accent)] text-black' : 'border-neutral-800 text-neutral-500 hover:text-white'}`}
                      >
                         Alpha Only
                      </button>
@@ -523,13 +563,11 @@ const Feed = () => {
 const Footer = () => {
     return (
         <footer className="relative bg-black border-t border-neutral-900 py-24 px-6 overflow-hidden">
-            {/* Footer Graphics */}
             <div className="absolute right-0 top-0 h-full w-1/2 bg-[radial-gradient(circle_at_center,var(--accent-dim),transparent_70%)] opacity-20 pointer-events-none"/>
-            
             <div className="max-w-[1600px] mx-auto relative z-10 flex flex-col md:flex-row justify-between items-start md:items-end gap-12">
                 <div>
-                    <div className="font-anton text-[15vw] md:text-[12vw] leading-[0.8] text-[#111] select-none hover:text-[var(--accent)] transition-colors duration-500 cursor-default">
-                        KEEP<br/><span className="text-white">WINNING</span>
+                    <div className="group font-anton text-[15vw] md:text-[12vw] leading-[0.8] text-[#111] select-none transition-colors duration-500 cursor-default relative z-20 hover:text-[var(--accent)]">
+                        KEEP<br/><span className="group-hover:text-[var(--accent)] text-white transition-colors duration-500">WINNING</span>
                     </div>
                 </div>
 
@@ -551,8 +589,7 @@ const Footer = () => {
     );
 };
 
-/* --- 6. ARENA ENGINE --- */
-
+/* --- 7. ARENA ENGINE --- */
 const Arena = ({ onExit }) => {
     const canvasRef = useRef(null);
     const requestRef = useRef();
@@ -1046,7 +1083,8 @@ const Arena = ({ onExit }) => {
     );
 };
 
-/* --- 7. CORE APP --- */
+
+/* --- 8. CORE APP --- */
 const App = () => {
     const [scrolled, setScrolled] = useState(false);
     const [clicks, setClicks] = useState([]);
