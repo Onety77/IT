@@ -700,6 +700,8 @@ const Feed = () => {
                 </div>
             </div>
 
+  
+
             <div className="columns-1 md:columns-2 lg:columns-3 gap-6">
                 <TacticalChart />
                 {displayedLogs.map(log => <IntelLog key={log.id} data={log} />)}
