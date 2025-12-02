@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Twitter, ArrowUpRight, Zap, Heart, Repeat, Ban, ScanLine, Power, Copy, Check, Activity, RefreshCw, Replace } from 'lucide-react';
 
 /* --- 1. CONFIGURATION --- */
-const TOKEN_CA = "Coming Soon..."; 
+const TOKEN_CA = "6f5HZ57NRHkc9rQEAXXKFvPaTDKAFGyyqUvZCWwZpump"; 
 
 /* --- 2. MASTER STYLES (GOD MODE) ---- */
 const GlobalStyles = () => (
@@ -444,7 +444,7 @@ const HUD = ({ scrolled, onOpenTransmuter }) => {
                     {/* ACQUIRE BUTTON */}
                     <button 
                         className="group relative px-6 py-2 bg-transparent overflow-hidden cursor-pointer"
-                        onClick={(e) => { e.stopPropagation(); window.open('https://pump.fun/', '_blank'); }}
+                        onClick={(e) => { e.stopPropagation(); window.open('https://pump.fun/coin/6f5HZ57NRHkc9rQEAXXKFvPaTDKAFGyyqUvZCWwZpump', '_blank'); }}
                     >
                         <div className="absolute inset-0 border border-neutral-700 group-hover:border-[var(--accent)] transition-colors skew-x-[-12deg] bg-black"/>
                         <div className="relative flex items-center gap-2 font-mono text-xs font-bold text-neutral-300 group-hover:text-[var(--accent)] uppercase tracking-wider">
