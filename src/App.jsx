@@ -70,7 +70,7 @@ const SOCIALS = {
 const TUNES_PLAYLIST = [
   { file: "PUMP_IT_UP.mp3", title: "PUMP IT UP", duration: "3:45", artist: "Unknown Degen" },
   { file: "GREEN_CANDLES.wav", title: "GREEN CANDLES", duration: "4:20", artist: "Satoshi" },
-  { file: "LIQUIDATION_CASCADE.mp3", title: "LIQUIDATION", duration: "2:10", artist: "The Bears" },
+  { file: "LIKE_TO_MEME_IT.mp3", title: "I LIKE TO MEME IT", duration: "3:30", artist: "MEMERS" },
   { file: "WAGMI_ANTHEM.mp3", title: "WAGMI ANTHEM", duration: "5:55", artist: "Community" }
 ];
 
@@ -1252,7 +1252,6 @@ const RugSweeperApp = () => {
 
   // --- INIT ---
   useEffect(() => {
-    // Auth anonymously for Firebase (if auth exists in scope)
     if (typeof auth !== 'undefined') signInAnonymously(auth).catch(console.error);
 
     const saved = localStorage.getItem('stackItHighScore');
@@ -1270,9 +1269,7 @@ const RugSweeperApp = () => {
   useEffect(() => {
       const handleKeyDown = (e) => {
           if (e.code === 'Space') {
-              e.preventDefault(); // Stop scrolling
-              
-              // Only trigger if in relevant states
+              e.preventDefault(); 
               if (game.current.state === 'MENU' || game.current.state === 'GAME_OVER') {
                   startGame();
               } else if (game.current.state === 'PLAYING') {
@@ -1280,10 +1277,9 @@ const RugSweeperApp = () => {
               }
           }
       };
-      
       window.addEventListener('keydown', handleKeyDown);
       return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [gameState]); // Re-bind when state changes to ensure fresh closures
+  }, [gameState]);
 
   // --- FIREBASE LOGIC ---
   const fetchLeaderboard = async () => {
@@ -1302,29 +1298,74 @@ const RugSweeperApp = () => {
   };
 
   const submitScore = async (nameOverride = null) => {
-      // Use override if provided (auto-submit), otherwise state (manual submit)
       const nameToUse = nameOverride || username;
-      
       if (!nameToUse.trim()) return;
       if (typeof db === 'undefined') return;
 
       setIsSubmitting(true);
       
       try {
-          if (!nameOverride) localStorage.setItem('stackItUsername', username);
+          const upperName = nameToUse.toUpperCase();
+          const scoresRef = collection(db, 'artifacts', appId, 'public', 'data', 'stackit_scores');
           
-          await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'stackit_scores'), {
-              username: nameToUse.toUpperCase(),
-              score: score,
-              timestamp: Date.now()
+          // 1. Check for existing username (Fetch all to filter, simple query)
+          const snapshot = await getDocs(scoresRef);
+          let existingDocId = null;
+          let existingScore = 0;
+          let isNameTaken = false;
+
+          snapshot.forEach(doc => {
+              const d = doc.data();
+              if (d.username === upperName) {
+                  existingDocId = doc.id;
+                  existingScore = d.score;
+                  isNameTaken = true;
+              }
           });
-          
-          // If manual submit, go to leaderboard. If auto, stay on Game Over (or could go to leaderboard)
-          if (!nameOverride) {
-              await fetchLeaderboard();
-              setGameState('LEADERBOARD');
-              game.current.state = 'LEADERBOARD';
+
+          // 2. Handle Logic
+          // If auto-submit (nameOverride) OR manual entry matches stored name -> It's the owner
+          const isOwner = nameOverride || (localStorage.getItem('stackItUsername') === upperName);
+
+          if (isNameTaken) {
+              if (isOwner) {
+                  // Only update if new score is higher
+                  if (score > existingScore) {
+                      await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'stackit_scores', existingDocId));
+                      await addDoc(scoresRef, {
+                          username: upperName,
+                          score: score,
+                          timestamp: Date.now()
+                      });
+                  }
+                  // Success (even if no update needed)
+                  if (!nameOverride) {
+                      await fetchLeaderboard();
+                      setGameState('LEADERBOARD');
+                      game.current.state = 'LEADERBOARD';
+                  }
+              } else {
+                  // Manual entry collision
+                  alert(`USERNAME '${upperName}' IS TAKEN.\nPLEASE CHOOSE ANOTHER.`);
+                  setIsSubmitting(false);
+                  return; // STOP
+              }
+          } else {
+              // Name is free
+              if (!nameOverride) localStorage.setItem('stackItUsername', upperName);
+              await addDoc(scoresRef, {
+                  username: upperName,
+                  score: score,
+                  timestamp: Date.now()
+              });
+              
+              if (!nameOverride) {
+                  await fetchLeaderboard();
+                  setGameState('LEADERBOARD');
+                  game.current.state = 'LEADERBOARD';
+              }
           }
+
       } catch (e) {
           console.error("Submit error:", e);
       }
@@ -1510,17 +1551,14 @@ const RugSweeperApp = () => {
   const gameOver = () => {
     playSound('fail');
     
-    // Check local storage for existing username
     const savedName = localStorage.getItem('stackItUsername');
 
     if (score > 0) {
         if (savedName) {
-            // Auto-submit if name exists
             submitScore(savedName);
             setGameState('GAME_OVER');
             game.current.state = 'GAME_OVER';
         } else {
-            // Prompt if no name
             setGameState('SUBMIT_SCORE');
             game.current.state = 'SUBMIT_SCORE';
         }
@@ -1766,7 +1804,6 @@ const RugSweeperApp = () => {
     </div>
   );
 };
-
 
 const MemesApp = () => {
   const images = Object.values(ASSETS.memes);
