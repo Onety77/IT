@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
+import {
   Terminal, X, Minus, Square, Play, Pause, SkipForward, SkipBack,
-  Disc, Activity, MessageSquare, Image as ImageIcon, 
-  Gamepad2, Save, Trash2, Globe, Zap, Skull, 
-  FileText, Music, MousePointer, Volume2, 
+  Disc, Activity, MessageSquare, Image as ImageIcon,
+  Gamepad2, Save, Trash2, Globe, Zap, Skull,
+  FileText, Music, MousePointer, Volume2,
   Paintbrush, Eraser, Download, Settings, Wallet, Bot,
   Search, Layout, Type, Folder, Twitter, Users, Copy, Check,
-  Menu, LogOut, ChevronRight
+  Menu, LogOut, ChevronRight,
+  Move, RotateCcw, RotateCw, Upload,
+  Maximize2, LayoutTemplate, Monitor, Share
 } from 'lucide-react';
 
 // --- ASSET CONFIGURATION ---
@@ -324,58 +326,616 @@ const TerminalApp = ({ dexData }) => {
   );
 };
 
+// helpers paint 
+// --- PAINT APP HELPERS ---
+const FONTS = [
+  { name: 'Impact', val: 'Impact, sans-serif' },
+  { name: 'Arial', val: 'Arial, sans-serif' },
+  { name: 'Comic Sans', val: '"Comic Sans MS", cursive' },
+  { name: 'Courier', val: '"Courier New", monospace' },
+  { name: 'Brush', val: '"Brush Script MT", cursive' },
+];
+
+const MEME_COLORS = [
+  '#ffffff', '#000000', '#ff0000', '#ffff00', '#00ff00', '#0000ff'
+];
+
+const CANVAS_PRESETS = [
+  { name: 'Square (1:1)', w: 600, h: 600 },
+  { name: 'Portrait (9:16)', w: 450, h: 800 },
+  { name: 'Landscape (16:9)', w: 800, h: 450 },
+];
+
+const InsetPanel = ({ children, className="" }) => (
+    <div className={`border-2 border-gray-600 border-r-white border-b-white bg-white ${className}`}>
+        {children}
+    </div>
+);
+
+// 3. PAINT IT
 const PaintApp = () => {
   const canvasRef = useRef(null);
-  const [tool, setTool] = useState('brush'); 
-  const [color, setColor] = useState('#000000');
-  const [selectedSticker, setSelectedSticker] = useState('main');
-  useEffect(() => { const ctx = canvasRef.current.getContext('2d'); ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, 600, 400); }, []);
+  const containerRef = useRef(null);
+  const fileInputRef = useRef(null);
+
+  // --- CORE STATE ---
+  const [elements, setElements] = useState([]); 
+  const [history, setHistory] = useState([[]]);
+  const [historyStep, setHistoryStep] = useState(0);
+  const [canvasSize, setCanvasSize] = useState(CANVAS_PRESETS[0]);
   
-  const handleDraw = (e) => {
-    if (tool === 'brush' && (e.buttons === 1 || e.type === 'touchmove')) {
-      const ctx = canvasRef.current.getContext('2d');
-      const rect = canvasRef.current.getBoundingClientRect();
-      const x = (e.clientX || e.touches[0].clientX) - rect.left;
-      const y = (e.clientY || e.touches[0].clientY) - rect.top;
-      ctx.fillStyle = color; ctx.fillRect(x, y, 4, 4);
-      if(e.type === 'touchmove') e.preventDefault();
+  // --- TOOLS STATE ---
+  const [tool, setTool] = useState('move'); // move, brush
+  const [selectedId, setSelectedId] = useState(null);
+  const [isResizing, setIsResizing] = useState(false);
+  
+  // --- STYLE STATE ---
+  const [toolColor, setToolColor] = useState('#000000'); // Active color for new items/brush
+  const [brushSize, setBrushSize] = useState(5);
+  
+  // --- EFFECTS STATE ---
+  const [globalEffect, setGlobalEffect] = useState('none'); // none, deepfry
+
+  // --- INTERACTION REFS ---
+  const [isDragging, setIsDragging] = useState(false);
+  const dragStartRef = useRef({ x: 0, y: 0 });
+  const currentPathRef = useRef([]);
+
+  // --- KEYBOARD SHORTCUTS ---
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return; 
+      if (e.key === 'Delete' || e.key === 'Backspace') deleteSelected();
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z') undo();
+      if ((e.ctrlKey || e.metaKey) && e.key === 'y') redo();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedId, elements, historyStep]);
+
+  // --- RENDER ENGINE ---
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    
+    // Clear and Fill Background
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Apply Global Effects
+    ctx.save();
+    if (globalEffect === 'deepfry') {
+        ctx.filter = 'contrast(200%) saturate(300%) brightness(110%) sepia(50%)';
     }
+
+    // Render Elements
+    elements.forEach(el => {
+      ctx.save();
+      
+      // DRAWING PATHS
+      if (el.type === 'path') {
+        ctx.strokeStyle = el.color;
+        ctx.lineWidth = el.size;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.beginPath();
+        if(el.points.length > 0) {
+            ctx.moveTo(el.points[0].x, el.points[0].y);
+            el.points.forEach(p => ctx.lineTo(p.x, p.y));
+        }
+        ctx.stroke();
+      }
+
+      // IMAGES
+      else if (el.type === 'image' && el.imgElement) {
+        ctx.drawImage(el.imgElement, el.x, el.y, el.width, el.height);
+      }
+
+      // TEXT
+      else if (el.type === 'text') {
+        ctx.font = `900 ${el.size}px ${el.font}`;
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
+        
+        // Shadow/Outline (Meme Style)
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = el.size / 15; 
+        ctx.lineJoin = 'round';
+        ctx.strokeText(el.text, el.x, el.y);
+
+        ctx.fillStyle = el.color;
+        ctx.fillText(el.text, el.x, el.y);
+      }
+
+      // SELECTION OVERLAY (UI Only - Retro Style)
+      if (selectedId === el.id) {
+          ctx.save();
+          // Dashed Box
+          ctx.strokeStyle = '#000080'; // Classic Navy
+          ctx.lineWidth = 2;
+          ctx.setLineDash([4, 4]);
+          
+          let bx=el.x, by=el.y, bw=el.width, bh=el.height;
+          
+          if (el.type === 'text') {
+              const m = ctx.measureText(el.text);
+              bw = m.width;
+              bh = el.size * 1.2; // approx height
+          }
+
+          ctx.strokeRect(bx-5, by-5, bw+10, bh+10);
+          
+          // RESIZE HANDLE (Bottom Right - Solid Box)
+          ctx.fillStyle = '#000080';
+          ctx.fillRect(bx + bw, by + bh, 10, 10);
+          
+          ctx.restore();
+      }
+
+      ctx.restore();
+    });
+
+    // ACTIVE DRAWING PATH (Preview)
+    if (isDragging && currentPathRef.current.length > 0 && tool === 'brush') {
+        ctx.strokeStyle = toolColor;
+        ctx.lineWidth = brushSize;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        const path = currentPathRef.current;
+        ctx.moveTo(path[0].x, path[0].y);
+        path.forEach(p => ctx.lineTo(p.x, p.y));
+        ctx.stroke();
+    }
+
+    ctx.restore();
+  }, [elements, tool, selectedId, globalEffect, isDragging, toolColor, brushSize]);
+
+  // --- STATE HELPERS ---
+  const saveHistory = (newEls) => {
+    const newHist = history.slice(0, historyStep + 1);
+    if (newHist.length > 20) newHist.shift();
+    newHist.push(newEls);
+    setHistory(newHist);
+    setHistoryStep(newHist.length - 1);
+    setElements(newEls);
   };
 
-  const handleClick = (e) => {
-      const ctx = canvasRef.current.getContext('2d');
+  const updateElement = (id, updater) => {
+      setElements(prev => prev.map(el => el.id === id ? { ...el, ...updater(el) } : el));
+  };
+
+  const deleteSelected = () => {
+      if (!selectedId) return;
+      saveHistory(elements.filter(e => e.id !== selectedId));
+      setSelectedId(null);
+  };
+
+  const undo = () => { if(historyStep > 0) { setHistoryStep(s=>s-1); setElements(history[historyStep-1]); } };
+  const redo = () => { if(historyStep < history.length-1) { setHistoryStep(s=>s+1); setElements(history[historyStep+1]); } };
+
+  // --- LAYOUT TEMPLATES ---
+  const applyLayout = (type) => {
+      const mainImg = elements.find(e => e.type === 'image');
+      const textTop = elements.find(e => e.type === 'text' && e.y < canvasSize.h/2);
+      const textBot = elements.find(e => e.type === 'text' && e.y > canvasSize.h/2);
+
+      let newElements = [];
+      const cx = canvasSize.w / 2;
+      const cy = canvasSize.h / 2;
+
+      if (type === 'classic') {
+          const imgW = canvasSize.w * 0.8;
+          const imgH = canvasSize.h * 0.6;
+          
+          if (mainImg) newElements.push({ ...mainImg, x: cx - imgW/2, y: cy - imgH/2, width: imgW, height: imgH });
+          else addSticker('main'); 
+
+          const t1 = textTop || { id: generateId(), type: 'text', text: 'TOP IT', color: '#ffffff', font: FONTS[0].val, size: 60 };
+          newElements.push({ ...t1, x: 20, y: 20 });
+
+          const t2 = textBot || { id: generateId(), type: 'text', text: 'BOTTOM IT', color: '#ffffff', font: FONTS[0].val, size: 60 };
+          newElements.push({ ...t2, x: 20, y: canvasSize.h - 80 });
+          
+          elements.forEach(e => { if (e !== mainImg && e !== textTop && e !== textBot) newElements.push(e); });
+      }
+      else if (type === 'modern') {
+          if (mainImg) newElements.push({ ...mainImg, x: 0, y: 0, width: canvasSize.w, height: canvasSize.h });
+          const t1 = textTop || { id: generateId(), type: 'text', text: 'I AM BUYING IT', color: '#ffffff', font: FONTS[0].val, size: 50 };
+          newElements.push({ ...t1, x: 20, y: canvasSize.h - 100 });
+      }
+
+      saveHistory(newElements);
+  };
+
+  // --- INTERACTION ---
+  const getPointerPos = (e) => {
       const rect = canvasRef.current.getBoundingClientRect();
-      const x = (e.clientX || e.touches[0].clientX) - rect.left;
-      const y = (e.clientY || e.touches[0].clientY) - rect.top;
-      if (tool === 'sticker') {
-          const img = new Image(); img.src = ASSETS.stickers[selectedSticker]; img.crossOrigin = "Anonymous";
-          img.onload = () => ctx.drawImage(img, x - 25, y - 25, 50, 50);
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      const scaleX = canvasRef.current.width / rect.width;
+      const scaleY = canvasRef.current.height / rect.height;
+      return { x: (clientX - rect.left) * scaleX, y: (clientY - rect.top) * scaleY };
+  };
+
+  const handlePointerDown = (e) => {
+      if(e.cancelable) e.preventDefault();
+      const pos = getPointerPos(e);
+      dragStartRef.current = pos;
+      
+      // 1. Check for Resize Handle Hit
+      if (selectedId) {
+          const el = elements.find(e => e.id === selectedId);
+          if (el) {
+              let handleX = el.x + el.width + 5;
+              let handleY = el.y + el.height + 5;
+              if (el.type === 'text') {
+                  const ctx = canvasRef.current.getContext('2d');
+                  ctx.font = `900 ${el.size}px ${el.font}`;
+                  const m = ctx.measureText(el.text);
+                  handleX = el.x + m.width + 5;
+                  handleY = el.y + el.size * 1.2 + 5;
+              }
+              const dist = Math.hypot(pos.x - handleX, pos.y - handleY);
+              if (dist < 20) {
+                  setIsResizing(true);
+                  setIsDragging(true);
+                  return;
+              }
+          }
+      }
+
+      // 2. Normal Tool Logic
+      if (tool === 'move') {
+          let hit = null;
+          for (let i = elements.length - 1; i >= 0; i--) {
+             const el = elements[i];
+             let bx=el.x, by=el.y, bw=el.width, bh=el.height;
+             
+             if(el.type === 'text') { 
+                 const ctx = canvasRef.current.getContext('2d');
+                 ctx.font = `900 ${el.size}px ${el.font}`;
+                 const m = ctx.measureText(el.text);
+                 bw = m.width; bh = el.size * 1.2;
+             }
+
+             if (pos.x >= bx && pos.x <= bx+bw && pos.y >= by && pos.y <= by+bh) {
+                 hit = el; break;
+             }
+          }
+          
+          if (hit) {
+              const newEls = elements.filter(e => e.id !== hit.id);
+              newEls.push(hit);
+              setElements(newEls); 
+              setSelectedId(hit.id);
+              setIsDragging(true);
+          } else {
+              setSelectedId(null);
+          }
+      } 
+      else if (tool === 'brush') {
+          currentPathRef.current = [pos];
+          setIsDragging(true);
+          setSelectedId(null);
       }
   };
 
-  const download = () => { const link = document.createElement('a'); link.download = 'IT_MEME.png'; link.href = canvasRef.current.toDataURL(); link.click(); };
-  const clearCanvas = () => { const ctx = canvasRef.current.getContext('2d'); ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, 600, 400); }
+  const handlePointerMove = (e) => {
+      if(e.cancelable) e.preventDefault();
+      if (!isDragging) return;
+      const pos = getPointerPos(e);
+
+      if (isResizing && selectedId) {
+          const el = elements.find(e => e.id === selectedId);
+          if (el.type === 'image') {
+              const newW = Math.max(50, pos.x - el.x);
+              const newH = newW / (el.aspectRatio || 1); 
+              updateElement(selectedId, () => ({ width: newW, height: newH }));
+          } else if (el.type === 'text') {
+              const distY = pos.y - el.y;
+              const newSize = Math.max(10, Math.min(200, distY / 1.2));
+              updateElement(selectedId, () => ({ size: newSize }));
+          }
+      }
+      else if (tool === 'move' && selectedId) {
+          const dx = pos.x - dragStartRef.current.x;
+          const dy = pos.y - dragStartRef.current.y;
+          updateElement(selectedId, (el) => ({ x: el.x + dx, y: el.y + dy }));
+          dragStartRef.current = pos; 
+      }
+      else if (tool === 'brush') {
+          currentPathRef.current.push(pos);
+          setElements([...elements]); 
+      }
+  };
+
+  const handlePointerUp = (e) => {
+      if(e.cancelable) e.preventDefault();
+      if (isDragging) {
+          if (isResizing || (tool === 'move' && selectedId)) {
+              saveHistory(elements);
+          }
+          else if (tool === 'brush') {
+              const newEl = {
+                  id: generateId(), type: 'path',
+                  points: currentPathRef.current,
+                  color: toolColor, size: brushSize
+              };
+              saveHistory([...elements, newEl]);
+              currentPathRef.current = [];
+          }
+      }
+      setIsDragging(false);
+      setIsResizing(false);
+  };
+
+  // --- ACTIONS ---
+  const addText = () => {
+      const newEl = { 
+        id: generateId(), type: 'text', x: 50, y: 50, 
+        text: 'EDIT IT', color: toolColor, 
+        size: 50, font: FONTS[0].val 
+      };
+      saveHistory([...elements, newEl]);
+      setSelectedId(newEl.id);
+      setTool('move');
+  };
+
+  const addSticker = (key) => {
+      const src = ASSETS.stickers[key];
+      const img = new Image();
+      img.src = src;
+      img.crossOrigin = "Anonymous";
+      img.onload = () => {
+          const ratio = img.width / img.height;
+          const w = 200;
+          const h = 200 / ratio;
+          const newEl = {
+              id: generateId(), type: 'image', x: canvasSize.w/2 - w/2, y: canvasSize.h/2 - h/2,
+              width: w, height: h, imgElement: img, aspectRatio: ratio
+          };
+          saveHistory([...elements, newEl]);
+          setSelectedId(newEl.id);
+          setTool('move');
+      }
+  };
+
+  const handleFileUpload = (e) => {
+      if(e.target.files[0]) {
+          const r = new FileReader();
+          r.onload = ev => {
+              const img = new Image();
+              img.src = ev.target.result;
+              img.onload = () => {
+                  const ratio = img.width / img.height;
+                  let w = canvasSize.w;
+                  let h = w / ratio;
+                  if (h > canvasSize.h) { h = canvasSize.h; w = h * ratio; }
+                  const newEl = {
+                      id: generateId(), type: 'image', x: canvasSize.w/2 - w/2, y: canvasSize.h/2 - h/2,
+                      width: w, height: h, imgElement: img, aspectRatio: ratio
+                  };
+                  saveHistory([...elements, newEl]);
+                  setSelectedId(newEl.id);
+              }
+          };
+          r.readAsDataURL(e.target.files[0]);
+      }
+  };
+
+  const download = () => {
+      const link = document.createElement('a');
+      link.download = `IT_MEME_${Date.now()}.png`;
+      link.href = canvasRef.current.toDataURL();
+      link.click();
+  };
+
+  const postIt = () => {
+      // 1. Trigger Download
+      download();
+      // 2. Open Twitter Intent (User must attach the downloaded file manually)
+      const text = encodeURIComponent("I just created this masterpiece with $IT OS. #SENDIT");
+      window.open(`https://twitter.com/intent/tweet?text=${text}`, '_blank');
+      alert("Meme downloaded! Attach it to your Tweet!");
+  };
 
   return (
-    <div className="flex flex-col h-full bg-[#d4d0c8]">
-      <div className="bg-[#c0c0c0] p-1 border-b border-gray-400 flex flex-wrap gap-2 items-center">
-        <Button onClick={download}><Download size={14}/> <span className="hidden sm:inline">Save</span></Button>
-        <Button onClick={clearCanvas}><Trash2 size={14}/> <span className="hidden sm:inline">Clear</span></Button>
-        <div className="w-px h-6 bg-gray-500 mx-1"></div>
-        <Button active={tool==='brush'} onClick={() => setTool('brush')}><Paintbrush size={14}/></Button>
-        <input type="color" value={color} onChange={e => setColor(e.target.value)} className="w-6 h-6 border p-0" />
-        <div className="w-px h-6 bg-gray-500 mx-1"></div>
-        <Button active={tool==='sticker'} onClick={() => setTool('sticker')}><ImageIcon size={14}/></Button>
-        <select className="text-xs border p-1 border-gray-600 max-w-[80px]" value={selectedSticker} onChange={e => { setSelectedSticker(e.target.value); setTool('sticker'); }}>
-          {Object.keys(ASSETS.stickers).map(k => <option key={k} value={k}>{k.toUpperCase()}</option>)}
-        </select>
-      </div>
-      <div className="flex-1 bg-gray-500 overflow-auto flex items-center justify-center p-4 touch-none">
-        <canvas ref={canvasRef} width={600} height={400} className="bg-white shadow-xl cursor-crosshair border-4 border-white" onMouseMove={handleDraw} onTouchMove={handleDraw} onMouseDown={handleClick} />
-      </div>
+    <div className="flex flex-col h-full bg-[#c0c0c0] font-sans text-xs select-none overflow-hidden" ref={containerRef}>
+        
+        {/* --- 1. TOP BAR (ACTIONS) --- */}
+        <div className="h-10 bg-[#c0c0c0] border-b-2 border-white flex items-center px-2 gap-2 shrink-0 z-20">
+            <Button onClick={()=>applyLayout('classic')} title="Classic"><LayoutTemplate size={14}/> LAYOUT</Button>
+            <Button onClick={()=>applyLayout('modern')} title="Modern"><Maximize2 size={14}/> FULL</Button>
+            
+            <div className="h-6 w-px bg-gray-500 border-l border-white mx-1"></div>
+            
+            <Button onClick={undo} disabled={historyStep===0} title="Undo"><RotateCcw size={14}/></Button>
+            <Button onClick={redo} disabled={historyStep===history.length-1} title="Redo"><RotateCw size={14}/></Button>
+            
+            <div className="flex-1"></div>
+            
+            <div className="flex items-center gap-1 bg-white border-2 border-gray-600 border-r-white border-b-white px-1">
+                <Monitor size={12}/>
+                <select className="bg-transparent border-none outline-none py-0.5 text-xs font-bold" onChange={e => {
+                    const p = CANVAS_PRESETS.find(p=>p.name===e.target.value);
+                    if(p) { setCanvasSize(p); setElements([]); setHistory([[]]); setHistoryStep(0); }
+                }}>
+                    {CANVAS_PRESETS.map(p => <option key={p.name} value={p.name}>{p.name}</option>)}
+                </select>
+            </div>
+
+            <Button active={globalEffect==='deepfry'} onClick={()=>setGlobalEffect(g => g==='none'?'deepfry':'none')} className={globalEffect==='deepfry'?"text-red-800 bg-red-200":""}><Zap size={14}/> FRY IT</Button>
+            <Button onClick={download} className="text-blue-800"><Download size={14}/> SAVE IT</Button>
+            <Button onClick={postIt} className="text-white bg-[#1da1f2] border-blue-800"><Share size={14}/> POST IT</Button>
+        </div>
+
+        <div className="flex flex-1 overflow-hidden">
+            
+            {/* --- 2. LEFT SIDEBAR (ADD) --- */}
+            <div className="w-20 bg-[#c0c0c0] border-r-2 border-white flex flex-col items-center py-2 gap-2 z-10 shadow-sm">
+                <Button onClick={addText} className="w-16 h-12 flex-col gap-1">
+                    <Type size={16}/> <span className="text-[9px]">TEXT IT</span>
+                </Button>
+
+                <Button onClick={()=>fileInputRef.current.click()} className="w-16 h-12 flex-col gap-1">
+                    <Upload size={16}/> <span className="text-[9px]">ADD IT</span>
+                    <input type="file" ref={fileInputRef} hidden accept="image/*" onChange={handleFileUpload} />
+                </Button>
+
+                <Button active={tool==='brush'} onClick={()=>setTool(t => t==='brush'?'move':'brush')} className="w-16 h-12 flex-col gap-1">
+                    <Paintbrush size={16}/> <span className="text-[9px]">DRAW IT</span>
+                </Button>
+
+                <div className="w-10 h-px bg-gray-500 border-b border-white my-1"></div>
+                
+                {/* Sticker List */}
+                <div className="flex flex-col gap-1 overflow-y-auto w-full px-1 items-center">
+                    {Object.entries(ASSETS.stickers).map(([k, src]) => (
+                        <div key={k} className="w-14 h-14 bg-white border-2 border-gray-600 border-r-white border-b-white cursor-pointer active:border-black active:border-r-gray-400 active:border-b-gray-400 p-1" onClick={() => addSticker(k)}>
+                            <img src={src} className="w-full h-full object-contain" title={k}/>
+                        </div>
+                    ))}
+                </div>
+            </div>
+
+            {/* --- 3. MAIN CANVAS AREA --- */}
+            <div className="flex-1 bg-[#808080] flex items-center justify-center p-4 overflow-hidden relative border-t-2 border-l-2 border-black border-r-white border-b-white">
+                <div className="shadow-[4px_4px_0_0_rgba(0,0,0,0.5)] bg-white">
+                    <canvas 
+                        ref={canvasRef}
+                        width={canvasSize.w}
+                        height={canvasSize.h}
+                        className="touch-none"
+                        style={{ width: canvasSize.w > 600 ? '100%' : 'auto', maxHeight: '80vh', objectFit: 'contain' }}
+                        onPointerDown={handlePointerDown}
+                        onPointerMove={handlePointerMove}
+                        onPointerUp={handlePointerUp}
+                        onPointerLeave={handlePointerUp}
+                    />
+                </div>
+            </div>
+
+            {/* --- 4. RIGHT PROPERTIES (CONTEXTUAL) --- */}
+            <div className="w-56 bg-[#c0c0c0] border-l-2 border-white flex flex-col z-10">
+                <div className="p-1 bg-[#000080] text-white font-bold text-[10px] flex justify-between px-2">
+                    <span>{tool === 'brush' && !selectedId ? "BRUSH SETTINGS" : "PROPERTIES"}</span>
+                    {selectedId && <span>#{selectedId.slice(0,4)}</span>}
+                </div>
+
+                {/* --- A: SELECTED ITEM PROPERTIES --- */}
+                {selectedId ? (() => {
+                    const el = elements.find(e => e.id === selectedId);
+                    if (!el) return null;
+                    return (
+                        <div className="p-2 flex flex-col gap-4">
+                            {/* TEXT CONTROLS */}
+                            {el.type === 'text' && (
+                                <>
+                                    <div className="flex flex-col gap-1">
+                                        <label className="text-[9px] font-bold">CONTENT</label>
+                                        <InsetPanel>
+                                            <textarea 
+                                                value={el.text} 
+                                                onChange={e => updateElement(el.id, ()=>({text: e.target.value}))}
+                                                className="w-full p-1 font-bold text-center resize-none outline-none text-xs"
+                                                rows={2}
+                                            />
+                                        </InsetPanel>
+                                    </div>
+                                    <div className="flex flex-col gap-1">
+                                        <label className="text-[9px] font-bold">FONT</label>
+                                        <div className="grid grid-cols-2 gap-1">
+                                            {FONTS.map(f => (
+                                                <Button 
+                                                    key={f.name}
+                                                    active={el.font === f.val}
+                                                    onClick={() => updateElement(el.id, ()=>({font: f.val}))}
+                                                    className="truncate text-[9px]"
+                                                >
+                                                    {f.name}
+                                                </Button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </>
+                            )}
+
+                            {/* COLOR PALETTE (For Selection) */}
+                            {(el.type === 'text' || el.type === 'path') && (
+                                <div className="flex flex-col gap-1">
+                                    <label className="text-[9px] font-bold">COLOR</label>
+                                    <div className="flex flex-wrap gap-1">
+                                        {MEME_COLORS.map(c => (
+                                            <div
+                                                key={c}
+                                                onClick={() => updateElement(el.id, ()=>({color: c}))}
+                                                className={`w-6 h-6 border-2 cursor-pointer ${el.color === c ? 'border-black border-dashed' : 'border-gray-500 border-r-white border-b-white'}`}
+                                                style={{backgroundColor: c}}
+                                            />
+                                        ))}
+                                        <div className="w-6 h-6 border-2 border-gray-500 border-r-white border-b-white bg-gray-200 relative overflow-hidden cursor-pointer flex items-center justify-center">
+                                            <span className="text-[8px] font-bold">?</span>
+                                            <input type="color" className="opacity-0 absolute inset-0 w-full h-full cursor-pointer" onChange={e => updateElement(el.id, ()=>({color: e.target.value}))} />
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* DELETE BUTTON */}
+                            <div className="mt-auto pt-2 border-t border-gray-500 border-b-white">
+                                <Button onClick={deleteSelected} className="w-full text-red-800">
+                                    <Trash2 size={12}/> TRASH IT
+                                </Button>
+                            </div>
+                        </div>
+                    );
+                })() : 
+                
+                /* --- B: BRUSH SETTINGS (When drawing) --- */
+                tool === 'brush' ? (
+                    <div className="p-2 flex flex-col gap-4">
+                        <div className="flex flex-col gap-1">
+                            <label className="text-[9px] font-bold">BRUSH SIZE: {brushSize}px</label>
+                            <input type="range" min="1" max="50" value={brushSize} onChange={e=>setBrushSize(parseInt(e.target.value))} className="w-full"/>
+                        </div>
+                        <div className="flex flex-col gap-1">
+                            <label className="text-[9px] font-bold">BRUSH COLOR</label>
+                            <div className="flex flex-wrap gap-1">
+                                {MEME_COLORS.map(c => (
+                                    <div
+                                        key={c}
+                                        onClick={() => setToolColor(c)}
+                                        className={`w-6 h-6 border-2 cursor-pointer ${toolColor === c ? 'border-black border-dashed' : 'border-gray-500 border-r-white border-b-white'}`}
+                                        style={{backgroundColor: c}}
+                                    />
+                                ))}
+                                <div className="w-6 h-6 border-2 border-gray-500 border-r-white border-b-white bg-gray-200 relative overflow-hidden cursor-pointer flex items-center justify-center">
+                                    <span className="text-[8px] font-bold">?</span>
+                                    <input type="color" className="opacity-0 absolute inset-0 w-full h-full cursor-pointer" onChange={e => setToolColor(e.target.value)} />
+                                </div>
+                            </div>
+                        </div>
+                        <div className="mt-4 p-2 bg-yellow-100 border border-yellow-400 text-[10px]">
+                            Draw freely on the canvas!
+                        </div>
+                    </div>
+                ) :
+                
+                /* --- C: EMPTY STATE --- */
+                (
+                    <div className="flex-1 flex flex-col items-center justify-center text-gray-500 gap-2 p-4 text-center">
+                        <MousePointer size={24} className="opacity-50"/>
+                        <p className="text-[10px]">Select IT or Draw IT.</p>
+                    </div>
+                )}
+            </div>
+        </div>
     </div>
   );
 };
+
 
 const AmpTunesApp = () => {
   const [playing, setPlaying] = useState(false);
