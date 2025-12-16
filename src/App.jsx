@@ -1176,28 +1176,7 @@ const AmpTunesApp = () => {
   );
 };
 
-//STACK IT
-
-// --- CONSTANTS & CONFIG ---
-const GAME_WIDTH = 320;
-const GAME_HEIGHT = 550;
-const BLOCK_HEIGHT = 35;
-const BASE_WIDTH = 220;
-const INITIAL_SPEED = 4;
-
-// Musical Scale (Pentatonic C Majorish) for that triumphant feeling
-const NOTES = [261.63, 293.66, 329.63, 392.00, 523.25, 587.33, 659.25, 783.99];
-
-// Biomes for progression
-const BIOMES = [
-  { score: 0, name: "THE TRENCHES", bgStart: '#1a1a2e', bgEnd: '#16213e', text: '#fff' },
-  { score: 10, name: "ATMOSPHERE", bgStart: '#2b5876', bgEnd: '#4e4376', text: '#fff' },
-  { score: 25, name: "ORBIT", bgStart: '#000000', bgEnd: '#434343', text: '#00ff00' },
-  { score: 50, name: "LUNAR BASE", bgStart: '#232526', bgEnd: '#414345', text: '#fff' },
-  { score: 75, name: "MARS COLONY", bgStart: '#870000', bgEnd: '#190a05', text: '#ffcc00' },
-  { score: 100, name: "THE CITADEL", bgStart: '#cc95c0', bgEnd: '#dbd4b4', text: '#000' },
-];
-
+// 5. PLAY IT (STACK IT - TO THE MOON)
 const RugSweeperApp = () => {
   const canvasRef = useRef(null);
   const requestRef = useRef();
@@ -1207,11 +1186,30 @@ const RugSweeperApp = () => {
   const [gameState, setGameState] = useState('MENU');
   const [score, setScore] = useState(0);
   const [highScore, setHighScore] = useState(0);
+
+  // --- CONSTANTS ---
+  const GAME_WIDTH = 320;
+  const GAME_HEIGHT = 550;
+  const BLOCK_HEIGHT = 35;
+  const BASE_WIDTH = 220;
+  const INITIAL_SPEED = 4;
+
+  // --- AUDIO CONFIG ---
+  const NOTES = [261.63, 293.66, 329.63, 392.00, 523.25, 587.33, 659.25, 783.99];
+  const BIOMES = [
+    { score: 0, name: "THE TRENCHES", bgStart: '#1a1a2e', bgEnd: '#16213e', text: '#fff' },
+    { score: 10, name: "ATMOSPHERE", bgStart: '#2b5876', bgEnd: '#4e4376', text: '#fff' },
+    { score: 25, name: "ORBIT", bgStart: '#000000', bgEnd: '#434343', text: '#00ff00' },
+    { score: 50, name: "LUNAR BASE", bgStart: '#232526', bgEnd: '#414345', text: '#fff' },
+    { score: 75, name: "MARS COLONY", bgStart: '#870000', bgEnd: '#190a05', text: '#ffcc00' },
+    { score: 100, name: "THE CITADEL", bgStart: '#cc95c0', bgEnd: '#dbd4b4', text: '#000' },
+  ];
+
   const [currentBiome, setCurrentBiome] = useState(BIOMES[0]);
 
   // --- ENGINE REFS ---
   const game = useRef({
-    state: 'MENU', // SYNC STATE FOR LOOP
+    state: 'MENU',
     stack: [],
     current: null,
     debris: [],
@@ -1220,7 +1218,6 @@ const RugSweeperApp = () => {
     shake: 0,
     combo: 0,
     perfectCount: 0,
-    hue: 0,
     time: 0
   });
 
@@ -1228,9 +1225,10 @@ const RugSweeperApp = () => {
   useEffect(() => {
     const saved = localStorage.getItem('stackItHighScore');
     if (saved) setHighScore(parseInt(saved, 10));
+    return () => cancelAnimationFrame(requestRef.current);
   }, []);
 
-  // --- AUDIO SYSTEM (SYNTHWAVE STYLE) ---
+  // --- AUDIO ---
   const initAudio = () => {
     if (!audioCtxRef.current) {
       try { audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)(); } 
@@ -1243,7 +1241,6 @@ const RugSweeperApp = () => {
     if (!audioCtxRef.current) return;
     const ctx = audioCtxRef.current;
     const t = ctx.currentTime;
-    
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.connect(gain);
@@ -1257,8 +1254,7 @@ const RugSweeperApp = () => {
       gain.gain.exponentialRampToValueAtTime(0.01, t + 0.3);
       osc.start(t);
       osc.stop(t + 0.3);
-    } 
-    else if (type === 'place') {
+    } else if (type === 'place') {
       osc.type = 'sine';
       osc.frequency.setValueAtTime(150, t);
       osc.frequency.linearRampToValueAtTime(50, t + 0.1);
@@ -1266,8 +1262,7 @@ const RugSweeperApp = () => {
       gain.gain.linearRampToValueAtTime(0, t + 0.1);
       osc.start(t);
       osc.stop(t + 0.1);
-    } 
-    else if (type === 'fail') {
+    } else if (type === 'fail') {
       osc.type = 'sawtooth';
       osc.frequency.setValueAtTime(100, t);
       osc.frequency.linearRampToValueAtTime(20, t + 0.5);
@@ -1308,11 +1303,13 @@ const RugSweeperApp = () => {
     }
   };
 
-  const startGame = () => {
+  const startGame = (e) => {
+    if(e) e.stopPropagation(); // FIX: Prevent click from bubbling to container
+    
     initAudio();
     setScore(0);
     setGameState('PLAYING');
-    game.current.state = 'PLAYING'; // Sync ref immediately
+    setCurrentBiome(BIOMES[0]);
     
     const base = {
       x: (GAME_WIDTH - BASE_WIDTH) / 2,
@@ -1322,15 +1319,18 @@ const RugSweeperApp = () => {
       color: '#33ff33'
     };
 
-    game.current.stack = [base];
-    game.current.current = spawnBlock(base, 1);
-    game.current.debris = [];
-    game.current.particles = [];
-    game.current.cameraY = 0;
-    game.current.shake = 0;
-    game.current.combo = 0;
-    game.current.perfectCount = 0;
-    game.current.time = 0;
+    game.current = {
+      state: 'PLAYING',
+      stack: [base],
+      current: spawnBlock(base, 1),
+      debris: [],
+      particles: [],
+      cameraY: 0,
+      shake: 0,
+      combo: 0,
+      perfectCount: 0,
+      time: 0
+    };
     
     if (requestRef.current) cancelAnimationFrame(requestRef.current);
     requestRef.current = requestAnimationFrame(loop);
@@ -1341,15 +1341,14 @@ const RugSweeperApp = () => {
     
     const g = game.current;
     const curr = g.current;
-    if (!curr) return;
+    if (!curr) return; // Safety check
 
     const prev = g.stack[g.stack.length-1];
-    
     const dist = curr.x - prev.x;
     const absDist = Math.abs(dist);
-    const tolerance = 10; // Forgiving hit box
+    const tolerance = 10; 
 
-    // 1. Check Miss
+    // MISS
     if (absDist > curr.w) {
       createParticles(curr.x, curr.y, curr.w, curr.h, '#ff0000', 20);
       g.shake = 20;
@@ -1361,7 +1360,7 @@ const RugSweeperApp = () => {
     let newW = curr.w;
     let isPerfect = false;
 
-    // 2. Check Perfect or Chop
+    // HIT
     if (absDist <= tolerance) {
       newX = prev.x;
       newW = prev.w;
@@ -1414,26 +1413,25 @@ const RugSweeperApp = () => {
     playSound('fail');
     setGameState('GAME_OVER');
     game.current.state = 'GAME_OVER';
-    setTimeout(() => cancelAnimationFrame(requestRef.current), 2000);
+    // Let animation run a bit for effects
+    setTimeout(() => cancelAnimationFrame(requestRef.current), 1000);
   };
 
-  // --- RENDER LOOP ---
   const loop = () => {
     const ctx = canvasRef.current?.getContext('2d');
     if (!ctx) return;
     const g = game.current;
     g.time += 0.05;
 
-    // 1. PHYSICS
+    // PHYSICS
     if (g.state === 'PLAYING' && g.current) {
       g.current.x += g.current.speed * g.current.dir;
       if (g.current.x > GAME_WIDTH + 50) g.current.dir = -1;
       if (g.current.x < -50 - g.current.w) g.current.dir = 1;
       
-      // Camera Logic (Follow Top)
+      // Camera: Follow top of stack minus offset to keep ~4 blocks visible + space
       const stackTop = g.stack.length * BLOCK_HEIGHT;
-      // Start scrolling when stack > 200px (approx 6 blocks)
-      const targetY = Math.max(0, stackTop - 200);
+      const targetY = Math.max(0, stackTop - (GAME_HEIGHT * 0.4));
       g.cameraY += (targetY - g.cameraY) * 0.1;
     }
 
@@ -1447,13 +1445,14 @@ const RugSweeperApp = () => {
     g.particles.forEach(p => { p.x += p.vx; p.y += p.vy; p.life -= 0.03; });
     g.particles = g.particles.filter(p => p.life > 0);
 
-    // 2. DRAW
+    // DRAW BACKGROUND
     const gradient = ctx.createLinearGradient(0, 0, 0, GAME_HEIGHT);
     gradient.addColorStop(0, currentBiome.bgStart);
     gradient.addColorStop(1, currentBiome.bgEnd);
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
 
+    // GRID
     ctx.strokeStyle = 'rgba(255,255,255,0.05)';
     ctx.lineWidth = 1;
     ctx.beginPath();
@@ -1463,12 +1462,12 @@ const RugSweeperApp = () => {
     ctx.stroke();
 
     ctx.save();
-    // Move world down as we go up.
-    // + g.cameraY means pushing the world down.
+    // Move world down (positive Y) based on camera
     ctx.translate(0 + shakeX, GAME_HEIGHT + g.cameraY - 50 + shakeY);
 
+    // STACK
     g.stack.forEach(b => {
-      const y = -b.y; // Flip Y for canvas
+      const y = -b.y; 
       
       if (b.perfect) {
         ctx.shadowBlur = 15;
@@ -1490,6 +1489,7 @@ const RugSweeperApp = () => {
       ctx.shadowBlur = 0;
     });
 
+    // DEBRIS
     g.debris.forEach(d => {
       ctx.fillStyle = d.color;
       ctx.globalAlpha = d.life;
@@ -1497,6 +1497,7 @@ const RugSweeperApp = () => {
       ctx.globalAlpha = 1;
     });
 
+    // PARTICLES
     g.particles.forEach(p => {
       ctx.fillStyle = p.color;
       ctx.globalAlpha = p.life;
@@ -1506,14 +1507,16 @@ const RugSweeperApp = () => {
       ctx.globalAlpha = 1;
     });
 
+    // CURRENT BLOCK
     if (g.state === 'PLAYING' && g.current) {
       const c = g.current;
       ctx.fillStyle = c.color;
       ctx.fillRect(c.x, -c.y - c.h, c.w, c.h);
       ctx.fillStyle = 'rgba(255,255,255,0.1)';
-      ctx.fillRect(c.x, 0, c.w, -9999);
+      ctx.fillRect(c.x, 0, c.w, -9999); // Guide beam
     }
 
+    // ATH LINE
     if (highScore > 0) {
       const athY = -(highScore * BLOCK_HEIGHT);
       ctx.strokeStyle = '#ffff00';
@@ -1527,6 +1530,7 @@ const RugSweeperApp = () => {
 
     ctx.restore();
 
+    // UI OVERLAY
     ctx.fillStyle = currentBiome.text;
     ctx.font = '900 40px Impact';
     ctx.textAlign = 'center';
@@ -1554,8 +1558,8 @@ const RugSweeperApp = () => {
     <div className="flex flex-col h-full bg-[#c0c0c0] p-1 font-mono select-none"
          onPointerDown={(e) => {
            e.preventDefault(); 
-           // Safety: Check ref state, not async React state
-           game.current.state === 'PLAYING' ? placeBlock() : startGame();
+           // Only place block if game is truly running
+           if (game.current.state === 'PLAYING') placeBlock();
          }}
     >
       <div className="bg-[#000080] text-white px-2 py-1 flex justify-between items-center text-xs font-bold border-2 border-white border-r-gray-500 border-b-gray-500 mb-1">
@@ -1567,30 +1571,35 @@ const RugSweeperApp = () => {
         <canvas ref={canvasRef} width={GAME_WIDTH} height={GAME_HEIGHT} className="w-full h-full object-contain block touch-none" />
         
         {gameState === 'MENU' && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm text-center text-white p-6 z-10 pointer-events-none">
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm text-center text-white p-6 z-10">
             <h1 className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-t from-green-600 to-green-300 mb-2 drop-shadow-lg italic">STACK IT</h1>
             <p className="text-sm font-bold text-gray-300 mb-8 tracking-widest">BUILD THE GOD CANDLE</p>
-            <div className="animate-pulse bg-white text-black px-4 py-2 font-black border-4 border-blue-500 shadow-[4px_4px_0_#0000ff]">
+            <button 
+                onClick={startGame} // Correct handler
+                className="animate-pulse bg-white text-black px-4 py-2 font-black border-4 border-blue-500 shadow-[4px_4px_0_#0000ff] cursor-pointer hover:scale-105 transition-transform"
+            >
               TAP TO PUMP
-            </div>
+            </button>
           </div>
         )}
 
         {gameState === 'GAME_OVER' && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-red-900/90 text-center text-white p-6 z-10 pointer-events-none">
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-red-900/90 text-center text-white p-6 z-10">
             <h1 className="text-4xl font-black mb-2">PAPER HANDS!</h1>
             <div className="text-6xl font-black text-yellow-400 mb-2">{score}</div>
             <p className="text-xs mb-8 text-red-200">YOU SOLD TOO EARLY</p>
-            <div className="bg-white text-black px-6 py-3 font-black border-4 border-gray-400 shadow-[4px_4px_0_#000] cursor-pointer">
+            <button 
+                onClick={startGame} // Correct handler
+                className="bg-white text-black px-6 py-3 font-black border-4 border-gray-400 shadow-[4px_4px_0_#000] cursor-pointer hover:bg-gray-100 hover:scale-105 transition-transform"
+            >
               BUY THE DIP (RETRY)
-            </div>
+            </button>
           </div>
         )}
       </div>
     </div>
   );
 };
-
 
 const MemesApp = () => {
   const images = Object.values(ASSETS.memes);
