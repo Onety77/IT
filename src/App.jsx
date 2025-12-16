@@ -1289,7 +1289,8 @@ const RugSweeperApp = () => {
         const q = collection(db, 'artifacts', appId, 'public', 'data', 'stackit_scores');
         const snapshot = await getDocs(q);
         const data = snapshot.docs.map(doc => doc.data());
-        const sorted = data.sort((a, b) => b.score - a.score).slice(0, 10);
+        // Sort descending and take top 10
+        const sorted = data.sort((a, b) => Number(b.score) - Number(a.score)).slice(0, 10);
         setLeaderboard(sorted);
     } catch (e) {
         console.error("Leaderboard fetch error:", e);
@@ -1308,7 +1309,7 @@ const RugSweeperApp = () => {
           const upperName = nameToUse.toUpperCase();
           const scoresRef = collection(db, 'artifacts', appId, 'public', 'data', 'stackit_scores');
           
-          // 1. Check for existing username (Fetch all to filter, simple query)
+          // 1. Fetch ALL to find if user exists (Simple query rule compliant)
           const snapshot = await getDocs(scoresRef);
           let existingDocId = null;
           let existingScore = 0;
@@ -1318,40 +1319,40 @@ const RugSweeperApp = () => {
               const d = doc.data();
               if (d.username === upperName) {
                   existingDocId = doc.id;
-                  existingScore = d.score;
+                  existingScore = Number(d.score);
                   isNameTaken = true;
               }
           });
 
-          // 2. Handle Logic
-          // If auto-submit (nameOverride) OR manual entry matches stored name -> It's the owner
+          // 2. Determine Action
+          // Allow update if it's the saved local user OR if we are just checking manually
           const isOwner = nameOverride || (localStorage.getItem('stackItUsername') === upperName);
 
           if (isNameTaken) {
               if (isOwner) {
-                  // Only update if new score is higher
+                  // Only update if current game score is HIGHER than DB score
                   if (score > existingScore) {
-                      await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'stackit_scores', existingDocId));
-                      await addDoc(scoresRef, {
-                          username: upperName,
+                      const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'stackit_scores', existingDocId);
+                      await updateDoc(docRef, {
                           score: score,
                           timestamp: Date.now()
                       });
                   }
-                  // Success (even if no update needed)
+                  // If we didn't beat the DB score, we do nothing (keep the high score), but proceed to leaderboard
+                  
                   if (!nameOverride) {
                       await fetchLeaderboard();
                       setGameState('LEADERBOARD');
                       game.current.state = 'LEADERBOARD';
                   }
               } else {
-                  // Manual entry collision
+                  // Name clash with someone else
                   alert(`USERNAME '${upperName}' IS TAKEN.\nPLEASE CHOOSE ANOTHER.`);
                   setIsSubmitting(false);
-                  return; // STOP
+                  return; 
               }
           } else {
-              // Name is free
+              // New User
               if (!nameOverride) localStorage.setItem('stackItUsername', upperName);
               await addDoc(scoresRef, {
                   username: upperName,
@@ -1555,7 +1556,7 @@ const RugSweeperApp = () => {
 
     if (score > 0) {
         if (savedName) {
-            submitScore(savedName);
+            submitScore(savedName); // This now handles the update logic correctly
             setGameState('GAME_OVER');
             game.current.state = 'GAME_OVER';
         } else {
