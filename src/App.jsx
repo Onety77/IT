@@ -8,7 +8,7 @@ import {
   Search, Layout, Type, Folder, Twitter, Users, Copy, Check,
   Menu, LogOut, ChevronRight,
   Move, RotateCcw, RotateCw, Upload,
-  Maximize2, LayoutTemplate, Monitor, Share
+  Maximize2, LayoutTemplate, Monitor, Share, Sliders, ChevronLeft
 } from 'lucide-react';
 
 // --- ASSET CONFIGURATION ---
@@ -326,7 +326,6 @@ const TerminalApp = ({ dexData }) => {
   );
 };
 
-// helpers paint 
 // --- PAINT APP HELPERS ---
 const FONTS = [
   { name: 'Impact', val: 'Impact, sans-serif' },
@@ -352,7 +351,7 @@ const InsetPanel = ({ children, className="" }) => (
     </div>
 );
 
-// 3. PAINT IT
+// 3. PAINT IT (ULTIMATE RESPONSIVE)
 const PaintApp = () => {
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
@@ -364,22 +363,39 @@ const PaintApp = () => {
   const [historyStep, setHistoryStep] = useState(0);
   const [canvasSize, setCanvasSize] = useState(CANVAS_PRESETS[0]);
   
+  // --- VIEWPORT STATE (ZOOM/PAN) ---
+  const [view, setView] = useState({ scale: 1, x: 0, y: 0 });
+  
+  // --- UI STATE ---
+  // On mobile, we might hide the sticker list or properties to save space
+  const [showStickers, setShowStickers] = useState(true);
+  const [showProps, setShowProps] = useState(false); // Hidden by default on mobile, toggled
+
   // --- TOOLS STATE ---
-  const [tool, setTool] = useState('move'); // move, brush
+  const [tool, setTool] = useState('move'); 
   const [selectedId, setSelectedId] = useState(null);
   const [isResizing, setIsResizing] = useState(false);
   
   // --- STYLE STATE ---
-  const [toolColor, setToolColor] = useState('#000000'); // Active color for new items/brush
+  const [toolColor, setToolColor] = useState('#000000');
   const [brushSize, setBrushSize] = useState(5);
   
   // --- EFFECTS STATE ---
-  const [globalEffect, setGlobalEffect] = useState('none'); // none, deepfry
+  const [globalEffect, setGlobalEffect] = useState('none');
 
   // --- INTERACTION REFS ---
   const [isDragging, setIsDragging] = useState(false);
   const dragStartRef = useRef({ x: 0, y: 0 });
   const currentPathRef = useRef([]);
+  const gestureRef = useRef({ startDist: 0, startScale: 1, startX: 0, startY: 0, startViewX: 0, startViewY: 0 });
+
+  // Auto-hide panels on mount if screen is small
+  useEffect(() => {
+      if (window.innerWidth < 600) {
+          setShowStickers(false);
+          setShowProps(false);
+      }
+  }, []);
 
   // --- KEYBOARD SHORTCUTS ---
   useEffect(() => {
@@ -399,22 +415,18 @@ const PaintApp = () => {
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     
-    // Clear and Fill Background
+    // Clear & Fill
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Apply Global Effects
     ctx.save();
     if (globalEffect === 'deepfry') {
         ctx.filter = 'contrast(200%) saturate(300%) brightness(110%) sepia(50%)';
     }
 
-    // Render Elements
     elements.forEach(el => {
       ctx.save();
-      
-      // DRAWING PATHS
       if (el.type === 'path') {
         ctx.strokeStyle = el.color;
         ctx.lineWidth = el.size;
@@ -427,57 +439,40 @@ const PaintApp = () => {
         }
         ctx.stroke();
       }
-
-      // IMAGES
       else if (el.type === 'image' && el.imgElement) {
         ctx.drawImage(el.imgElement, el.x, el.y, el.width, el.height);
       }
-
-      // TEXT
       else if (el.type === 'text') {
         ctx.font = `900 ${el.size}px ${el.font}`;
         ctx.textAlign = 'left';
         ctx.textBaseline = 'top';
-        
-        // Shadow/Outline (Meme Style)
         ctx.strokeStyle = '#000000';
         ctx.lineWidth = el.size / 15; 
         ctx.lineJoin = 'round';
         ctx.strokeText(el.text, el.x, el.y);
-
         ctx.fillStyle = el.color;
         ctx.fillText(el.text, el.x, el.y);
       }
 
-      // SELECTION OVERLAY (UI Only - Retro Style)
       if (selectedId === el.id) {
           ctx.save();
-          // Dashed Box
-          ctx.strokeStyle = '#000080'; // Classic Navy
+          ctx.strokeStyle = '#000080';
           ctx.lineWidth = 2;
           ctx.setLineDash([4, 4]);
           
           let bx=el.x, by=el.y, bw=el.width, bh=el.height;
-          
           if (el.type === 'text') {
               const m = ctx.measureText(el.text);
-              bw = m.width;
-              bh = el.size * 1.2; // approx height
+              bw = m.width; bh = el.size * 1.2;
           }
-
           ctx.strokeRect(bx-5, by-5, bw+10, bh+10);
-          
-          // RESIZE HANDLE (Bottom Right - Solid Box)
           ctx.fillStyle = '#000080';
-          ctx.fillRect(bx + bw, by + bh, 10, 10);
-          
+          ctx.fillRect(bx + bw, by + bh, 15, 15); // Big handle for touch
           ctx.restore();
       }
-
       ctx.restore();
     });
 
-    // ACTIVE DRAWING PATH (Preview)
     if (isDragging && currentPathRef.current.length > 0 && tool === 'brush') {
         ctx.strokeStyle = toolColor;
         ctx.lineWidth = brushSize;
@@ -488,11 +483,10 @@ const PaintApp = () => {
         path.forEach(p => ctx.lineTo(p.x, p.y));
         ctx.stroke();
     }
-
     ctx.restore();
   }, [elements, tool, selectedId, globalEffect, isDragging, toolColor, brushSize]);
 
-  // --- STATE HELPERS ---
+  // --- LOGIC ---
   const saveHistory = (newEls) => {
     const newHist = history.slice(0, historyStep + 1);
     if (newHist.length > 20) newHist.shift();
@@ -515,70 +509,70 @@ const PaintApp = () => {
   const undo = () => { if(historyStep > 0) { setHistoryStep(s=>s-1); setElements(history[historyStep-1]); } };
   const redo = () => { if(historyStep < history.length-1) { setHistoryStep(s=>s+1); setElements(history[historyStep+1]); } };
 
-  // --- LAYOUT TEMPLATES ---
   const applyLayout = (type) => {
       const mainImg = elements.find(e => e.type === 'image');
       const textTop = elements.find(e => e.type === 'text' && e.y < canvasSize.h/2);
       const textBot = elements.find(e => e.type === 'text' && e.y > canvasSize.h/2);
-
       let newElements = [];
-      const cx = canvasSize.w / 2;
-      const cy = canvasSize.h / 2;
+      const cx = canvasSize.w / 2, cy = canvasSize.h / 2;
 
       if (type === 'classic') {
-          const imgW = canvasSize.w * 0.8;
-          const imgH = canvasSize.h * 0.6;
-          
+          const imgW = canvasSize.w * 0.8, imgH = canvasSize.h * 0.6;
           if (mainImg) newElements.push({ ...mainImg, x: cx - imgW/2, y: cy - imgH/2, width: imgW, height: imgH });
           else addSticker('main'); 
-
           const t1 = textTop || { id: generateId(), type: 'text', text: 'TOP IT', color: '#ffffff', font: FONTS[0].val, size: 60 };
           newElements.push({ ...t1, x: 20, y: 20 });
-
           const t2 = textBot || { id: generateId(), type: 'text', text: 'BOTTOM IT', color: '#ffffff', font: FONTS[0].val, size: 60 };
           newElements.push({ ...t2, x: 20, y: canvasSize.h - 80 });
-          
           elements.forEach(e => { if (e !== mainImg && e !== textTop && e !== textBot) newElements.push(e); });
-      }
-      else if (type === 'modern') {
+      } else if (type === 'modern') {
           if (mainImg) newElements.push({ ...mainImg, x: 0, y: 0, width: canvasSize.w, height: canvasSize.h });
           const t1 = textTop || { id: generateId(), type: 'text', text: 'I AM BUYING IT', color: '#ffffff', font: FONTS[0].val, size: 50 };
           newElements.push({ ...t1, x: 20, y: canvasSize.h - 100 });
       }
-
       saveHistory(newElements);
   };
 
-  // --- INTERACTION ---
-  const getPointerPos = (e) => {
+  // --- TOUCH / MOUSE HANDLING ---
+  const getCanvasCoords = (clientX, clientY) => {
       const rect = canvasRef.current.getBoundingClientRect();
-      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
       const scaleX = canvasRef.current.width / rect.width;
       const scaleY = canvasRef.current.height / rect.height;
-      return { x: (clientX - rect.left) * scaleX, y: (clientY - rect.top) * scaleY };
+      return { 
+          x: (clientX - rect.left) * scaleX, 
+          y: (clientY - rect.top) * scaleY 
+      };
   };
 
   const handlePointerDown = (e) => {
-      if(e.cancelable) e.preventDefault();
-      const pos = getPointerPos(e);
+      // MULTI-TOUCH ZOOM/PAN
+      if (e.touches && e.touches.length === 2) {
+          e.preventDefault();
+          const dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+          const cx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+          const cy = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+          gestureRef.current = { startDist: dist, startScale: view.scale, startX: cx, startY: cy, startViewX: view.x, startViewY: view.y };
+          return;
+      }
+
+      // SINGLE TOUCH
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      const pos = getCanvasCoords(clientX, clientY);
+      
       dragStartRef.current = pos;
       
-      // 1. Check for Resize Handle Hit
       if (selectedId) {
           const el = elements.find(e => e.id === selectedId);
           if (el) {
-              let handleX = el.x + el.width + 5;
-              let handleY = el.y + el.height + 5;
+              let hx = el.x + el.width + 10, hy = el.y + el.height + 10;
               if (el.type === 'text') {
                   const ctx = canvasRef.current.getContext('2d');
                   ctx.font = `900 ${el.size}px ${el.font}`;
                   const m = ctx.measureText(el.text);
-                  handleX = el.x + m.width + 5;
-                  handleY = el.y + el.size * 1.2 + 5;
+                  hx = el.x + m.width + 10; hy = el.y + el.size * 1.2 + 10;
               }
-              const dist = Math.hypot(pos.x - handleX, pos.y - handleY);
-              if (dist < 20) {
+              if (Math.hypot(pos.x - hx, pos.y - hy) < 30) {
                   setIsResizing(true);
                   setIsDragging(true);
                   return;
@@ -586,20 +580,17 @@ const PaintApp = () => {
           }
       }
 
-      // 2. Normal Tool Logic
       if (tool === 'move') {
           let hit = null;
           for (let i = elements.length - 1; i >= 0; i--) {
              const el = elements[i];
              let bx=el.x, by=el.y, bw=el.width, bh=el.height;
-             
              if(el.type === 'text') { 
                  const ctx = canvasRef.current.getContext('2d');
                  ctx.font = `900 ${el.size}px ${el.font}`;
                  const m = ctx.measureText(el.text);
                  bw = m.width; bh = el.size * 1.2;
              }
-
              if (pos.x >= bx && pos.x <= bx+bw && pos.y >= by && pos.y <= by+bh) {
                  hit = el; break;
              }
@@ -608,14 +599,14 @@ const PaintApp = () => {
           if (hit) {
               const newEls = elements.filter(e => e.id !== hit.id);
               newEls.push(hit);
-              setElements(newEls); 
+              setElements(newEls);
               setSelectedId(hit.id);
               setIsDragging(true);
+              setShowProps(true); // Auto-open props when selecting
           } else {
               setSelectedId(null);
           }
-      } 
-      else if (tool === 'brush') {
+      } else if (tool === 'brush') {
           currentPathRef.current = [pos];
           setIsDragging(true);
           setSelectedId(null);
@@ -623,9 +614,23 @@ const PaintApp = () => {
   };
 
   const handlePointerMove = (e) => {
-      if(e.cancelable) e.preventDefault();
+      // MULTI-TOUCH
+      if (e.touches && e.touches.length === 2) {
+          e.preventDefault();
+          const dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+          const cx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+          const cy = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+          const scale = Math.max(0.5, Math.min(3, gestureRef.current.startScale * (dist / gestureRef.current.startDist)));
+          const dx = cx - gestureRef.current.startX;
+          const dy = cy - gestureRef.current.startY;
+          setView({ scale, x: gestureRef.current.startViewX + dx, y: gestureRef.current.startViewY + dy });
+          return;
+      }
+
       if (!isDragging) return;
-      const pos = getPointerPos(e);
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      const pos = getCanvasCoords(clientX, clientY);
 
       if (isResizing && selectedId) {
           const el = elements.find(e => e.id === selectedId);
@@ -643,27 +648,19 @@ const PaintApp = () => {
           const dx = pos.x - dragStartRef.current.x;
           const dy = pos.y - dragStartRef.current.y;
           updateElement(selectedId, (el) => ({ x: el.x + dx, y: el.y + dy }));
-          dragStartRef.current = pos; 
+          dragStartRef.current = pos;
       }
       else if (tool === 'brush') {
           currentPathRef.current.push(pos);
-          setElements([...elements]); 
+          setElements([...elements]);
       }
   };
 
   const handlePointerUp = (e) => {
-      if(e.cancelable) e.preventDefault();
       if (isDragging) {
-          if (isResizing || (tool === 'move' && selectedId)) {
-              saveHistory(elements);
-          }
+          if (isResizing || (tool === 'move' && selectedId)) saveHistory(elements);
           else if (tool === 'brush') {
-              const newEl = {
-                  id: generateId(), type: 'path',
-                  points: currentPathRef.current,
-                  color: toolColor, size: brushSize
-              };
-              saveHistory([...elements, newEl]);
+              saveHistory([...elements, { id: generateId(), type: 'path', points: currentPathRef.current, color: toolColor, size: brushSize }]);
               currentPathRef.current = [];
           }
       }
@@ -671,34 +668,27 @@ const PaintApp = () => {
       setIsResizing(false);
   };
 
-  // --- ACTIONS ---
+  // --- ASSET HELPERS ---
   const addText = () => {
-      const newEl = { 
-        id: generateId(), type: 'text', x: 50, y: 50, 
-        text: 'EDIT IT', color: toolColor, 
-        size: 50, font: FONTS[0].val 
-      };
+      const newEl = { id: generateId(), type: 'text', x: 50, y: 50, text: 'EDIT IT', color: toolColor, size: 50, font: FONTS[0].val };
       saveHistory([...elements, newEl]);
       setSelectedId(newEl.id);
       setTool('move');
+      setShowProps(true);
   };
 
   const addSticker = (key) => {
-      const src = ASSETS.stickers[key];
       const img = new Image();
-      img.src = src;
+      img.src = ASSETS.stickers[key];
       img.crossOrigin = "Anonymous";
       img.onload = () => {
           const ratio = img.width / img.height;
-          const w = 200;
-          const h = 200 / ratio;
-          const newEl = {
-              id: generateId(), type: 'image', x: canvasSize.w/2 - w/2, y: canvasSize.h/2 - h/2,
-              width: w, height: h, imgElement: img, aspectRatio: ratio
-          };
+          const w = 200, h = 200 / ratio;
+          const newEl = { id: generateId(), type: 'image', x: canvasSize.w/2 - w/2, y: canvasSize.h/2 - h/2, width: w, height: h, imgElement: img, aspectRatio: ratio };
           saveHistory([...elements, newEl]);
           setSelectedId(newEl.id);
           setTool('move');
+          if (window.innerWidth < 600) setShowStickers(false); // Auto-close drawer on mobile
       }
   };
 
@@ -710,13 +700,9 @@ const PaintApp = () => {
               img.src = ev.target.result;
               img.onload = () => {
                   const ratio = img.width / img.height;
-                  let w = canvasSize.w;
-                  let h = w / ratio;
+                  let w = canvasSize.w, h = w / ratio;
                   if (h > canvasSize.h) { h = canvasSize.h; w = h * ratio; }
-                  const newEl = {
-                      id: generateId(), type: 'image', x: canvasSize.w/2 - w/2, y: canvasSize.h/2 - h/2,
-                      width: w, height: h, imgElement: img, aspectRatio: ratio
-                  };
+                  const newEl = { id: generateId(), type: 'image', x: canvasSize.w/2 - w/2, y: canvasSize.h/2 - h/2, width: w, height: h, imgElement: img, aspectRatio: ratio };
                   saveHistory([...elements, newEl]);
                   setSelectedId(newEl.id);
               }
@@ -733,19 +719,21 @@ const PaintApp = () => {
   };
 
   const postIt = () => {
-      // 1. Trigger Download
       download();
-      // 2. Open Twitter Intent (User must attach the downloaded file manually)
       const text = encodeURIComponent("I just created this masterpiece with $IT OS. #SENDIT");
       window.open(`https://twitter.com/intent/tweet?text=${text}`, '_blank');
-      alert("Meme downloaded! Attach it to your Tweet!");
   };
 
   return (
     <div className="flex flex-col h-full bg-[#c0c0c0] font-sans text-xs select-none overflow-hidden" ref={containerRef}>
         
-        {/* --- 1. TOP BAR (ACTIONS) --- */}
-        <div className="h-10 bg-[#c0c0c0] border-b-2 border-white flex items-center px-2 gap-2 shrink-0 z-20">
+        {/* --- TOP BAR --- */}
+        <div className="h-10 bg-[#c0c0c0] border-b-2 border-white flex items-center px-2 gap-2 shrink-0 z-40 overflow-x-auto no-scrollbar">
+            {/* Props Toggle (Mobile) */}
+            <Button className="md:hidden" onClick={() => setShowProps(!showProps)} active={showProps} disabled={!selectedId && tool!=='brush'}>
+                {showProps ? <X size={14}/> : <Sliders size={14}/>} PROPS
+            </Button>
+
             <Button onClick={()=>applyLayout('classic')} title="Classic"><LayoutTemplate size={14}/> LAYOUT</Button>
             <Button onClick={()=>applyLayout('modern')} title="Modern"><Maximize2 size={14}/> FULL</Button>
             
@@ -756,58 +744,50 @@ const PaintApp = () => {
             
             <div className="flex-1"></div>
             
-            <div className="flex items-center gap-1 bg-white border-2 border-gray-600 border-r-white border-b-white px-1">
-                <Monitor size={12}/>
-                <select className="bg-transparent border-none outline-none py-0.5 text-xs font-bold" onChange={e => {
-                    const p = CANVAS_PRESETS.find(p=>p.name===e.target.value);
-                    if(p) { setCanvasSize(p); setElements([]); setHistory([[]]); setHistoryStep(0); }
-                }}>
-                    {CANVAS_PRESETS.map(p => <option key={p.name} value={p.name}>{p.name}</option>)}
-                </select>
-            </div>
-
             <Button active={globalEffect==='deepfry'} onClick={()=>setGlobalEffect(g => g==='none'?'deepfry':'none')} className={globalEffect==='deepfry'?"text-red-800 bg-red-200":""}><Zap size={14}/> FRY IT</Button>
             <Button onClick={download} className="text-blue-800"><Download size={14}/> SAVE IT</Button>
             <Button onClick={postIt} className="text-white bg-[#1da1f2] border-blue-800"><Share size={14}/> POST IT</Button>
         </div>
 
-        <div className="flex flex-1 overflow-hidden">
+        <div className="flex flex-1 overflow-hidden relative">
             
-            {/* --- 2. LEFT SIDEBAR (ADD) --- */}
-            <div className="w-20 bg-[#c0c0c0] border-r-2 border-white flex flex-col items-center py-2 gap-2 z-10 shadow-sm">
-                <Button onClick={addText} className="w-16 h-12 flex-col gap-1">
-                    <Type size={16}/> <span className="text-[9px]">TEXT IT</span>
-                </Button>
-
-                <Button onClick={()=>fileInputRef.current.click()} className="w-16 h-12 flex-col gap-1">
-                    <Upload size={16}/> <span className="text-[9px]">ADD IT</span>
-                    <input type="file" ref={fileInputRef} hidden accept="image/*" onChange={handleFileUpload} />
-                </Button>
-
-                <Button active={tool==='brush'} onClick={()=>setTool(t => t==='brush'?'move':'brush')} className="w-16 h-12 flex-col gap-1">
-                    <Paintbrush size={16}/> <span className="text-[9px]">DRAW IT</span>
-                </Button>
-
+            {/* --- LEFT SIDEBAR (TOOLS) --- */}
+            {/* Always visible slim bar */}
+            <div className="w-20 bg-[#c0c0c0] border-r-2 border-white flex flex-col items-center py-2 gap-2 shadow-xl z-30 shrink-0">
+                <Button onClick={addText} className="w-16 h-12 flex-col gap-1"><Type size={16}/> <span className="text-[9px]">TEXT IT</span></Button>
+                <Button onClick={()=>fileInputRef.current.click()} className="w-16 h-12 flex-col gap-1"><Upload size={16}/> <span className="text-[9px]">ADD IT</span><input type="file" ref={fileInputRef} hidden accept="image/*" onChange={handleFileUpload} /></Button>
+                <Button active={tool==='brush'} onClick={()=>setTool(t => t==='brush'?'move':'brush')} className="w-16 h-12 flex-col gap-1"><Paintbrush size={16}/> <span className="text-[9px]">DRAW IT</span></Button>
+                
                 <div className="w-10 h-px bg-gray-500 border-b border-white my-1"></div>
                 
-                {/* Sticker List */}
-                <div className="flex flex-col gap-1 overflow-y-auto w-full px-1 items-center">
-                    {Object.entries(ASSETS.stickers).map(([k, src]) => (
-                        <div key={k} className="w-14 h-14 bg-white border-2 border-gray-600 border-r-white border-b-white cursor-pointer active:border-black active:border-r-gray-400 active:border-b-gray-400 p-1" onClick={() => addSticker(k)}>
-                            <img src={src} className="w-full h-full object-contain" title={k}/>
-                        </div>
-                    ))}
+                {/* Stickers Toggle (Mobile) or List (Desktop) */}
+                <div className="flex-1 w-full flex flex-col items-center overflow-hidden">
+                    <div className="md:hidden w-full px-1">
+                        <Button onClick={() => setShowStickers(!showStickers)} active={showStickers} className="w-full h-8 mb-2"><ImageIcon size={14}/> STICKERS</Button>
+                    </div>
+                    
+                    {/* Sticker List */}
+                    <div className={`flex-col gap-1 w-full px-1 items-center overflow-y-auto ${showStickers ? 'flex' : 'hidden'} md:flex`}>
+                        {Object.entries(ASSETS.stickers).map(([k, src]) => (
+                            <div key={k} className="w-14 h-14 bg-white border-2 border-gray-600 border-r-white border-b-white cursor-pointer active:border-black p-1 shrink-0" onClick={() => addSticker(k)}>
+                                <img src={src} className="w-full h-full object-contain" title={k}/>
+                            </div>
+                        ))}
+                    </div>
                 </div>
             </div>
 
-            {/* --- 3. MAIN CANVAS AREA --- */}
-            <div className="flex-1 bg-[#808080] flex items-center justify-center p-4 overflow-hidden relative border-t-2 border-l-2 border-black border-r-white border-b-white">
-                <div className="shadow-[4px_4px_0_0_rgba(0,0,0,0.5)] bg-white">
+            {/* --- MAIN CANVAS AREA --- */}
+            <div className="flex-1 bg-[#808080] flex items-center justify-center overflow-hidden relative border-t-2 border-l-2 border-black border-r-white border-b-white touch-none">
+                <div 
+                    className="shadow-[4px_4px_0_0_rgba(0,0,0,0.5)] bg-white origin-center transition-transform duration-75"
+                    style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale})` }}
+                >
                     <canvas 
                         ref={canvasRef}
                         width={canvasSize.w}
                         height={canvasSize.h}
-                        className="touch-none"
+                        className="touch-none block"
                         style={{ width: canvasSize.w > 600 ? '100%' : 'auto', maxHeight: '80vh', objectFit: 'contain' }}
                         onPointerDown={handlePointerDown}
                         onPointerMove={handlePointerMove}
@@ -817,125 +797,62 @@ const PaintApp = () => {
                 </div>
             </div>
 
-            {/* --- 4. RIGHT PROPERTIES (CONTEXTUAL) --- */}
-            <div className="w-56 bg-[#c0c0c0] border-l-2 border-white flex flex-col z-10">
-                <div className="p-1 bg-[#000080] text-white font-bold text-[10px] flex justify-between px-2">
+            {/* --- RIGHT PROPERTIES (CONTEXTUAL) --- */}
+            {/* Sliding Panel on Mobile / Fixed on Desktop */}
+            <div className={`
+                absolute md:static top-0 right-0 bottom-0 z-30
+                w-56 bg-[#c0c0c0] border-l-2 border-white flex flex-col shadow-xl md:shadow-none
+                transition-transform duration-300 ease-in-out
+                ${showProps ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}
+            `}>
+                <div className="p-1 bg-[#000080] text-white font-bold text-[10px] flex justify-between px-2 items-center">
                     <span>{tool === 'brush' && !selectedId ? "BRUSH SETTINGS" : "PROPERTIES"}</span>
                     {selectedId && <span>#{selectedId.slice(0,4)}</span>}
+                    <div className="md:hidden cursor-pointer p-1" onClick={() => setShowProps(false)}><X size={14}/></div>
                 </div>
 
-                {/* --- A: SELECTED ITEM PROPERTIES --- */}
                 {selectedId ? (() => {
                     const el = elements.find(e => e.id === selectedId);
                     if (!el) return null;
                     return (
-                        <div className="p-2 flex flex-col gap-4">
-                            {/* TEXT CONTROLS */}
+                        <div className="p-2 flex flex-col gap-4 overflow-y-auto pb-10">
                             {el.type === 'text' && (
                                 <>
                                     <div className="flex flex-col gap-1">
                                         <label className="text-[9px] font-bold">CONTENT</label>
-                                        <InsetPanel>
-                                            <textarea 
-                                                value={el.text} 
-                                                onChange={e => updateElement(el.id, ()=>({text: e.target.value}))}
-                                                className="w-full p-1 font-bold text-center resize-none outline-none text-xs"
-                                                rows={2}
-                                            />
-                                        </InsetPanel>
+                                        <InsetPanel><textarea value={el.text} onChange={e => updateElement(el.id, ()=>({text: e.target.value}))} className="w-full p-1 font-bold text-center resize-none outline-none text-xs" rows={2}/></InsetPanel>
                                     </div>
                                     <div className="flex flex-col gap-1">
                                         <label className="text-[9px] font-bold">FONT</label>
-                                        <div className="grid grid-cols-2 gap-1">
-                                            {FONTS.map(f => (
-                                                <Button 
-                                                    key={f.name}
-                                                    active={el.font === f.val}
-                                                    onClick={() => updateElement(el.id, ()=>({font: f.val}))}
-                                                    className="truncate text-[9px]"
-                                                >
-                                                    {f.name}
-                                                </Button>
-                                            ))}
-                                        </div>
+                                        <div className="grid grid-cols-2 gap-1">{FONTS.map(f => (<Button key={f.name} active={el.font === f.val} onClick={() => updateElement(el.id, ()=>({font: f.val}))} className="truncate text-[9px]">{f.name}</Button>))}</div>
                                     </div>
                                 </>
                             )}
-
-                            {/* COLOR PALETTE (For Selection) */}
                             {(el.type === 'text' || el.type === 'path') && (
                                 <div className="flex flex-col gap-1">
                                     <label className="text-[9px] font-bold">COLOR</label>
                                     <div className="flex flex-wrap gap-1">
-                                        {MEME_COLORS.map(c => (
-                                            <div
-                                                key={c}
-                                                onClick={() => updateElement(el.id, ()=>({color: c}))}
-                                                className={`w-6 h-6 border-2 cursor-pointer ${el.color === c ? 'border-black border-dashed' : 'border-gray-500 border-r-white border-b-white'}`}
-                                                style={{backgroundColor: c}}
-                                            />
-                                        ))}
-                                        <div className="w-6 h-6 border-2 border-gray-500 border-r-white border-b-white bg-gray-200 relative overflow-hidden cursor-pointer flex items-center justify-center">
-                                            <span className="text-[8px] font-bold">?</span>
-                                            <input type="color" className="opacity-0 absolute inset-0 w-full h-full cursor-pointer" onChange={e => updateElement(el.id, ()=>({color: e.target.value}))} />
-                                        </div>
+                                        {MEME_COLORS.map(c => (<div key={c} onClick={() => updateElement(el.id, ()=>({color: c}))} className={`w-6 h-6 border-2 cursor-pointer ${el.color === c ? 'border-black border-dashed' : 'border-gray-500 border-r-white border-b-white'}`} style={{backgroundColor: c}}/>))}
+                                        <div className="w-6 h-6 border-2 border-gray-500 bg-gray-200 relative"><input type="color" className="opacity-0 absolute inset-0 w-full h-full" onChange={e => updateElement(el.id, ()=>({color: e.target.value}))} /></div>
                                     </div>
                                 </div>
                             )}
-
-                            {/* DELETE BUTTON */}
-                            <div className="mt-auto pt-2 border-t border-gray-500 border-b-white">
-                                <Button onClick={deleteSelected} className="w-full text-red-800">
-                                    <Trash2 size={12}/> TRASH IT
-                                </Button>
-                            </div>
+                            <div className="mt-auto pt-2 border-t border-gray-500 border-b-white"><Button onClick={deleteSelected} className="w-full text-red-800"><Trash2 size={12}/> TRASH IT</Button></div>
                         </div>
                     );
-                })() : 
-                
-                /* --- B: BRUSH SETTINGS (When drawing) --- */
-                tool === 'brush' ? (
+                })() : tool === 'brush' ? (
                     <div className="p-2 flex flex-col gap-4">
-                        <div className="flex flex-col gap-1">
-                            <label className="text-[9px] font-bold">BRUSH SIZE: {brushSize}px</label>
-                            <input type="range" min="1" max="50" value={brushSize} onChange={e=>setBrushSize(parseInt(e.target.value))} className="w-full"/>
-                        </div>
-                        <div className="flex flex-col gap-1">
-                            <label className="text-[9px] font-bold">BRUSH COLOR</label>
-                            <div className="flex flex-wrap gap-1">
-                                {MEME_COLORS.map(c => (
-                                    <div
-                                        key={c}
-                                        onClick={() => setToolColor(c)}
-                                        className={`w-6 h-6 border-2 cursor-pointer ${toolColor === c ? 'border-black border-dashed' : 'border-gray-500 border-r-white border-b-white'}`}
-                                        style={{backgroundColor: c}}
-                                    />
-                                ))}
-                                <div className="w-6 h-6 border-2 border-gray-500 border-r-white border-b-white bg-gray-200 relative overflow-hidden cursor-pointer flex items-center justify-center">
-                                    <span className="text-[8px] font-bold">?</span>
-                                    <input type="color" className="opacity-0 absolute inset-0 w-full h-full cursor-pointer" onChange={e => setToolColor(e.target.value)} />
-                                </div>
-                            </div>
-                        </div>
-                        <div className="mt-4 p-2 bg-yellow-100 border border-yellow-400 text-[10px]">
-                            Draw freely on the canvas!
-                        </div>
+                        <div className="flex flex-col gap-1"><label className="text-[9px] font-bold">SIZE: {brushSize}px</label><input type="range" min="1" max="50" value={brushSize} onChange={e=>setBrushSize(parseInt(e.target.value))} className="w-full"/></div>
+                        <div className="flex flex-col gap-1"><label className="text-[9px] font-bold">COLOR</label><div className="flex flex-wrap gap-1">{MEME_COLORS.map(c => (<div key={c} onClick={() => setToolColor(c)} className={`w-6 h-6 border-2 cursor-pointer ${toolColor === c ? 'border-black border-dashed' : 'border-gray-500'}`} style={{backgroundColor: c}}/>))}</div></div>
                     </div>
-                ) :
-                
-                /* --- C: EMPTY STATE --- */
-                (
-                    <div className="flex-1 flex flex-col items-center justify-center text-gray-500 gap-2 p-4 text-center">
-                        <MousePointer size={24} className="opacity-50"/>
-                        <p className="text-[10px]">Select IT or Draw IT.</p>
-                    </div>
+                ) : (
+                    <div className="flex-1 flex flex-col items-center justify-center text-gray-500 gap-2 p-4 text-center"><MousePointer size={24} className="opacity-50"/><p className="text-[10px]">Select IT or Draw IT.</p></div>
                 )}
             </div>
         </div>
     </div>
   );
 };
-
 
 const AmpTunesApp = () => {
   const [playing, setPlaying] = useState(false);
