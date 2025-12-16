@@ -1,4 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { initializeApp } from 'firebase/app';
+import { getFirestore, collection, addDoc, getDocs } from 'firebase/firestore';
+import { getAuth, signInAnonymously } from 'firebase/auth';
+
 import {
   Terminal, X, Minus, Square, Play, Pause, SkipForward, SkipBack,
   Disc, Activity, MessageSquare, Image as ImageIcon,
@@ -10,6 +14,27 @@ import {
   Move, RotateCcw, RotateCw, Upload,
   Maximize2, LayoutTemplate, Monitor, Share, Sliders, ChevronLeft, Plus
 } from 'lucide-react';
+
+
+// --- FIREBASE CONFIGURATION ---
+const firebaseConfig = {
+  apiKey: "AIzaSyB_gNokFnucM2nNAhhkRRnPsPNBAShYlMs",
+  authDomain: "it-token.firebaseapp.com",
+  projectId: "it-token",
+  storageBucket: "it-token.firebasestorage.app",
+  messagingSenderId: "804328953904",
+  appId: "1:804328953904:web:e760545b579bf2527075f5"
+};
+
+// Initialize Firebase Services
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+// This defines the folder name in your database. 
+// We hardcode it so it stays consistent for everyone.
+const appId = 'it-token-os';
+
 
 // --- ASSET CONFIGURATION ---
 const ASSETS = {
@@ -1183,9 +1208,13 @@ const RugSweeperApp = () => {
   const audioCtxRef = useRef(null);
 
   // --- STATE ---
-  const [gameState, setGameState] = useState('MENU');
+  const [gameState, setGameState] = useState('MENU'); // MENU, PLAYING, GAME_OVER, SUBMIT_SCORE, LEADERBOARD
   const [score, setScore] = useState(0);
   const [highScore, setHighScore] = useState(0);
+  const [username, setUsername] = useState('');
+  const [leaderboard, setLeaderboard] = useState([]);
+  const [loadingLB, setLoadingLB] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // --- CONSTANTS ---
   const GAME_WIDTH = 320;
@@ -1193,19 +1222,6 @@ const RugSweeperApp = () => {
   const BLOCK_HEIGHT = 35;
   const BASE_WIDTH = 220;
   const INITIAL_SPEED = 4;
-
-  // --- AUDIO CONFIG ---
-  const NOTES = [261.63, 293.66, 329.63, 392.00, 523.25, 587.33, 659.25, 783.99];
-  const BIOMES = [
-    { score: 0, name: "THE TRENCHES", bgStart: '#1a1a2e', bgEnd: '#16213e', text: '#fff' },
-    { score: 10, name: "ATMOSPHERE", bgStart: '#2b5876', bgEnd: '#4e4376', text: '#fff' },
-    { score: 25, name: "ORBIT", bgStart: '#000000', bgEnd: '#434343', text: '#00ff00' },
-    { score: 50, name: "LUNAR BASE", bgStart: '#232526', bgEnd: '#414345', text: '#fff' },
-    { score: 75, name: "MARS COLONY", bgStart: '#870000', bgEnd: '#190a05', text: '#ffcc00' },
-    { score: 100, name: "THE CITADEL", bgStart: '#cc95c0', bgEnd: '#dbd4b4', text: '#000' },
-  ];
-
-  const [currentBiome, setCurrentBiome] = useState(BIOMES[0]);
 
   // --- ENGINE REFS ---
   const game = useRef({
@@ -1218,26 +1234,113 @@ const RugSweeperApp = () => {
     shake: 0,
     combo: 0,
     perfectCount: 0,
+    startTime: 0,
     time: 0
   });
 
+  // --- AUDIO CONFIG ---
+  const NOTES = [261.63, 293.66, 329.63, 392.00, 523.25, 587.33, 659.25, 783.99];
+  const BIOMES = [
+    { score: 0, name: "THE TRENCHES", bgStart: '#1a1a2e', bgEnd: '#16213e', text: '#fff' },
+    { score: 10, name: "ATMOSPHERE", bgStart: '#2b5876', bgEnd: '#4e4376', text: '#fff' },
+    { score: 25, name: "ORBIT", bgStart: '#000000', bgEnd: '#434343', text: '#00ff00' },
+    { score: 50, name: "LUNAR BASE", bgStart: '#232526', bgEnd: '#414345', text: '#fff' },
+    { score: 75, name: "MARS COLONY", bgStart: '#870000', bgEnd: '#190a05', text: '#ffcc00' },
+    { score: 100, name: "THE CITADEL", bgStart: '#cc95c0', bgEnd: '#dbd4b4', text: '#000' },
+  ];
+  const [currentBiome, setCurrentBiome] = useState(BIOMES[0]);
+
   // --- INIT ---
   useEffect(() => {
+    // Auth anonymously for Firebase (if auth exists in scope)
+    if (typeof auth !== 'undefined') signInAnonymously(auth).catch(console.error);
+
     const saved = localStorage.getItem('stackItHighScore');
     if (saved) setHighScore(parseInt(saved, 10));
-    return () => cancelAnimationFrame(requestRef.current);
+    
+    const savedName = localStorage.getItem('stackItUsername');
+    if (savedName) setUsername(savedName);
+
+    return () => {
+      if (requestRef.current) cancelAnimationFrame(requestRef.current);
+    };
   }, []);
 
-  // --- AUDIO ---
+  // --- SPACEBAR SUPPORT ---
+  useEffect(() => {
+      const handleKeyDown = (e) => {
+          if (e.code === 'Space') {
+              e.preventDefault(); // Stop scrolling
+              
+              // Only trigger if in relevant states
+              if (game.current.state === 'MENU' || game.current.state === 'GAME_OVER') {
+                  startGame();
+              } else if (game.current.state === 'PLAYING') {
+                  placeBlock();
+              }
+          }
+      };
+      
+      window.addEventListener('keydown', handleKeyDown);
+      return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [gameState]); // Re-bind when state changes to ensure fresh closures
+
+  // --- FIREBASE LOGIC ---
+  const fetchLeaderboard = async () => {
+    if (typeof db === 'undefined') return;
+    setLoadingLB(true);
+    try {
+        const q = collection(db, 'artifacts', appId, 'public', 'data', 'stackit_scores');
+        const snapshot = await getDocs(q);
+        const data = snapshot.docs.map(doc => doc.data());
+        const sorted = data.sort((a, b) => b.score - a.score).slice(0, 10);
+        setLeaderboard(sorted);
+    } catch (e) {
+        console.error("Leaderboard fetch error:", e);
+    }
+    setLoadingLB(false);
+  };
+
+  const submitScore = async (nameOverride = null) => {
+      // Use override if provided (auto-submit), otherwise state (manual submit)
+      const nameToUse = nameOverride || username;
+      
+      if (!nameToUse.trim()) return;
+      if (typeof db === 'undefined') return;
+
+      setIsSubmitting(true);
+      
+      try {
+          if (!nameOverride) localStorage.setItem('stackItUsername', username);
+          
+          await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'stackit_scores'), {
+              username: nameToUse.toUpperCase(),
+              score: score,
+              timestamp: Date.now()
+          });
+          
+          // If manual submit, go to leaderboard. If auto, stay on Game Over (or could go to leaderboard)
+          if (!nameOverride) {
+              await fetchLeaderboard();
+              setGameState('LEADERBOARD');
+              game.current.state = 'LEADERBOARD';
+          }
+      } catch (e) {
+          console.error("Submit error:", e);
+      }
+      setIsSubmitting(false);
+  };
+
+  // --- AUDIO SYSTEM ---
   const initAudio = () => {
     if (!audioCtxRef.current) {
       try { audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)(); } 
-      catch (e) { console.warn("Audio fail"); }
+      catch (e) {}
     }
     if (audioCtxRef.current?.state === 'suspended') audioCtxRef.current.resume();
   };
 
-  const playSound = (type, comboIndex = 0) => {
+  const playSound = (type) => {
     if (!audioCtxRef.current) return;
     const ctx = audioCtxRef.current;
     const t = ctx.currentTime;
@@ -1248,7 +1351,7 @@ const RugSweeperApp = () => {
 
     if (type === 'perfect') {
       osc.type = 'square';
-      const noteFreq = NOTES[comboIndex % NOTES.length] * (1 + Math.floor(comboIndex/NOTES.length)*0.5);
+      const noteFreq = NOTES[game.current.perfectCount % NOTES.length] * (1 + Math.floor(game.current.perfectCount/NOTES.length)*0.5);
       osc.frequency.setValueAtTime(noteFreq, t);
       gain.gain.setValueAtTime(0.1, t);
       gain.gain.exponentialRampToValueAtTime(0.01, t + 0.3);
@@ -1304,12 +1407,12 @@ const RugSweeperApp = () => {
   };
 
   const startGame = (e) => {
-    if(e) e.stopPropagation(); // FIX: Prevent click from bubbling to container
-    
+    if(e) { e.stopPropagation(); e.preventDefault(); }
     initAudio();
     setScore(0);
     setGameState('PLAYING');
     setCurrentBiome(BIOMES[0]);
+    game.current.state = 'PLAYING';
     
     const base = {
       x: (GAME_WIDTH - BASE_WIDTH) / 2,
@@ -1319,18 +1422,16 @@ const RugSweeperApp = () => {
       color: '#33ff33'
     };
 
-    game.current = {
-      state: 'PLAYING',
-      stack: [base],
-      current: spawnBlock(base, 1),
-      debris: [],
-      particles: [],
-      cameraY: 0,
-      shake: 0,
-      combo: 0,
-      perfectCount: 0,
-      time: 0
-    };
+    game.current.stack = [base];
+    game.current.current = spawnBlock(base, 1);
+    game.current.debris = [];
+    game.current.particles = [];
+    game.current.cameraY = 0;
+    game.current.shake = 0;
+    game.current.combo = 0;
+    game.current.perfectCount = 0;
+    game.current.time = 0;
+    game.current.startTime = Date.now();
     
     if (requestRef.current) cancelAnimationFrame(requestRef.current);
     requestRef.current = requestAnimationFrame(loop);
@@ -1338,10 +1439,11 @@ const RugSweeperApp = () => {
 
   const placeBlock = () => {
     if (game.current.state !== 'PLAYING') return;
-    
+    if (Date.now() - game.current.startTime < 200) return;
+
     const g = game.current;
     const curr = g.current;
-    if (!curr) return; // Safety check
+    if (!curr) return; 
 
     const prev = g.stack[g.stack.length-1];
     const dist = curr.x - prev.x;
@@ -1367,12 +1469,10 @@ const RugSweeperApp = () => {
       isPerfect = true;
       g.combo++;
       g.perfectCount++;
-      
       if (g.combo >= 3 && newW < BASE_WIDTH) {
         newW = Math.min(BASE_WIDTH, newW + 20);
         newX = prev.x - 10; 
       }
-
       g.shake = 5;
       playSound('perfect', g.perfectCount);
       createParticles(newX, curr.y, newW, curr.h, '#ffffff', 10);
@@ -1381,14 +1481,12 @@ const RugSweeperApp = () => {
       g.perfectCount = 0;
       newW = curr.w - absDist;
       newX = dist > 0 ? curr.x : prev.x;
-      
       const debrisX = dist > 0 ? curr.x + newW : curr.x;
       const debrisW = absDist;
       g.debris.push({
         x: debrisX, y: curr.y, w: debrisW, h: curr.h,
         vx: dist > 0 ? 4 : -4, vy: -2, color: curr.color, life: 1.0
       });
-      
       g.shake = 2;
       playSound('place');
     }
@@ -1411,9 +1509,25 @@ const RugSweeperApp = () => {
 
   const gameOver = () => {
     playSound('fail');
-    setGameState('GAME_OVER');
-    game.current.state = 'GAME_OVER';
-    // Let animation run a bit for effects
+    
+    // Check local storage for existing username
+    const savedName = localStorage.getItem('stackItUsername');
+
+    if (score > 0) {
+        if (savedName) {
+            // Auto-submit if name exists
+            submitScore(savedName);
+            setGameState('GAME_OVER');
+            game.current.state = 'GAME_OVER';
+        } else {
+            // Prompt if no name
+            setGameState('SUBMIT_SCORE');
+            game.current.state = 'SUBMIT_SCORE';
+        }
+    } else {
+        setGameState('GAME_OVER');
+        game.current.state = 'GAME_OVER';
+    }
     setTimeout(() => cancelAnimationFrame(requestRef.current), 1000);
   };
 
@@ -1429,7 +1543,6 @@ const RugSweeperApp = () => {
       if (g.current.x > GAME_WIDTH + 50) g.current.dir = -1;
       if (g.current.x < -50 - g.current.w) g.current.dir = 1;
       
-      // Camera: Follow top of stack minus offset to keep ~4 blocks visible + space
       const stackTop = g.stack.length * BLOCK_HEIGHT;
       const targetY = Math.max(0, stackTop - (GAME_HEIGHT * 0.4));
       g.cameraY += (targetY - g.cameraY) * 0.1;
@@ -1445,14 +1558,13 @@ const RugSweeperApp = () => {
     g.particles.forEach(p => { p.x += p.vx; p.y += p.vy; p.life -= 0.03; });
     g.particles = g.particles.filter(p => p.life > 0);
 
-    // DRAW BACKGROUND
+    // DRAW
     const gradient = ctx.createLinearGradient(0, 0, 0, GAME_HEIGHT);
     gradient.addColorStop(0, currentBiome.bgStart);
     gradient.addColorStop(1, currentBiome.bgEnd);
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
 
-    // GRID
     ctx.strokeStyle = 'rgba(255,255,255,0.05)';
     ctx.lineWidth = 1;
     ctx.beginPath();
@@ -1462,34 +1574,21 @@ const RugSweeperApp = () => {
     ctx.stroke();
 
     ctx.save();
-    // Move world down (positive Y) based on camera
     ctx.translate(0 + shakeX, GAME_HEIGHT + g.cameraY - 50 + shakeY);
 
-    // STACK
     g.stack.forEach(b => {
       const y = -b.y; 
-      
-      if (b.perfect) {
-        ctx.shadowBlur = 15;
-        ctx.shadowColor = '#fff';
-      } else {
-        ctx.shadowBlur = 0;
-      }
-
+      if (b.perfect) { ctx.shadowBlur = 15; ctx.shadowColor = '#fff'; } else { ctx.shadowBlur = 0; }
       ctx.fillStyle = b.color;
       ctx.fillRect(b.x, y - b.h, b.w, b.h);
-      
       ctx.strokeStyle = 'rgba(255,255,255,0.5)';
       ctx.lineWidth = 2;
       ctx.strokeRect(b.x, y - b.h, b.w, b.h);
-      
       ctx.fillStyle = 'rgba(255,255,255,0.8)';
       ctx.fillRect(b.x + b.w/2 - 1, y - b.h - 8, 2, 8);
-      
       ctx.shadowBlur = 0;
     });
 
-    // DEBRIS
     g.debris.forEach(d => {
       ctx.fillStyle = d.color;
       ctx.globalAlpha = d.life;
@@ -1497,7 +1596,6 @@ const RugSweeperApp = () => {
       ctx.globalAlpha = 1;
     });
 
-    // PARTICLES
     g.particles.forEach(p => {
       ctx.fillStyle = p.color;
       ctx.globalAlpha = p.life;
@@ -1507,16 +1605,14 @@ const RugSweeperApp = () => {
       ctx.globalAlpha = 1;
     });
 
-    // CURRENT BLOCK
     if (g.state === 'PLAYING' && g.current) {
       const c = g.current;
       ctx.fillStyle = c.color;
       ctx.fillRect(c.x, -c.y - c.h, c.w, c.h);
       ctx.fillStyle = 'rgba(255,255,255,0.1)';
-      ctx.fillRect(c.x, 0, c.w, -9999); // Guide beam
+      ctx.fillRect(c.x, 0, c.w, -9999);
     }
 
-    // ATH LINE
     if (highScore > 0) {
       const athY = -(highScore * BLOCK_HEIGHT);
       ctx.strokeStyle = '#ffff00';
@@ -1530,12 +1626,10 @@ const RugSweeperApp = () => {
 
     ctx.restore();
 
-    // UI OVERLAY
     ctx.fillStyle = currentBiome.text;
     ctx.font = '900 40px Impact';
     ctx.textAlign = 'center';
     ctx.fillText(score, GAME_WIDTH/2, 60);
-    
     ctx.font = '12px monospace';
     ctx.fillText(currentBiome.name, GAME_WIDTH/2, 80);
 
@@ -1554,52 +1648,125 @@ const RugSweeperApp = () => {
     }
   };
 
+  const openLeaderboard = (e) => {
+      if(e) { e.stopPropagation(); e.preventDefault(); }
+      fetchLeaderboard();
+      setGameState('LEADERBOARD');
+      game.current.state = 'LEADERBOARD';
+  };
+
   return (
     <div className="flex flex-col h-full bg-[#c0c0c0] p-1 font-mono select-none"
          onPointerDown={(e) => {
-           e.preventDefault(); 
-           // Only place block if game is truly running
-           if (game.current.state === 'PLAYING') placeBlock();
+           if (game.current.state === 'PLAYING') {
+               e.preventDefault();
+               placeBlock();
+           }
          }}
     >
       <div className="bg-[#000080] text-white px-2 py-1 flex justify-between items-center text-xs font-bold border-2 border-white border-r-gray-500 border-b-gray-500 mb-1">
-        <span>STACK_IT_GOD_MODE.EXE</span>
+        <span>STACK_IT.EXE</span>
         <span className="text-yellow-300">ATH: {highScore}</span>
       </div>
 
       <div className="flex-1 bg-black relative border-2 border-gray-600 border-r-white border-b-white overflow-hidden cursor-pointer touch-none">
         <canvas ref={canvasRef} width={GAME_WIDTH} height={GAME_HEIGHT} className="w-full h-full object-contain block touch-none" />
         
+        {/* MENU */}
         {gameState === 'MENU' && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm text-center text-white p-6 z-10">
             <h1 className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-t from-green-600 to-green-300 mb-2 drop-shadow-lg italic">STACK IT</h1>
             <p className="text-sm font-bold text-gray-300 mb-8 tracking-widest">BUILD THE GOD CANDLE</p>
-            <button 
-                onClick={startGame} // Correct handler
-                className="animate-pulse bg-white text-black px-4 py-2 font-black border-4 border-blue-500 shadow-[4px_4px_0_#0000ff] cursor-pointer hover:scale-105 transition-transform"
-            >
-              TAP TO PUMP
+            <div className="flex gap-2">
+                <button onPointerDown={startGame} className="animate-pulse bg-white text-black px-4 py-2 font-black border-4 border-blue-500 shadow-[4px_4px_0_#0000ff] cursor-pointer hover:scale-105 transition-transform">
+                TAP TO PUMP
+                </button>
+                <button onPointerDown={openLeaderboard} className="bg-yellow-400 text-black px-4 py-2 font-black border-4 border-orange-500 shadow-[4px_4px_0_#ff0000] cursor-pointer hover:scale-105 transition-transform">
+                RANK
+                </button>
+            </div>
+          </div>
+        )}
+
+        {/* SUBMIT SCORE */}
+        {gameState === 'SUBMIT_SCORE' && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 text-center text-white p-6 z-20">
+            <h1 className="text-3xl font-black text-yellow-400 mb-2">NEW SCORE: {score}</h1>
+            <p className="text-xs text-gray-300 mb-4">ENTER YOUR DEGEN NAME:</p>
+            <input 
+                type="text" 
+                maxLength={10}
+                className="bg-gray-800 border-2 border-white text-white text-center text-xl font-bold p-2 mb-4 uppercase w-40 outline-none"
+                value={username}
+                onChange={e => setUsername(e.target.value.toUpperCase())}
+                placeholder="NAME"
+                onPointerDown={e => e.stopPropagation()} 
+            />
+            <div className="flex gap-2">
+                <button onPointerDown={(e) => { e.stopPropagation(); submitScore(); }} disabled={isSubmitting} className="bg-green-600 text-white px-4 py-2 font-bold border-2 border-white">
+                    {isSubmitting ? 'SENDING...' : 'SUBMIT'}
+                </button>
+            </div>
+          </div>
+        )}
+
+        {/* LEADERBOARD */}
+        {gameState === 'LEADERBOARD' && (
+          <div className="absolute inset-0 flex flex-col items-center bg-blue-900/95 text-white p-4 z-20 pointer-events-auto" onPointerDown={e=>e.stopPropagation()}>
+            <h2 className="text-2xl font-black text-yellow-300 mb-4 border-b-4 border-yellow-300 w-full text-center pb-2">TOP JEET SLAYERS</h2>
+            
+            <div className="flex-1 w-full overflow-y-auto mb-4 border-2 border-white bg-black/50 p-2">
+                {loadingLB ? <div className="text-center mt-10 animate-pulse">LOADING ON-CHAIN DATA...</div> : (
+                    <table className="w-full text-left text-sm">
+                        <thead>
+                            <tr className="text-gray-400 border-b border-gray-600"><th className="pb-1">#</th><th className="pb-1">NAME</th><th className="pb-1 text-right">HT</th></tr>
+                        </thead>
+                        <tbody>
+                            {leaderboard.map((entry, i) => (
+                                <tr key={i} className={`border-b border-gray-800 ${i===0?'text-yellow-300 font-bold':''}`}>
+                                    <td className="py-2">{i+1}</td>
+                                    <td className="py-2">{entry.username}</td>
+                                    <td className="py-2 text-right">{entry.score}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                )}
+            </div>
+            
+            <button onPointerDown={(e) => { e.stopPropagation(); setGameState('MENU'); game.current.state='MENU'; }} className="bg-white text-blue-900 px-6 py-2 font-black border-4 border-blue-500 shadow-[4px_4px_0_#000]">
+                BACK TO MENU
             </button>
           </div>
         )}
 
+        {/* GAME OVER (Generic) */}
         {gameState === 'GAME_OVER' && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-red-900/90 text-center text-white p-6 z-10">
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-red-900/90 text-center text-white p-6 z-10 pointer-events-none">
             <h1 className="text-4xl font-black mb-2">PAPER HANDS!</h1>
             <div className="text-6xl font-black text-yellow-400 mb-2">{score}</div>
             <p className="text-xs mb-8 text-red-200">YOU SOLD TOO EARLY</p>
-            <button 
-                onClick={startGame} // Correct handler
-                className="bg-white text-black px-6 py-3 font-black border-4 border-gray-400 shadow-[4px_4px_0_#000] cursor-pointer hover:bg-gray-100 hover:scale-105 transition-transform"
-            >
-              BUY THE DIP (RETRY)
-            </button>
+            <div className="flex gap-2">
+                <button 
+                    onPointerDown={startGame} 
+                    className="bg-white text-black px-6 py-3 font-black border-4 border-gray-400 shadow-[4px_4px_0_#000] cursor-pointer hover:bg-gray-100 hover:scale-105 transition-transform pointer-events-auto"
+                >
+                BUY THE DIP (RETRY)
+                </button>
+                <button 
+                    onPointerDown={openLeaderboard}
+                    className="bg-gray-800 text-white px-4 py-3 font-bold border-4 border-gray-600 cursor-pointer pointer-events-auto"
+                >
+                RANK
+                </button>
+            </div>
           </div>
         )}
       </div>
     </div>
   );
 };
+
 
 const MemesApp = () => {
   const images = Object.values(ASSETS.memes);
