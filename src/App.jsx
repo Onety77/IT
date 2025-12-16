@@ -1207,23 +1207,15 @@ const RugSweeperApp = () => {
   const requestRef = useRef();
   const audioCtxRef = useRef(null);
 
-  // --- STATE ---
-  const [gameState, setGameState] = useState('MENU'); // MENU, PLAYING, GAME_OVER, SUBMIT_SCORE, LEADERBOARD
-  const [score, setScore] = useState(0);
+  // --- STATE (UI Only) ---
+  const [gameState, setGameState] = useState('MENU'); 
   const [highScore, setHighScore] = useState(0);
   const [username, setUsername] = useState('');
   const [leaderboard, setLeaderboard] = useState([]);
   const [loadingLB, setLoadingLB] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // --- CONSTANTS ---
-  const GAME_WIDTH = 320;
-  const GAME_HEIGHT = 550;
-  const BLOCK_HEIGHT = 35;
-  const BASE_WIDTH = 220;
-  const INITIAL_SPEED = 4;
-
-  // --- ENGINE REFS ---
+  // --- ENGINE REFS (The Source of Truth) ---
   const game = useRef({
     state: 'MENU',
     stack: [],
@@ -1235,10 +1227,17 @@ const RugSweeperApp = () => {
     combo: 0,
     perfectCount: 0,
     startTime: 0,
-    time: 0
+    time: 0,
+    score: 0 // <--- LIVE SCORE STORED HERE
   });
 
-  // --- AUDIO CONFIG ---
+  // --- CONSTANTS ---
+  const GAME_WIDTH = 320;
+  const GAME_HEIGHT = 550;
+  const BLOCK_HEIGHT = 35;
+  const BASE_WIDTH = 220;
+  const INITIAL_SPEED = 4;
+
   const NOTES = [261.63, 293.66, 329.63, 392.00, 523.25, 587.33, 659.25, 783.99];
   const BIOMES = [
     { score: 0, name: "THE TRENCHES", bgStart: '#1a1a2e', bgEnd: '#16213e', text: '#fff' },
@@ -1279,7 +1278,7 @@ const RugSweeperApp = () => {
       };
       window.addEventListener('keydown', handleKeyDown);
       return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [gameState]);
+  }, []);
 
   // --- FIREBASE LOGIC ---
   const fetchLeaderboard = async () => {
@@ -1289,7 +1288,6 @@ const RugSweeperApp = () => {
         const q = collection(db, 'artifacts', appId, 'public', 'data', 'stackit_scores');
         const snapshot = await getDocs(q);
         const data = snapshot.docs.map(doc => doc.data());
-        // Sort descending and take top 10
         const sorted = data.sort((a, b) => Number(b.score) - Number(a.score)).slice(0, 10);
         setLeaderboard(sorted);
     } catch (e) {
@@ -1298,9 +1296,12 @@ const RugSweeperApp = () => {
     setLoadingLB(false);
   };
 
-  const submitScore = async (nameOverride = null) => {
+  const submitScore = async (nameOverride = null, finalScore = 0) => {
       const nameToUse = nameOverride || username;
-      if (!nameToUse.trim()) return;
+      // CRITICAL: Ensure we use the passed finalScore if state is stale
+      const scoreToSubmit = finalScore > 0 ? finalScore : game.current.score;
+
+      if (!nameToUse.trim() || scoreToSubmit === 0) return;
       if (typeof db === 'undefined') return;
 
       setIsSubmitting(true);
@@ -1309,7 +1310,6 @@ const RugSweeperApp = () => {
           const upperName = nameToUse.toUpperCase();
           const scoresRef = collection(db, 'artifacts', appId, 'public', 'data', 'stackit_scores');
           
-          // 1. Fetch ALL to find if user exists (Simple query rule compliant)
           const snapshot = await getDocs(scoresRef);
           let existingDocId = null;
           let existingScore = 0;
@@ -1324,39 +1324,35 @@ const RugSweeperApp = () => {
               }
           });
 
-          // 2. Determine Action
-          // Allow update if it's the saved local user OR if we are just checking manually
+          // Check ownership via local storage
           const isOwner = nameOverride || (localStorage.getItem('stackItUsername') === upperName);
 
           if (isNameTaken) {
               if (isOwner) {
-                  // Only update if current game score is HIGHER than DB score
-                  if (score > existingScore) {
+                  // UPDATE if new score is higher
+                  if (scoreToSubmit > existingScore) {
                       const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'stackit_scores', existingDocId);
                       await updateDoc(docRef, {
-                          score: score,
+                          score: scoreToSubmit,
                           timestamp: Date.now()
                       });
                   }
-                  // If we didn't beat the DB score, we do nothing (keep the high score), but proceed to leaderboard
-                  
                   if (!nameOverride) {
                       await fetchLeaderboard();
                       setGameState('LEADERBOARD');
                       game.current.state = 'LEADERBOARD';
                   }
               } else {
-                  // Name clash with someone else
-                  alert(`USERNAME '${upperName}' IS TAKEN.\nPLEASE CHOOSE ANOTHER.`);
+                  alert(`USERNAME '${upperName}' IS TAKEN.`);
                   setIsSubmitting(false);
                   return; 
               }
           } else {
-              // New User
+              // CREATE NEW
               if (!nameOverride) localStorage.setItem('stackItUsername', upperName);
               await addDoc(scoresRef, {
                   username: upperName,
-                  score: score,
+                  score: scoreToSubmit,
                   timestamp: Date.now()
               });
               
@@ -1373,7 +1369,7 @@ const RugSweeperApp = () => {
       setIsSubmitting(false);
   };
 
-  // --- AUDIO SYSTEM ---
+  // --- AUDIO & GAMEPLAY ---
   const initAudio = () => {
     if (!audioCtxRef.current) {
       try { audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)(); } 
@@ -1418,12 +1414,10 @@ const RugSweeperApp = () => {
     }
   };
 
-  // --- GAME LOGIC ---
   const spawnBlock = (prev, level) => {
     const isLeft = Math.random() > 0.5;
     const yPos = level * BLOCK_HEIGHT;
     const speed = INITIAL_SPEED + Math.pow(level, 0.6) * 0.5; 
-    
     return {
       x: isLeft ? -prev.w : GAME_WIDTH,
       y: yPos,
@@ -1451,10 +1445,25 @@ const RugSweeperApp = () => {
   const startGame = (e) => {
     if(e) { e.stopPropagation(); e.preventDefault(); }
     initAudio();
-    setScore(0);
+    
+    // RESET GAME REF
+    game.current = {
+        state: 'PLAYING',
+        stack: [],
+        current: null,
+        debris: [],
+        particles: [],
+        cameraY: 0,
+        shake: 0,
+        combo: 0,
+        perfectCount: 0,
+        startTime: Date.now(),
+        time: 0,
+        score: 0 // Start at 0
+    };
+
     setGameState('PLAYING');
     setCurrentBiome(BIOMES[0]);
-    game.current.state = 'PLAYING';
     
     const base = {
       x: (GAME_WIDTH - BASE_WIDTH) / 2,
@@ -1466,24 +1475,16 @@ const RugSweeperApp = () => {
 
     game.current.stack = [base];
     game.current.current = spawnBlock(base, 1);
-    game.current.debris = [];
-    game.current.particles = [];
-    game.current.cameraY = 0;
-    game.current.shake = 0;
-    game.current.combo = 0;
-    game.current.perfectCount = 0;
-    game.current.time = 0;
-    game.current.startTime = Date.now();
     
     if (requestRef.current) cancelAnimationFrame(requestRef.current);
     requestRef.current = requestAnimationFrame(loop);
   };
 
   const placeBlock = () => {
-    if (game.current.state !== 'PLAYING') return;
-    if (Date.now() - game.current.startTime < 200) return;
-
     const g = game.current;
+    if (g.state !== 'PLAYING') return;
+    if (Date.now() - g.startTime < 200) return;
+
     const curr = g.current;
     if (!curr) return; 
 
@@ -1503,6 +1504,7 @@ const RugSweeperApp = () => {
     let newX = curr.x;
     let newW = curr.w;
     let isPerfect = false;
+    let scoreAdd = 1;
 
     // HIT
     if (absDist <= tolerance) {
@@ -1511,6 +1513,8 @@ const RugSweeperApp = () => {
       isPerfect = true;
       g.combo++;
       g.perfectCount++;
+      if (g.combo >= 3) scoreAdd = 2; // COMBO BONUS (+2)
+      
       if (g.combo >= 3 && newW < BASE_WIDTH) {
         newW = Math.min(BASE_WIDTH, newW + 20);
         newX = prev.x - 10; 
@@ -1536,14 +1540,16 @@ const RugSweeperApp = () => {
     const placed = { x: newX, y: curr.y, w: newW, h: curr.h, color: curr.color, perfect: isPerfect };
     g.stack.push(placed);
     
-    const nextScore = score + 1;
-    setScore(nextScore);
-    if (nextScore > highScore) {
-        setHighScore(nextScore);
-        localStorage.setItem('stackItHighScore', nextScore);
+    // UPDATE SCORE IN REF DIRECTLY
+    g.score += scoreAdd;
+    
+    // Update Local High Score immediately
+    if (g.score > highScore) {
+        setHighScore(g.score);
+        localStorage.setItem('stackItHighScore', g.score);
     }
     
-    const biome = BIOMES.slice().reverse().find(b => nextScore >= b.score);
+    const biome = BIOMES.slice().reverse().find(b => g.score >= b.score);
     if (biome && biome.name !== currentBiome.name) setCurrentBiome(biome);
 
     g.current = spawnBlock(placed, g.stack.length);
@@ -1551,12 +1557,14 @@ const RugSweeperApp = () => {
 
   const gameOver = () => {
     playSound('fail');
+    const finalScore = game.current.score; // Capture final score from ref
     
+    // Auto-Submit if user exists
     const savedName = localStorage.getItem('stackItUsername');
 
-    if (score > 0) {
+    if (finalScore > 0) {
         if (savedName) {
-            submitScore(savedName); // This now handles the update logic correctly
+            submitScore(savedName, finalScore); // Pass explicit score
             setGameState('GAME_OVER');
             game.current.state = 'GAME_OVER';
         } else {
@@ -1665,10 +1673,11 @@ const RugSweeperApp = () => {
 
     ctx.restore();
 
+    // UI DRAWING - USE REF SCORE HERE
     ctx.fillStyle = currentBiome.text;
     ctx.font = '900 40px Impact';
     ctx.textAlign = 'center';
-    ctx.fillText(score, GAME_WIDTH/2, 60);
+    ctx.fillText(g.score, GAME_WIDTH/2, 60); // <--- Using g.score
     ctx.font = '12px monospace';
     ctx.fillText(currentBiome.name, GAME_WIDTH/2, 80);
 
@@ -1678,7 +1687,7 @@ const RugSweeperApp = () => {
       ctx.save();
       ctx.translate(GAME_WIDTH/2, 110);
       ctx.rotate(Math.sin(g.time*10)*0.1);
-      ctx.fillText(`${g.combo}X COMBO!`, 0, 0);
+      ctx.fillText(`${g.combo}X COMBO! (+2)`, 0, 0);
       ctx.restore();
     }
 
@@ -1730,7 +1739,7 @@ const RugSweeperApp = () => {
         {/* SUBMIT SCORE */}
         {gameState === 'SUBMIT_SCORE' && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 text-center text-white p-6 z-20">
-            <h1 className="text-3xl font-black text-yellow-400 mb-2">NEW SCORE: {score}</h1>
+            <h1 className="text-3xl font-black text-yellow-400 mb-2">NEW SCORE: {game.current.score}</h1>
             <p className="text-xs text-gray-300 mb-4">ENTER YOUR DEGEN NAME:</p>
             <input 
                 type="text" 
@@ -1783,7 +1792,7 @@ const RugSweeperApp = () => {
         {gameState === 'GAME_OVER' && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-red-900/90 text-center text-white p-6 z-10 pointer-events-none">
             <h1 className="text-4xl font-black mb-2">PAPER HANDS!</h1>
-            <div className="text-6xl font-black text-yellow-400 mb-2">{score}</div>
+            <div className="text-6xl font-black text-yellow-400 mb-2">{game.current.score}</div>
             <p className="text-xs mb-8 text-red-200">YOU SOLD TOO EARLY</p>
             <div className="flex gap-2">
                 <button 
