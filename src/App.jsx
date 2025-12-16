@@ -1,19 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
-import {
+import { 
   Terminal, X, Minus, Square, Play, Pause, SkipForward, SkipBack,
-  Disc, Activity, MessageSquare, Image as ImageIcon,
-  Gamepad2, Save, Trash2, Globe, Zap, Skull,
-  FileText, Music, MousePointer, Volume2,
+  Disc, Activity, MessageSquare, Image as ImageIcon, 
+  Gamepad2, Save, Trash2, Globe, Zap, Skull, 
+  FileText, Music, MousePointer, Volume2, 
   Paintbrush, Eraser, Download, Settings, Wallet, Bot,
   Search, Layout, Type, Folder, Twitter, Users, Copy, Check,
-  Menu, LogOut, ChevronRight,
-  Move, RotateCcw, RotateCw, Upload,
-  Maximize2, LayoutTemplate, Monitor, Share
+  Menu, LogOut, ChevronRight
 } from 'lucide-react';
 
-
 // --- ASSET CONFIGURATION ---
-// These now point directly to local files.
 const ASSETS = {
   wallpaper: "wall.jpg", 
   logo: "logo.png",
@@ -44,15 +40,14 @@ const SOCIALS = {
 };
 
 // --- MUSIC CONFIGURATION ---
-
 const TUNES_PLAYLIST = [
-  { file: "PUMP_IT_UP.mp3", title: "PUMP IT", duration: "1:52", artist: "Unknown Degen" },
-  { file: "GREEN_CANDLES.mp3", title: "GREEN CANDLES", duration: "4:20", artist: "Satoshi" },
+  { file: "PUMP_IT_UP.mp3", title: "PUMP IT UP", duration: "3:45", artist: "Unknown Degen" },
+  { file: "GREEN_CANDLES.wav", title: "GREEN CANDLES", duration: "4:20", artist: "Satoshi" },
   { file: "LIQUIDATION_CASCADE.mp3", title: "LIQUIDATION", duration: "2:10", artist: "The Bears" },
   { file: "WAGMI_ANTHEM.mp3", title: "WAGMI ANTHEM", duration: "5:55", artist: "Community" }
 ];
 
-const CA_ADDRESS = "So11111111111111111111111111111111111111112"; // Replace with your Token CA
+const CA_ADDRESS = "So11111111111111111111111111111111111111112"; 
 
 // --- UTILITIES ---
 const generateId = () => Math.random().toString(36).substr(2, 9);
@@ -107,7 +102,8 @@ const useWallet = () => {
         const response = await window.solana.connect();
         setWallet(response.publicKey.toString());
       } else {
-        setTimeout(() => { setWallet("8xSIMULATED...WALLET"); alert("Simulated Connection Active"); }, 1000);
+        // No more simulation. Direct user guidance.
+        alert("Please open IT on PC to Connect IT, or install the Phantom Wallet extension!");
       }
     } catch (err) { alert("Connection Failed"); } finally { setConnecting(false); }
   };
@@ -116,7 +112,6 @@ const useWallet = () => {
 
 // --- UI COMPONENTS ---
 
-// FIXED: Now accepts and spreads ...props (like id) to the button element
 const Button = ({ children, onClick, className = "", active = false, disabled = false, title = "", ...props }) => (
   <button
     onClick={onClick}
@@ -144,16 +139,17 @@ const WindowFrame = ({ title, icon: Icon, children, onClose, onMinimize, onMaxim
       borderTop: '2px solid white', borderLeft: '2px solid white', borderRight: '2px solid black', borderBottom: '2px solid black',
     }}
     onMouseDown={onFocus}
+    onTouchStart={onFocus}
   >
     <div className={`flex justify-between items-center px-1 py-1 select-none ${isActive ? 'bg-[#000080]' : 'bg-[#808080]'}`}>
       <div className="flex items-center gap-2 text-white font-bold text-sm tracking-wider px-1">
         {Icon && <Icon size={16} />}
         <span>{title}</span>
       </div>
-      <div className="flex gap-1">
-        <Button onClick={onMinimize} className="w-5 h-5 !p-0"><Minus size={10} /></Button>
-        <Button onClick={onMaximize} className="w-5 h-5 !p-0"><Square size={8} /></Button>
-        <Button onClick={onClose} className="w-5 h-5 !p-0"><X size={12} /></Button>
+      <div className="flex gap-1" onMouseDown={(e) => e.stopPropagation()} onTouchStart={(e) => e.stopPropagation()}>
+        <Button onClick={onMinimize} className="w-6 h-6 !p-0"><Minus size={10} /></Button>
+        <Button onClick={onMaximize} className="w-6 h-6 !p-0"><Square size={8} /></Button>
+        <Button onClick={onClose} className="w-6 h-6 !p-0"><X size={12} /></Button>
       </div>
     </div>
     <div className="flex-1 overflow-auto p-1 bg-[#d4d0c8] relative cursor-default">
@@ -175,7 +171,7 @@ const StartMenu = ({ isOpen, onClose, onOpenApp }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="absolute bottom-10 left-0 w-64 bg-[#c0c0c0] border-2 border-white border-r-black border-b-black shadow-xl z-[99999] flex text-sm">
+    <div className="absolute bottom-10 left-0 w-64 max-w-[90vw] bg-[#c0c0c0] border-2 border-white border-r-black border-b-black shadow-xl z-[99999] flex text-sm">
       {/* Side Bar */}
       <div className="w-8 bg-[#000080] flex items-end justify-center py-2">
          <span className="text-white font-bold -rotate-90 text-lg whitespace-nowrap tracking-widest">OS_IT</span>
@@ -186,10 +182,10 @@ const StartMenu = ({ isOpen, onClose, onOpenApp }) => {
         {/* Socials Package */}
         <div className="mb-2">
             <div className="px-2 py-1 text-gray-500 font-bold text-[10px] uppercase">Socials Package</div>
-            <div className="hover:bg-[#000080] hover:text-white cursor-pointer px-2 py-2 flex items-center gap-2" onClick={() => window.open(SOCIALS.twitter, '_blank')}>
+            <div className="hover:bg-[#000080] hover:text-white cursor-pointer px-2 py-2 flex items-center gap-2 active:bg-[#000080] active:text-white" onClick={() => window.open(SOCIALS.twitter, '_blank')}>
                 <Twitter size={16} /> <span>Twitter (X)</span>
             </div>
-            <div className="hover:bg-[#000080] hover:text-white cursor-pointer px-2 py-2 flex items-center gap-2" onClick={() => window.open(SOCIALS.community, '_blank')}>
+            <div className="hover:bg-[#000080] hover:text-white cursor-pointer px-2 py-2 flex items-center gap-2 active:bg-[#000080] active:text-white" onClick={() => window.open(SOCIALS.community, '_blank')}>
                 <Users size={16} /> <span>Community</span>
             </div>
         </div>
@@ -199,7 +195,7 @@ const StartMenu = ({ isOpen, onClose, onOpenApp }) => {
         {/* Contract Package */}
         <div className="mb-2">
             <div className="px-2 py-1 text-gray-500 font-bold text-[10px] uppercase">Contract Package</div>
-            <div className="hover:bg-[#000080] hover:text-white cursor-pointer px-2 py-2 flex flex-col gap-1" onClick={handleCopy}>
+            <div className="hover:bg-[#000080] hover:text-white cursor-pointer px-2 py-2 flex flex-col gap-1 active:bg-[#000080] active:text-white" onClick={handleCopy}>
                 <div className="flex items-center gap-2">
                     {caCopied ? <Check size={16} /> : <Copy size={16} />}
                     <span className="font-bold">Copy CA</span>
@@ -223,7 +219,7 @@ const StartMenu = ({ isOpen, onClose, onOpenApp }) => {
                { id: 'rugsweeper', icon: Gamepad2, label: 'Play IT' },
                { id: 'notepad', icon: FileText, label: 'Write IT' },
              ].map(app => (
-                 <div key={app.id} className="hover:bg-[#000080] hover:text-white cursor-pointer px-2 py-1 flex items-center gap-2" onClick={() => { onOpenApp(app.id); onClose(); }}>
+                 <div key={app.id} className="hover:bg-[#000080] hover:text-white cursor-pointer px-2 py-2 flex items-center gap-2 active:bg-[#000080] active:text-white" onClick={() => { onOpenApp(app.id); onClose(); }}>
                      <app.icon size={16} /> <span>{app.label}</span>
                  </div>
              ))}
@@ -233,34 +229,20 @@ const StartMenu = ({ isOpen, onClose, onOpenApp }) => {
   );
 };
 
-// --- APPS ---
+// --- APPS (Same content, optimized containers) ---
 
-// 1. SHIPPY (Assistant)
 const Shippy = ({ hidden }) => {
-  const [isOpen, setIsOpen] = useState(false); // Closed by default
+  const [isOpen, setIsOpen] = useState(false); 
   const [messages, setMessages] = useState([{ role: 'shippy', text: "I see you're online. Would you like to PUMP IT?" }]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-
-  // --- CONFIGURATION ---
-  // PASTE YOUR OPENAI API KEY HERE
   const API_KEY = "sk-YOUR_OPENAI_API_KEY_HERE"; 
   
-  const SYSTEM_PROMPT = `
-    You are Shippy, the chaotic AI assistant for the $IT memecoin. 
-    Your persona is the "IT Master".
-    RULES:
-    1. You are aggressively bullish and obsessed with the ticker $IT.
-    2. You hate FUD and "Jeets".
-    3. You MUST end every single sentence with the letter 'T'. 
-    4. Keep responses short, punchy, and funny.
-    5. If asked about price, say "1 IT = 1 IT".
-  `;
+  const SYSTEM_PROMPT = `You are Shippy, the chaotic AI assistant for the $IT memecoin. Rules: 1. Bullish. 2. Hate FUD. 3. End sentences with 'T'. 4. Short & funny. 5. 1 IT = 1 IT.`;
 
   const handleSend = async () => {
     if(!input.trim()) return;
-    const userText = input;
-    setInput("");
+    const userText = input; setInput("");
     setMessages(prev => [...prev, { role: 'user', text: userText }]);
     setLoading(true);
 
@@ -279,61 +261,32 @@ const Shippy = ({ hidden }) => {
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${API_KEY}` },
         body: JSON.stringify({
           model: "gpt-4o-mini",
-          messages: [
-            { role: "system", content: SYSTEM_PROMPT },
-            ...messages.slice(-4).map(m => ({ role: m.role === 'shippy' ? 'assistant' : 'user', content: m.text })),
-            { role: "user", content: userText }
-          ],
+          messages: [{ role: "system", content: SYSTEM_PROMPT }, ...messages.slice(-4).map(m => ({ role: m.role === 'shippy' ? 'assistant' : 'user', content: m.text })), { role: "user", content: userText }],
           max_tokens: 60, temperature: 0.9
         })
       });
-
       const data = await response.json();
-      if (data.error) throw new Error(data.error.message || "OpenAI API Error");
-      const reply = data.choices[0].message.content;
-      setMessages(prev => [...prev, { role: 'shippy', text: reply }]);
+      if (data.error) throw new Error(data.error.message);
+      setMessages(prev => [...prev, { role: 'shippy', text: data.choices[0].message.content }]);
     } catch (e) {
-      console.error(e);
       const errorReplies = ["MY BRAIN IS BUFFERING T.", "TOO MUCH PUMP TO PROCESS T.", "CONNECTION RUGGED T."];
       setMessages(prev => [...prev, { role: 'shippy', text: errorReplies[Math.floor(Math.random() * errorReplies.length)] }]);
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   };
 
   if (!isOpen) return (
-    <div 
-      className="fixed bottom-12 right-4 z-[9999] cursor-pointer flex flex-col items-center group" 
-      onClick={() => setIsOpen(true)}
-      style={{ display: hidden ? 'none' : 'flex' }}
-    >
-       <div className="bg-white border-2 border-black px-2 py-1 mb-1 relative text-xs font-bold font-mono shadow-[4px_4px_0px_rgba(0,0,0,0.5)] group-hover:scale-105 transition-transform">
-          Talk IT
-          <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[6px] border-l-transparent border-t-[8px] border-t-black border-r-[6px] border-r-transparent"></div>
-          <div className="absolute -bottom-[5px] left-1/2 -translate-x-1/2 w-0 h-0 border-l-[4px] border-l-transparent border-t-[6px] border-t-white border-r-[4px] border-r-transparent"></div>
-       </div>
-       <img src={ASSETS.logo} alt="IT Bot" className="w-14 h-14 object-contain drop-shadow-[0_4px_4px_rgba(0,0,0,0.5)] hover:scale-110 transition-transform" />
+    <div className="fixed bottom-12 right-4 z-[9999] cursor-pointer flex flex-col items-center group" onClick={() => setIsOpen(true)} style={{ display: hidden ? 'none' : 'flex' }}>
+       <div className="bg-white border-2 border-black px-2 py-1 mb-1 relative text-xs font-bold font-mono shadow-[4px_4px_0px_rgba(0,0,0,0.5)] group-hover:scale-105 transition-transform">Talk IT</div>
+       <img src={ASSETS.logo} alt="IT Bot" className="w-14 h-14 object-contain drop-shadow-[0_4px_4px_rgba(0,0,0,0.5)]" />
     </div>
   );
 
   return (
-    <div className="fixed bottom-12 right-4 w-72 bg-[#ffffcc] border-2 border-black z-[9999] shadow-xl flex flex-col font-mono text-xs" style={{ display: hidden ? 'none' : 'flex' }}>
-      <div className="bg-blue-800 text-white p-1 flex justify-between items-center cursor-move">
-        <span className="font-bold">Talk IT (AI)</span>
-        <X size={12} className="cursor-pointer" onClick={() => setIsOpen(false)} />
-      </div>
+    <div className="fixed bottom-12 right-4 w-72 max-w-[90vw] bg-[#ffffcc] border-2 border-black z-[9999] shadow-xl flex flex-col font-mono text-xs" style={{ display: hidden ? 'none' : 'flex' }}>
+      <div className="bg-blue-800 text-white p-1 flex justify-between items-center"><span className="font-bold">Talk IT (AI)</span><X size={12} className="cursor-pointer p-1 -mr-1" onClick={() => setIsOpen(false)} /></div>
       <div className="h-56 overflow-y-auto p-2 space-y-2 border-b border-black relative" style={{ backgroundImage: `url(${ASSETS.stickers.sendit})`, backgroundSize: 'cover', backgroundPosition: 'center' }}>
         <div className="absolute inset-0 bg-white/50 pointer-events-none"></div>
-        <div className="relative z-10 space-y-2">
-            {messages.map((m, i) => (
-            <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[85%] p-1 border border-black shadow-md font-bold ${m.role === 'user' ? 'bg-blue-100' : 'bg-yellow-100'}`}>
-                {m.text}
-                </div>
-            </div>
-            ))}
-            {loading && <div className="text-black font-black bg-white/80 inline-block px-1 animate-pulse">Thinking T...</div>}
-        </div>
+        <div className="relative z-10 space-y-2">{messages.map((m, i) => (<div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}><div className={`max-w-[85%] p-1 border border-black shadow-md font-bold ${m.role === 'user' ? 'bg-blue-100' : 'bg-yellow-100'}`}>{m.text}</div></div>))}</div>
       </div>
       <div className="p-1 flex gap-1 bg-[#d4d0c8]">
         <input className="flex-1 border p-1" value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSend()} placeholder="Say something..." disabled={loading}/>
@@ -343,14 +296,11 @@ const Shippy = ({ hidden }) => {
   );
 };
 
-// 2. TERMINAL (With Live Data)
 const TerminalApp = ({ dexData }) => {
-  const [history, setHistory] = useState(["OS_IT v3.0", "Connected to Mainnet...", "Type 'help' for commands."]);
+  const [history, setHistory] = useState(["OS_IT v3.0", "Connected...", "Type 'help'."]);
   const [input, setInput] = useState("");
   const bottomRef = useRef(null);
-
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [history]);
-
   const handleCommand = (e) => {
     if (e.key === 'Enter') {
       const cmd = input.trim().toLowerCase();
@@ -358,1353 +308,136 @@ const TerminalApp = ({ dexData }) => {
       if (cmd === 'help') newLines.push("COMMANDS: PRICE, CA, SEND IT, CLEAR");
       else if (cmd === 'price') newLines.push(`PRICE: ${dexData.price}`, `MCAP: ${dexData.mcap}`);
       else if (cmd === 'ca') newLines.push(`CA: ${CA_ADDRESS}`);
-      else if (cmd === 'send it') newLines.push("INITIATING LAUNCH...", "ROCKET FUEL LOADED.", "SENT.");
+      else if (cmd === 'send it') newLines.push("INITIATING LAUNCH...", "SENT.");
       else if (cmd === 'clear') { setHistory([]); setInput(""); return; }
-      else newLines.push("Bad command or file name");
+      else newLines.push("Bad command");
       setHistory(prev => [...prev, ...newLines]);
       setInput("");
     }
   };
-
   return (
     <div className="bg-black text-green-500 font-mono text-sm h-full p-2 overflow-y-auto" onClick={() => document.getElementById('term')?.focus()}>
       {history.map((l, i) => <div key={i}>{l}</div>)}
-      <div className="flex"><span>C:\ADMIN&gt;</span><input id="term" className="bg-transparent border-none outline-none text-green-500 flex-1 ml-2" value={input} onChange={e => setInput(e.target.value)} onKeyDown={handleCommand} autoFocus /></div>
+      <div className="flex"><span>&gt;</span><input id="term" className="bg-transparent border-none outline-none text-green-500 flex-1 ml-2" value={input} onChange={e => setInput(e.target.value)} onKeyDown={handleCommand} autoFocus /></div>
       <div ref={bottomRef} />
     </div>
   );
 };
 
-// helpers paint 
-// --- PAINT APP HELPERS ---
-const FONTS = [
-  { name: 'Impact', val: 'Impact, sans-serif' },
-  { name: 'Arial', val: 'Arial, sans-serif' },
-  { name: 'Comic Sans', val: '"Comic Sans MS", cursive' },
-  { name: 'Courier', val: '"Courier New", monospace' },
-  { name: 'Brush', val: '"Brush Script MT", cursive' },
-];
-
-const MEME_COLORS = [
-  '#ffffff', '#000000', '#ff0000', '#ffff00', '#00ff00', '#0000ff'
-];
-
-const CANVAS_PRESETS = [
-  { name: 'Square (1:1)', w: 600, h: 600 },
-  { name: 'Portrait (9:16)', w: 450, h: 800 },
-  { name: 'Landscape (16:9)', w: 800, h: 450 },
-];
-
-const InsetPanel = ({ children, className="" }) => (
-    <div className={`border-2 border-gray-600 border-r-white border-b-white bg-white ${className}`}>
-        {children}
-    </div>
-);
-
-// 3. PAINT IT
 const PaintApp = () => {
   const canvasRef = useRef(null);
-  const containerRef = useRef(null);
-  const fileInputRef = useRef(null);
-
-  // --- CORE STATE ---
-  const [elements, setElements] = useState([]); 
-  const [history, setHistory] = useState([[]]);
-  const [historyStep, setHistoryStep] = useState(0);
-  const [canvasSize, setCanvasSize] = useState(CANVAS_PRESETS[0]);
+  const [tool, setTool] = useState('brush'); 
+  const [color, setColor] = useState('#000000');
+  const [selectedSticker, setSelectedSticker] = useState('main');
+  useEffect(() => { const ctx = canvasRef.current.getContext('2d'); ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, 600, 400); }, []);
   
-  // --- TOOLS STATE ---
-  const [tool, setTool] = useState('move'); // move, brush
-  const [selectedId, setSelectedId] = useState(null);
-  const [isResizing, setIsResizing] = useState(false);
-  
-  // --- STYLE STATE ---
-  const [toolColor, setToolColor] = useState('#000000'); // Active color for new items/brush
-  const [brushSize, setBrushSize] = useState(5);
-  
-  // --- EFFECTS STATE ---
-  const [globalEffect, setGlobalEffect] = useState('none'); // none, deepfry
-
-  // --- INTERACTION REFS ---
-  const [isDragging, setIsDragging] = useState(false);
-  const dragStartRef = useRef({ x: 0, y: 0 });
-  const currentPathRef = useRef([]);
-
-  // --- KEYBOARD SHORTCUTS ---
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return; 
-      if (e.key === 'Delete' || e.key === 'Backspace') deleteSelected();
-      if ((e.ctrlKey || e.metaKey) && e.key === 'z') undo();
-      if ((e.ctrlKey || e.metaKey) && e.key === 'y') redo();
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedId, elements, historyStep]);
-
-  // --- RENDER ENGINE ---
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    
-    // Clear and Fill Background
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    // Apply Global Effects
-    ctx.save();
-    if (globalEffect === 'deepfry') {
-        ctx.filter = 'contrast(200%) saturate(300%) brightness(110%) sepia(50%)';
-    }
-
-    // Render Elements
-    elements.forEach(el => {
-      ctx.save();
-      
-      // DRAWING PATHS
-      if (el.type === 'path') {
-        ctx.strokeStyle = el.color;
-        ctx.lineWidth = el.size;
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-        ctx.beginPath();
-        if(el.points.length > 0) {
-            ctx.moveTo(el.points[0].x, el.points[0].y);
-            el.points.forEach(p => ctx.lineTo(p.x, p.y));
-        }
-        ctx.stroke();
-      }
-
-      // IMAGES
-      else if (el.type === 'image' && el.imgElement) {
-        ctx.drawImage(el.imgElement, el.x, el.y, el.width, el.height);
-      }
-
-      // TEXT
-      else if (el.type === 'text') {
-        ctx.font = `900 ${el.size}px ${el.font}`;
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'top';
-        
-        // Shadow/Outline (Meme Style)
-        ctx.strokeStyle = '#000000';
-        ctx.lineWidth = el.size / 15; 
-        ctx.lineJoin = 'round';
-        ctx.strokeText(el.text, el.x, el.y);
-
-        ctx.fillStyle = el.color;
-        ctx.fillText(el.text, el.x, el.y);
-      }
-
-      // SELECTION OVERLAY (UI Only - Retro Style)
-      if (selectedId === el.id) {
-          ctx.save();
-          // Dashed Box
-          ctx.strokeStyle = '#000080'; // Classic Navy
-          ctx.lineWidth = 2;
-          ctx.setLineDash([4, 4]);
-          
-          let bx=el.x, by=el.y, bw=el.width, bh=el.height;
-          
-          if (el.type === 'text') {
-              const m = ctx.measureText(el.text);
-              bw = m.width;
-              bh = el.size * 1.2; // approx height
-          }
-
-          ctx.strokeRect(bx-5, by-5, bw+10, bh+10);
-          
-          // RESIZE HANDLE (Bottom Right - Solid Box)
-          ctx.fillStyle = '#000080';
-          ctx.fillRect(bx + bw, by + bh, 10, 10);
-          
-          ctx.restore();
-      }
-
-      ctx.restore();
-    });
-
-    // ACTIVE DRAWING PATH (Preview)
-    if (isDragging && currentPathRef.current.length > 0 && tool === 'brush') {
-        ctx.strokeStyle = toolColor;
-        ctx.lineWidth = brushSize;
-        ctx.lineCap = 'round';
-        ctx.beginPath();
-        const path = currentPathRef.current;
-        ctx.moveTo(path[0].x, path[0].y);
-        path.forEach(p => ctx.lineTo(p.x, p.y));
-        ctx.stroke();
-    }
-
-    ctx.restore();
-  }, [elements, tool, selectedId, globalEffect, isDragging, toolColor, brushSize]);
-
-  // --- STATE HELPERS ---
-  const saveHistory = (newEls) => {
-    const newHist = history.slice(0, historyStep + 1);
-    if (newHist.length > 20) newHist.shift();
-    newHist.push(newEls);
-    setHistory(newHist);
-    setHistoryStep(newHist.length - 1);
-    setElements(newEls);
-  };
-
-  const updateElement = (id, updater) => {
-      setElements(prev => prev.map(el => el.id === id ? { ...el, ...updater(el) } : el));
-  };
-
-  const deleteSelected = () => {
-      if (!selectedId) return;
-      saveHistory(elements.filter(e => e.id !== selectedId));
-      setSelectedId(null);
-  };
-
-  const undo = () => { if(historyStep > 0) { setHistoryStep(s=>s-1); setElements(history[historyStep-1]); } };
-  const redo = () => { if(historyStep < history.length-1) { setHistoryStep(s=>s+1); setElements(history[historyStep+1]); } };
-
-  // --- LAYOUT TEMPLATES ---
-  const applyLayout = (type) => {
-      const mainImg = elements.find(e => e.type === 'image');
-      const textTop = elements.find(e => e.type === 'text' && e.y < canvasSize.h/2);
-      const textBot = elements.find(e => e.type === 'text' && e.y > canvasSize.h/2);
-
-      let newElements = [];
-      const cx = canvasSize.w / 2;
-      const cy = canvasSize.h / 2;
-
-      if (type === 'classic') {
-          const imgW = canvasSize.w * 0.8;
-          const imgH = canvasSize.h * 0.6;
-          
-          if (mainImg) newElements.push({ ...mainImg, x: cx - imgW/2, y: cy - imgH/2, width: imgW, height: imgH });
-          else addSticker('main'); 
-
-          const t1 = textTop || { id: generateId(), type: 'text', text: 'TOP IT', color: '#ffffff', font: FONTS[0].val, size: 60 };
-          newElements.push({ ...t1, x: 20, y: 20 });
-
-          const t2 = textBot || { id: generateId(), type: 'text', text: 'BOTTOM IT', color: '#ffffff', font: FONTS[0].val, size: 60 };
-          newElements.push({ ...t2, x: 20, y: canvasSize.h - 80 });
-          
-          elements.forEach(e => { if (e !== mainImg && e !== textTop && e !== textBot) newElements.push(e); });
-      }
-      else if (type === 'modern') {
-          if (mainImg) newElements.push({ ...mainImg, x: 0, y: 0, width: canvasSize.w, height: canvasSize.h });
-          const t1 = textTop || { id: generateId(), type: 'text', text: 'I AM BUYING IT', color: '#ffffff', font: FONTS[0].val, size: 50 };
-          newElements.push({ ...t1, x: 20, y: canvasSize.h - 100 });
-      }
-
-      saveHistory(newElements);
-  };
-
-  // --- INTERACTION ---
-  const getPointerPos = (e) => {
+  const handleDraw = (e) => {
+    if (tool === 'brush' && (e.buttons === 1 || e.type === 'touchmove')) {
+      const ctx = canvasRef.current.getContext('2d');
       const rect = canvasRef.current.getBoundingClientRect();
-      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-      const scaleX = canvasRef.current.width / rect.width;
-      const scaleY = canvasRef.current.height / rect.height;
-      return { x: (clientX - rect.left) * scaleX, y: (clientY - rect.top) * scaleY };
+      const x = (e.clientX || e.touches[0].clientX) - rect.left;
+      const y = (e.clientY || e.touches[0].clientY) - rect.top;
+      ctx.fillStyle = color; ctx.fillRect(x, y, 4, 4);
+      if(e.type === 'touchmove') e.preventDefault();
+    }
   };
 
-  const handlePointerDown = (e) => {
-      if(e.cancelable) e.preventDefault();
-      const pos = getPointerPos(e);
-      dragStartRef.current = pos;
-      
-      // 1. Check for Resize Handle Hit
-      if (selectedId) {
-          const el = elements.find(e => e.id === selectedId);
-          if (el) {
-              let handleX = el.x + el.width + 5;
-              let handleY = el.y + el.height + 5;
-              if (el.type === 'text') {
-                  const ctx = canvasRef.current.getContext('2d');
-                  ctx.font = `900 ${el.size}px ${el.font}`;
-                  const m = ctx.measureText(el.text);
-                  handleX = el.x + m.width + 5;
-                  handleY = el.y + el.size * 1.2 + 5;
-              }
-              const dist = Math.hypot(pos.x - handleX, pos.y - handleY);
-              if (dist < 20) {
-                  setIsResizing(true);
-                  setIsDragging(true);
-                  return;
-              }
-          }
-      }
-
-      // 2. Normal Tool Logic
-      if (tool === 'move') {
-          let hit = null;
-          for (let i = elements.length - 1; i >= 0; i--) {
-             const el = elements[i];
-             let bx=el.x, by=el.y, bw=el.width, bh=el.height;
-             
-             if(el.type === 'text') { 
-                 const ctx = canvasRef.current.getContext('2d');
-                 ctx.font = `900 ${el.size}px ${el.font}`;
-                 const m = ctx.measureText(el.text);
-                 bw = m.width; bh = el.size * 1.2;
-             }
-
-             if (pos.x >= bx && pos.x <= bx+bw && pos.y >= by && pos.y <= by+bh) {
-                 hit = el; break;
-             }
-          }
-          
-          if (hit) {
-              const newEls = elements.filter(e => e.id !== hit.id);
-              newEls.push(hit);
-              setElements(newEls); 
-              setSelectedId(hit.id);
-              setIsDragging(true);
-          } else {
-              setSelectedId(null);
-          }
-      } 
-      else if (tool === 'brush') {
-          currentPathRef.current = [pos];
-          setIsDragging(true);
-          setSelectedId(null);
+  const handleClick = (e) => {
+      const ctx = canvasRef.current.getContext('2d');
+      const rect = canvasRef.current.getBoundingClientRect();
+      const x = (e.clientX || e.touches[0].clientX) - rect.left;
+      const y = (e.clientY || e.touches[0].clientY) - rect.top;
+      if (tool === 'sticker') {
+          const img = new Image(); img.src = ASSETS.stickers[selectedSticker]; img.crossOrigin = "Anonymous";
+          img.onload = () => ctx.drawImage(img, x - 25, y - 25, 50, 50);
       }
   };
 
-  const handlePointerMove = (e) => {
-      if(e.cancelable) e.preventDefault();
-      if (!isDragging) return;
-      const pos = getPointerPos(e);
-
-      if (isResizing && selectedId) {
-          const el = elements.find(e => e.id === selectedId);
-          if (el.type === 'image') {
-              const newW = Math.max(50, pos.x - el.x);
-              const newH = newW / (el.aspectRatio || 1); 
-              updateElement(selectedId, () => ({ width: newW, height: newH }));
-          } else if (el.type === 'text') {
-              const distY = pos.y - el.y;
-              const newSize = Math.max(10, Math.min(200, distY / 1.2));
-              updateElement(selectedId, () => ({ size: newSize }));
-          }
-      }
-      else if (tool === 'move' && selectedId) {
-          const dx = pos.x - dragStartRef.current.x;
-          const dy = pos.y - dragStartRef.current.y;
-          updateElement(selectedId, (el) => ({ x: el.x + dx, y: el.y + dy }));
-          dragStartRef.current = pos; 
-      }
-      else if (tool === 'brush') {
-          currentPathRef.current.push(pos);
-          setElements([...elements]); 
-      }
-  };
-
-  const handlePointerUp = (e) => {
-      if(e.cancelable) e.preventDefault();
-      if (isDragging) {
-          if (isResizing || (tool === 'move' && selectedId)) {
-              saveHistory(elements);
-          }
-          else if (tool === 'brush') {
-              const newEl = {
-                  id: generateId(), type: 'path',
-                  points: currentPathRef.current,
-                  color: toolColor, size: brushSize
-              };
-              saveHistory([...elements, newEl]);
-              currentPathRef.current = [];
-          }
-      }
-      setIsDragging(false);
-      setIsResizing(false);
-  };
-
-  // --- ACTIONS ---
-  const addText = () => {
-      const newEl = { 
-        id: generateId(), type: 'text', x: 50, y: 50, 
-        text: 'EDIT IT', color: toolColor, 
-        size: 50, font: FONTS[0].val 
-      };
-      saveHistory([...elements, newEl]);
-      setSelectedId(newEl.id);
-      setTool('move');
-  };
-
-  const addSticker = (key) => {
-      const src = ASSETS.stickers[key];
-      const img = new Image();
-      img.src = src;
-      img.crossOrigin = "Anonymous";
-      img.onload = () => {
-          const ratio = img.width / img.height;
-          const w = 200;
-          const h = 200 / ratio;
-          const newEl = {
-              id: generateId(), type: 'image', x: canvasSize.w/2 - w/2, y: canvasSize.h/2 - h/2,
-              width: w, height: h, imgElement: img, aspectRatio: ratio
-          };
-          saveHistory([...elements, newEl]);
-          setSelectedId(newEl.id);
-          setTool('move');
-      }
-  };
-
-  const handleFileUpload = (e) => {
-      if(e.target.files[0]) {
-          const r = new FileReader();
-          r.onload = ev => {
-              const img = new Image();
-              img.src = ev.target.result;
-              img.onload = () => {
-                  const ratio = img.width / img.height;
-                  let w = canvasSize.w;
-                  let h = w / ratio;
-                  if (h > canvasSize.h) { h = canvasSize.h; w = h * ratio; }
-                  const newEl = {
-                      id: generateId(), type: 'image', x: canvasSize.w/2 - w/2, y: canvasSize.h/2 - h/2,
-                      width: w, height: h, imgElement: img, aspectRatio: ratio
-                  };
-                  saveHistory([...elements, newEl]);
-                  setSelectedId(newEl.id);
-              }
-          };
-          r.readAsDataURL(e.target.files[0]);
-      }
-  };
-
-  const download = () => {
-      const link = document.createElement('a');
-      link.download = `IT_MEME_${Date.now()}.png`;
-      link.href = canvasRef.current.toDataURL();
-      link.click();
-  };
-
-  const postIt = () => {
-      // 1. Trigger Download
-      download();
-      // 2. Open Twitter Intent (User must attach the downloaded file manually)
-      const text = encodeURIComponent("I just created this masterpiece with $IT OS. #SENDIT");
-      window.open(`https://twitter.com/intent/tweet?text=${text}`, '_blank');
-      alert("Meme downloaded! Attach it to your Tweet!");
-  };
+  const download = () => { const link = document.createElement('a'); link.download = 'IT_MEME.png'; link.href = canvasRef.current.toDataURL(); link.click(); };
+  const clearCanvas = () => { const ctx = canvasRef.current.getContext('2d'); ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, 600, 400); }
 
   return (
-    <div className="flex flex-col h-full bg-[#c0c0c0] font-sans text-xs select-none overflow-hidden" ref={containerRef}>
-        
-        {/* --- 1. TOP BAR (ACTIONS) --- */}
-        <div className="h-10 bg-[#c0c0c0] border-b-2 border-white flex items-center px-2 gap-2 shrink-0 z-20">
-            <Button onClick={()=>applyLayout('classic')} title="Classic"><LayoutTemplate size={14}/> LAYOUT</Button>
-            <Button onClick={()=>applyLayout('modern')} title="Modern"><Maximize2 size={14}/> FULL</Button>
-            
-            <div className="h-6 w-px bg-gray-500 border-l border-white mx-1"></div>
-            
-            <Button onClick={undo} disabled={historyStep===0} title="Undo"><RotateCcw size={14}/></Button>
-            <Button onClick={redo} disabled={historyStep===history.length-1} title="Redo"><RotateCw size={14}/></Button>
-            
-            <div className="flex-1"></div>
-            
-            <div className="flex items-center gap-1 bg-white border-2 border-gray-600 border-r-white border-b-white px-1">
-                <Monitor size={12}/>
-                <select className="bg-transparent border-none outline-none py-0.5 text-xs font-bold" onChange={e => {
-                    const p = CANVAS_PRESETS.find(p=>p.name===e.target.value);
-                    if(p) { setCanvasSize(p); setElements([]); setHistory([[]]); setHistoryStep(0); }
-                }}>
-                    {CANVAS_PRESETS.map(p => <option key={p.name} value={p.name}>{p.name}</option>)}
-                </select>
-            </div>
-
-            <Button active={globalEffect==='deepfry'} onClick={()=>setGlobalEffect(g => g==='none'?'deepfry':'none')} className={globalEffect==='deepfry'?"text-red-800 bg-red-200":""}><Zap size={14}/> FRY IT</Button>
-            <Button onClick={download} className="text-blue-800"><Download size={14}/> SAVE IT</Button>
-            <Button onClick={postIt} className="text-white bg-[#1da1f2] border-blue-800"><Share size={14}/> POST IT</Button>
-        </div>
-
-        <div className="flex flex-1 overflow-hidden">
-            
-            {/* --- 2. LEFT SIDEBAR (ADD) --- */}
-            <div className="w-20 bg-[#c0c0c0] border-r-2 border-white flex flex-col items-center py-2 gap-2 z-10 shadow-sm">
-                <Button onClick={addText} className="w-16 h-12 flex-col gap-1">
-                    <Type size={16}/> <span className="text-[9px]">TEXT IT</span>
-                </Button>
-
-                <Button onClick={()=>fileInputRef.current.click()} className="w-16 h-12 flex-col gap-1">
-                    <Upload size={16}/> <span className="text-[9px]">ADD IT</span>
-                    <input type="file" ref={fileInputRef} hidden accept="image/*" onChange={handleFileUpload} />
-                </Button>
-
-                <Button active={tool==='brush'} onClick={()=>setTool(t => t==='brush'?'move':'brush')} className="w-16 h-12 flex-col gap-1">
-                    <Paintbrush size={16}/> <span className="text-[9px]">DRAW IT</span>
-                </Button>
-
-                <div className="w-10 h-px bg-gray-500 border-b border-white my-1"></div>
-                
-                {/* Sticker List */}
-                <div className="flex flex-col gap-1 overflow-y-auto w-full px-1 items-center">
-                    {Object.entries(ASSETS.stickers).map(([k, src]) => (
-                        <div key={k} className="w-14 h-14 bg-white border-2 border-gray-600 border-r-white border-b-white cursor-pointer active:border-black active:border-r-gray-400 active:border-b-gray-400 p-1" onClick={() => addSticker(k)}>
-                            <img src={src} className="w-full h-full object-contain" title={k}/>
-                        </div>
-                    ))}
-                </div>
-            </div>
-
-            {/* --- 3. MAIN CANVAS AREA --- */}
-            <div className="flex-1 bg-[#808080] flex items-center justify-center p-4 overflow-hidden relative border-t-2 border-l-2 border-black border-r-white border-b-white">
-                <div className="shadow-[4px_4px_0_0_rgba(0,0,0,0.5)] bg-white">
-                    <canvas 
-                        ref={canvasRef}
-                        width={canvasSize.w}
-                        height={canvasSize.h}
-                        className="touch-none"
-                        style={{ width: canvasSize.w > 600 ? '100%' : 'auto', maxHeight: '80vh', objectFit: 'contain' }}
-                        onPointerDown={handlePointerDown}
-                        onPointerMove={handlePointerMove}
-                        onPointerUp={handlePointerUp}
-                        onPointerLeave={handlePointerUp}
-                    />
-                </div>
-            </div>
-
-            {/* --- 4. RIGHT PROPERTIES (CONTEXTUAL) --- */}
-            <div className="w-56 bg-[#c0c0c0] border-l-2 border-white flex flex-col z-10">
-                <div className="p-1 bg-[#000080] text-white font-bold text-[10px] flex justify-between px-2">
-                    <span>{tool === 'brush' && !selectedId ? "BRUSH SETTINGS" : "PROPERTIES"}</span>
-                    {selectedId && <span>#{selectedId.slice(0,4)}</span>}
-                </div>
-
-                {/* --- A: SELECTED ITEM PROPERTIES --- */}
-                {selectedId ? (() => {
-                    const el = elements.find(e => e.id === selectedId);
-                    if (!el) return null;
-                    return (
-                        <div className="p-2 flex flex-col gap-4">
-                            {/* TEXT CONTROLS */}
-                            {el.type === 'text' && (
-                                <>
-                                    <div className="flex flex-col gap-1">
-                                        <label className="text-[9px] font-bold">CONTENT</label>
-                                        <InsetPanel>
-                                            <textarea 
-                                                value={el.text} 
-                                                onChange={e => updateElement(el.id, ()=>({text: e.target.value}))}
-                                                className="w-full p-1 font-bold text-center resize-none outline-none text-xs"
-                                                rows={2}
-                                            />
-                                        </InsetPanel>
-                                    </div>
-                                    <div className="flex flex-col gap-1">
-                                        <label className="text-[9px] font-bold">FONT</label>
-                                        <div className="grid grid-cols-2 gap-1">
-                                            {FONTS.map(f => (
-                                                <Button 
-                                                    key={f.name}
-                                                    active={el.font === f.val}
-                                                    onClick={() => updateElement(el.id, ()=>({font: f.val}))}
-                                                    className="truncate text-[9px]"
-                                                >
-                                                    {f.name}
-                                                </Button>
-                                            ))}
-                                        </div>
-                                    </div>
-                                </>
-                            )}
-
-                            {/* COLOR PALETTE (For Selection) */}
-                            {(el.type === 'text' || el.type === 'path') && (
-                                <div className="flex flex-col gap-1">
-                                    <label className="text-[9px] font-bold">COLOR</label>
-                                    <div className="flex flex-wrap gap-1">
-                                        {MEME_COLORS.map(c => (
-                                            <div
-                                                key={c}
-                                                onClick={() => updateElement(el.id, ()=>({color: c}))}
-                                                className={`w-6 h-6 border-2 cursor-pointer ${el.color === c ? 'border-black border-dashed' : 'border-gray-500 border-r-white border-b-white'}`}
-                                                style={{backgroundColor: c}}
-                                            />
-                                        ))}
-                                        <div className="w-6 h-6 border-2 border-gray-500 border-r-white border-b-white bg-gray-200 relative overflow-hidden cursor-pointer flex items-center justify-center">
-                                            <span className="text-[8px] font-bold">?</span>
-                                            <input type="color" className="opacity-0 absolute inset-0 w-full h-full cursor-pointer" onChange={e => updateElement(el.id, ()=>({color: e.target.value}))} />
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* DELETE BUTTON */}
-                            <div className="mt-auto pt-2 border-t border-gray-500 border-b-white">
-                                <Button onClick={deleteSelected} className="w-full text-red-800">
-                                    <Trash2 size={12}/> TRASH IT
-                                </Button>
-                            </div>
-                        </div>
-                    );
-                })() : 
-                
-                /* --- B: BRUSH SETTINGS (When drawing) --- */
-                tool === 'brush' ? (
-                    <div className="p-2 flex flex-col gap-4">
-                        <div className="flex flex-col gap-1">
-                            <label className="text-[9px] font-bold">BRUSH SIZE: {brushSize}px</label>
-                            <input type="range" min="1" max="50" value={brushSize} onChange={e=>setBrushSize(parseInt(e.target.value))} className="w-full"/>
-                        </div>
-                        <div className="flex flex-col gap-1">
-                            <label className="text-[9px] font-bold">BRUSH COLOR</label>
-                            <div className="flex flex-wrap gap-1">
-                                {MEME_COLORS.map(c => (
-                                    <div
-                                        key={c}
-                                        onClick={() => setToolColor(c)}
-                                        className={`w-6 h-6 border-2 cursor-pointer ${toolColor === c ? 'border-black border-dashed' : 'border-gray-500 border-r-white border-b-white'}`}
-                                        style={{backgroundColor: c}}
-                                    />
-                                ))}
-                                <div className="w-6 h-6 border-2 border-gray-500 border-r-white border-b-white bg-gray-200 relative overflow-hidden cursor-pointer flex items-center justify-center">
-                                    <span className="text-[8px] font-bold">?</span>
-                                    <input type="color" className="opacity-0 absolute inset-0 w-full h-full cursor-pointer" onChange={e => setToolColor(e.target.value)} />
-                                </div>
-                            </div>
-                        </div>
-                        <div className="mt-4 p-2 bg-yellow-100 border border-yellow-400 text-[10px]">
-                            Draw freely on the canvas!
-                        </div>
-                    </div>
-                ) :
-                
-                /* --- C: EMPTY STATE --- */
-                (
-                    <div className="flex-1 flex flex-col items-center justify-center text-gray-500 gap-2 p-4 text-center">
-                        <MousePointer size={24} className="opacity-50"/>
-                        <p className="text-[10px]">Select IT or Draw IT.</p>
-                    </div>
-                )}
-            </div>
-        </div>
+    <div className="flex flex-col h-full bg-[#d4d0c8]">
+      <div className="bg-[#c0c0c0] p-1 border-b border-gray-400 flex flex-wrap gap-2 items-center">
+        <Button onClick={download}><Download size={14}/> <span className="hidden sm:inline">Save</span></Button>
+        <Button onClick={clearCanvas}><Trash2 size={14}/> <span className="hidden sm:inline">Clear</span></Button>
+        <div className="w-px h-6 bg-gray-500 mx-1"></div>
+        <Button active={tool==='brush'} onClick={() => setTool('brush')}><Paintbrush size={14}/></Button>
+        <input type="color" value={color} onChange={e => setColor(e.target.value)} className="w-6 h-6 border p-0" />
+        <div className="w-px h-6 bg-gray-500 mx-1"></div>
+        <Button active={tool==='sticker'} onClick={() => setTool('sticker')}><ImageIcon size={14}/></Button>
+        <select className="text-xs border p-1 border-gray-600 max-w-[80px]" value={selectedSticker} onChange={e => { setSelectedSticker(e.target.value); setTool('sticker'); }}>
+          {Object.keys(ASSETS.stickers).map(k => <option key={k} value={k}>{k.toUpperCase()}</option>)}
+        </select>
+      </div>
+      <div className="flex-1 bg-gray-500 overflow-auto flex items-center justify-center p-4 touch-none">
+        <canvas ref={canvasRef} width={600} height={400} className="bg-white shadow-xl cursor-crosshair border-4 border-white" onMouseMove={handleDraw} onTouchMove={handleDraw} onMouseDown={handleClick} />
+      </div>
     </div>
   );
 };
 
-
-// 4. AMP TUNES - "AMP_IT" (WINAMP STYLE PLAYER)
 const AmpTunesApp = () => {
-  const audioRef = useRef(null);
-  const canvasRef = useRef(null);
-  const requestRef = useRef(null);
-
-  // --- STATE ---
   const [playing, setPlaying] = useState(false);
-  const [trackIndex, setTrackIndex] = useState(0);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const [volume, setVolume] = useState(0.8);
-  const [shuffle, setShuffle] = useState(false);
-  const [loop, setLoop] = useState(false);
-
-  // --- UTILS ---
-  const formatTime = (s) => {
-    if (!s || isNaN(s)) return "00:00";
-    const min = Math.floor(s / 60);
-    const sec = Math.floor(s % 60);
-    return `${min < 10 ? '0' : ''}${min}:${sec < 10 ? '0' : ''}${sec}`;
-  };
-
-  // --- STYLE INJECTION (MARQUEE) ---
-  useEffect(() => {
-    if (!document.getElementById('marquee-style')) {
-        const style = document.createElement('style');
-        style.id = 'marquee-style';
-        style.innerHTML = `
-          @keyframes marquee {
-            0% { transform: translateX(100%); }
-            100% { transform: translateX(-100%); }
-          }
-          .animate-marquee {
-            animation: marquee 10s linear infinite;
-          }
-        `;
-        document.head.appendChild(style);
-    }
-  }, []);
-
-  // --- AUDIO ENGINE ---
-  useEffect(() => {
-    audioRef.current = new Audio();
-    audioRef.current.volume = volume;
-
-    const updateTime = () => setCurrentTime(audioRef.current.currentTime);
-    const updateDuration = () => setDuration(audioRef.current.duration);
-    const handleEnded = () => {
-        if (loop) {
-            audioRef.current.currentTime = 0;
-            audioRef.current.play();
-        } else {
-            nextTrack();
-        }
-    };
-
-    audioRef.current.addEventListener('timeupdate', updateTime);
-    audioRef.current.addEventListener('loadedmetadata', updateDuration);
-    audioRef.current.addEventListener('ended', handleEnded);
-
-    return () => {
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current.removeEventListener('timeupdate', updateTime);
-        audioRef.current.removeEventListener('loadedmetadata', updateDuration);
-        audioRef.current.removeEventListener('ended', handleEnded);
-        audioRef.current = null;
-      }
-      if (requestRef.current) cancelAnimationFrame(requestRef.current);
-    };
-  }, [loop]); // Re-bind if loop state changes
-
-  // Track Change Effect
-  useEffect(() => {
-    if (!audioRef.current) return;
-    // Ensure TUNES_PLAYLIST exists in scope (from main file)
-    const track = typeof TUNES_PLAYLIST !== 'undefined' ? TUNES_PLAYLIST[trackIndex] : null;
-    if (!track) return;
-
-    // LOGIC FIX: Try 'file' prop first, then 'src', fallback to 'title'
-    // You need to update TUNES_PLAYLIST to include { file: "path/to/song.mp3" }
-    audioRef.current.src = track.file || track.src || track.title; 
-    
-    audioRef.current.load();
-    
-    if (playing) {
-        var playPromise = audioRef.current.play();
-        if (playPromise !== undefined) {
-            playPromise.catch(error => {
-                console.error("Playback failed. Check if file exists:", error);
-            });
-        }
-    }
-  }, [trackIndex]);
-
-  // Volume Effect
-  useEffect(() => {
-      if(audioRef.current) audioRef.current.volume = volume;
-  }, [volume]);
-
-  // Play/Pause Effect
-  useEffect(() => {
-      if (!audioRef.current) return;
-      if (playing) audioRef.current.play().catch(e => console.log("Playback error:", e));
-      else audioRef.current.pause();
-  }, [playing]);
-
-  // --- CONTROLS ---
-  const togglePlay = () => setPlaying(!playing);
-  
-  const nextTrack = () => {
-      if (typeof TUNES_PLAYLIST === 'undefined') return;
-      if (shuffle) {
-          setTrackIndex(Math.floor(Math.random() * TUNES_PLAYLIST.length));
-      } else {
-          setTrackIndex((prev) => (prev + 1) % TUNES_PLAYLIST.length);
-      }
-  };
-
-  const prevTrack = () => {
-      if (typeof TUNES_PLAYLIST === 'undefined') return;
-      setTrackIndex((prev) => (prev - 1 + TUNES_PLAYLIST.length) % TUNES_PLAYLIST.length);
-  };
-
-  const handleSeek = (e) => {
-      const time = parseFloat(e.target.value);
-      if (audioRef.current) audioRef.current.currentTime = time;
-      setCurrentTime(time);
-  };
-
-  // --- VISUALIZER LOOP ---
-  const drawVisualizer = () => {
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-      const ctx = canvas.getContext('2d');
-      const w = canvas.width;
-      const h = canvas.height;
-
-      ctx.fillStyle = '#000000';
-      ctx.fillRect(0, 0, w, h);
-
-      // Draw Grid
-      ctx.strokeStyle = 'rgba(0, 50, 0, 0.5)';
-      ctx.lineWidth = 1;
-      for(let i=0; i<w; i+=4) { ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,h); ctx.stroke(); }
-      for(let i=0; i<h; i+=4) { ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(w,i); ctx.stroke(); }
-
-      if (playing) {
-          // Simulated Spectrum Analyzer
-          const bars = 20;
-          const barW = w / bars;
-          ctx.fillStyle = '#00ff00'; // Matrix Green
-          
-          for(let i=0; i<bars; i++) {
-              // Generate fake frequency data based on time + index
-              const noise = Math.random() * 0.5 + 0.5;
-              const height = Math.sin(Date.now()/200 + i) * h * 0.5 * noise;
-              const barH = Math.abs(height);
-              
-              // Draw Bar
-              ctx.fillRect(i * barW + 1, h - barH, barW - 2, barH);
-              
-              // Draw "Peak" (falling dot)
-              ctx.fillStyle = '#ccffcc';
-              ctx.fillRect(i * barW + 1, h - barH - 4, barW - 2, 2);
-              ctx.fillStyle = '#00ff00';
-          }
-      } else {
-          // Idle State: Flat Line
-          ctx.strokeStyle = '#00ff00';
-          ctx.beginPath();
-          ctx.moveTo(0, h/2);
-          ctx.lineTo(w, h/2);
-          ctx.stroke();
-      }
-
-      requestRef.current = requestAnimationFrame(drawVisualizer);
-  };
-
-  useEffect(() => {
-      requestRef.current = requestAnimationFrame(drawVisualizer);
-      return () => cancelAnimationFrame(requestRef.current);
-  }, [playing]);
-
-  const playlist = typeof TUNES_PLAYLIST !== 'undefined' ? TUNES_PLAYLIST : [];
-  const currentTrack = playlist[trackIndex] || { title: "NO DISK", artist: "INSERT COIN", duration: "00:00" };
+  const [track, setTrack] = useState(0);
+  const audioRef = useRef(null);
+  useEffect(() => { audioRef.current = new Audio(); return () => { if(audioRef.current) audioRef.current.pause(); }; }, []);
+  useEffect(() => { if (!audioRef.current) return; audioRef.current.src = TUNES_PLAYLIST[track].file; audioRef.current.load(); if (playing) audioRef.current.play().catch(()=>{}); }, [track]);
+  useEffect(() => { if (!audioRef.current) return; playing ? audioRef.current.play().catch(()=>{}) : audioRef.current.pause(); }, [playing]);
+  useEffect(() => { if (audioRef.current) audioRef.current.onended = () => setPlaying(false); }, []);
 
   return (
-    <div className="flex flex-col h-full bg-[#1a1a1a] text-[#00ff00] font-mono select-none border-2 border-gray-600">
-        
-        {/* --- 1. MAIN DECK (DISPLAY & CONTROLS) --- */}
-        <div className="p-2 border-b-2 border-gray-700 bg-gradient-to-b from-[#2a2a2a] to-[#1a1a1a]">
-            {/* LCD SCREEN */}
-            <div className="bg-black border-2 border-gray-600 rounded mb-2 relative h-16 flex overflow-hidden shadow-[inset_0_0_10px_rgba(0,0,0,1)]">
-                
-                {/* LEFT: VISUALIZER */}
-                <canvas ref={canvasRef} width={80} height={60} className="border-r border-gray-800 opacity-90" />
-                
-                {/* RIGHT: TEXT INFO */}
-                <div className="flex-1 flex flex-col p-1 relative overflow-hidden">
-                    {/* SCROLLING MARQUEE */}
-                    <div className="whitespace-nowrap overflow-hidden">
-                        <div className={`text-sm font-bold ${playing ? 'animate-marquee' : ''}`}>
-                            {trackIndex + 1}. {currentTrack.artist} - {currentTrack.title} *** ({currentTrack.duration}) ***
-                        </div>
-                    </div>
-                    
-                    {/* TECH SPECS */}
-                    <div className="mt-auto flex justify-between text-[10px] text-green-700 font-bold">
-                        <span>{playing ? 320 : 0} kbps</span>
-                        <span>44 khz</span>
-                        <span className={playing ? "animate-pulse text-green-400" : ""}>{playing ? "STEREO" : "MONO"}</span>
-                    </div>
-
-                    {/* BIG TIMER */}
-                    <div className="absolute top-6 right-1 text-2xl font-black tracking-widest text-[#ccffcc] drop-shadow-[0_0_5px_rgba(0,255,0,0.5)]">
-                        {formatTime(currentTime)}
-                    </div>
-                </div>
-            </div>
-
-            {/* SEEK BAR */}
-            <div className="flex items-center gap-2 mb-2">
-                <input 
-                    type="range" 
-                    min="0" max={duration || 100} 
-                    value={currentTime} 
-                    onChange={handleSeek}
-                    className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-green-500 border border-gray-600"
-                />
-            </div>
-
-            {/* CONTROLS ROW */}
-            <div className="flex justify-between items-center pt-1">
-                {/* Transport Controls */}
-                <div className="flex gap-0.5">
-                    <button onClick={prevTrack} title="Previous" className="w-8 h-8 bg-gray-300 border-b-2 border-r-2 border-gray-600 active:border-t-2 active:border-l-2 flex items-center justify-center hover:bg-white text-black"><SkipBack size={14}/></button>
-                    <button onClick={togglePlay} title="Play/Pause" className="w-10 h-8 bg-gray-300 border-b-2 border-r-2 border-gray-600 active:border-t-2 active:border-l-2 flex items-center justify-center hover:bg-white text-black">
-                        {playing ? <Pause size={16} fill="black"/> : <Play size={16} fill="black"/>}
-                    </button>
-                    <button onClick={() => {setPlaying(false); setCurrentTime(0); if(audioRef.current) audioRef.current.currentTime=0;}} title="Stop" className="w-8 h-8 bg-gray-300 border-b-2 border-r-2 border-gray-600 active:border-t-2 active:border-l-2 flex items-center justify-center hover:bg-white text-black"><Square size={12} fill="black"/></button>
-                    <button onClick={nextTrack} title="Next" className="w-8 h-8 bg-gray-300 border-b-2 border-r-2 border-gray-600 active:border-t-2 active:border-l-2 flex items-center justify-center hover:bg-white text-black"><SkipForward size={14}/></button>
-                </div>
-
-                {/* Volume & Toggles */}
-                <div className="flex flex-col items-end gap-1">
-                    <div className="flex items-center gap-1">
-                        <Volume2 size={10} className="text-gray-500"/>
-                        <input 
-                            type="range" 
-                            min="0" max="1" step="0.01" 
-                            value={volume} 
-                            onChange={e => setVolume(parseFloat(e.target.value))}
-                            className="w-16 h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-green-500"
-                            title="Volume"
-                        />
-                    </div>
-                    <div className="flex gap-1">
-                        <button onClick={() => setShuffle(!shuffle)} className={`px-1 h-4 text-[9px] font-bold border flex items-center ${shuffle ? 'bg-green-900 text-green-100 border-green-500 shadow-[0_0_5px_green]' : 'bg-gray-800 text-gray-500 border-gray-600'}`}>SHILL</button>
-                        <button onClick={() => setLoop(!loop)} className={`px-1 h-4 text-[9px] font-bold border flex items-center ${loop ? 'bg-green-900 text-green-100 border-green-500 shadow-[0_0_5px_green]' : 'bg-gray-800 text-gray-500 border-gray-600'}`}>LOOP</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        {/* --- 2. PLAYLIST DECK --- */}
-        <div className="flex-1 bg-[#111] overflow-y-auto p-1 font-sans text-xs">
-            <div className="text-[#00ff00] text-[10px] mb-1 font-bold border-b border-gray-800">PLAYLIST.IT</div>
-            {playlist.map((t, i) => (
-                <div 
-                    key={i} 
-                    onClick={() => { setTrackIndex(i); setPlaying(true); }}
-                    className={`
-                        cursor-pointer flex justify-between px-1 py-0.5 mb-[1px]
-                        ${trackIndex === i ? 'bg-green-900 text-white font-bold' : 'text-green-600 hover:bg-gray-800'}
-                    `}
-                >
-                    <div className="truncate flex-1">
-                        <span className="mr-2 text-[9px] opacity-70">{i+1}.</span>
-                        {t.artist} - {t.title}
-                    </div>
-                    <div className="w-10 text-right">{t.duration}</div>
-                </div>
-            ))}
-        </div>
+    <div className="bg-[#29293d] h-full text-[#00ff00] font-mono p-2 flex flex-col">
+      <div className="h-24 bg-black border-2 border-gray-600 mb-2 flex items-center justify-center">
+         <div className="flex items-end gap-1 h-16">{new Array(10).fill(0).map((_,i) => <div key={i} className={`w-3 bg-green-500 ${playing ? 'animate-pulse' : ''}`} style={{height: `${Math.random()*100}%`}}></div>)}</div>
+      </div>
+      <div className="bg-black border border-gray-600 p-2 mb-2 text-xs text-yellow-400 font-bold truncate">{TUNES_PLAYLIST[track].title}</div>
+      <div className="flex justify-between items-center mb-4 px-4">
+        <button onClick={() => setTrack(Math.max(0, track-1))}><SkipBack size={32} className="text-white active:scale-90"/></button>
+        <button onClick={() => setPlaying(!playing)}>{playing ? <Pause size={48} className="text-white active:scale-90"/> : <Play size={48} className="text-white active:scale-90"/>}</button>
+        <button onClick={() => setTrack(Math.min(TUNES_PLAYLIST.length-1, track+1))}><SkipForward size={32} className="text-white active:scale-90"/></button>
+      </div>
+      <div className="flex-1 bg-white text-black overflow-y-auto border border-gray-600 font-sans text-xs">
+        {TUNES_PLAYLIST.map((t, i) => (
+          <div key={i} className={`px-2 py-2 cursor-pointer border-b flex justify-between ${track === i ? 'bg-blue-800 text-white' : ''}`} onClick={() => { setTrack(i); setPlaying(true); }}>
+            <span>{i+1}. {t.title}</span><span>{t.duration}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 };
 
-// 5. RUGS WEEPER
-
-
-// 5. PLAY IT (STACK IT - TO THE MOON)
 const RugSweeperApp = () => {
-  const canvasRef = useRef(null);
-  const requestRef = useRef();
-  const audioCtxRef = useRef(null);
-
-  // --- STATE ---
-  const [gameState, setGameState] = useState('MENU');
-  const [score, setScore] = useState(0);
-  const [highScore, setHighScore] = useState(0);
-
-  // --- CONSTANTS ---
-  const GAME_WIDTH = 320;
-  const GAME_HEIGHT = 550;
-  const BLOCK_HEIGHT = 35;
-  const BASE_WIDTH = 220;
-  const INITIAL_SPEED = 4;
-
-  // --- AUDIO CONFIG ---
-  const NOTES = [261.63, 293.66, 329.63, 392.00, 523.25, 587.33, 659.25, 783.99];
-  const BIOMES = [
-    { score: 0, name: "THE TRENCHES", bgStart: '#1a1a2e', bgEnd: '#16213e', text: '#fff' },
-    { score: 10, name: "ATMOSPHERE", bgStart: '#2b5876', bgEnd: '#4e4376', text: '#fff' },
-    { score: 25, name: "ORBIT", bgStart: '#000000', bgEnd: '#434343', text: '#00ff00' },
-    { score: 50, name: "LUNAR BASE", bgStart: '#232526', bgEnd: '#414345', text: '#fff' },
-    { score: 75, name: "MARS COLONY", bgStart: '#870000', bgEnd: '#190a05', text: '#ffcc00' },
-    { score: 100, name: "THE CITADEL", bgStart: '#cc95c0', bgEnd: '#dbd4b4', text: '#000' },
-  ];
-
-  const [currentBiome, setCurrentBiome] = useState(BIOMES[0]);
-
-  // --- ENGINE REFS ---
-  const game = useRef({
-    state: 'MENU',
-    stack: [],
-    current: null,
-    debris: [],
-    particles: [],
-    cameraY: 0,
-    shake: 0,
-    combo: 0,
-    perfectCount: 0,
-    time: 0
-  });
-
-  // --- INIT ---
-  useEffect(() => {
-    const saved = localStorage.getItem('stackItHighScore');
-    if (saved) setHighScore(parseInt(saved, 10));
-    return () => cancelAnimationFrame(requestRef.current);
-  }, []);
-
-  // --- AUDIO ---
-  const initAudio = () => {
-    if (!audioCtxRef.current) {
-      try { audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)(); } 
-      catch (e) { console.warn("Audio fail"); }
-    }
-    if (audioCtxRef.current?.state === 'suspended') audioCtxRef.current.resume();
+  const [grid, setGrid] = useState(Array(81).fill(0));
+  const [revealed, setRevealed] = useState(Array(81).fill(false));
+  const [gameOver, setGameOver] = useState(false);
+  const init = () => {
+    const g = Array(81).fill(0);
+    for(let i=0; i<10; i++) { let idx; do { idx = Math.floor(Math.random() * 81); } while(g[idx]===1); g[idx] = 1; }
+    setGrid(g); setRevealed(Array(81).fill(false)); setGameOver(false);
   };
-
-  const playSound = (type, comboIndex = 0) => {
-    if (!audioCtxRef.current) return;
-    const ctx = audioCtxRef.current;
-    const t = ctx.currentTime;
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-
-    if (type === 'perfect') {
-      osc.type = 'square';
-      const noteFreq = NOTES[comboIndex % NOTES.length] * (1 + Math.floor(comboIndex/NOTES.length)*0.5);
-      osc.frequency.setValueAtTime(noteFreq, t);
-      gain.gain.setValueAtTime(0.1, t);
-      gain.gain.exponentialRampToValueAtTime(0.01, t + 0.3);
-      osc.start(t);
-      osc.stop(t + 0.3);
-    } else if (type === 'place') {
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(150, t);
-      osc.frequency.linearRampToValueAtTime(50, t + 0.1);
-      gain.gain.setValueAtTime(0.1, t);
-      gain.gain.linearRampToValueAtTime(0, t + 0.1);
-      osc.start(t);
-      osc.stop(t + 0.1);
-    } else if (type === 'fail') {
-      osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(100, t);
-      osc.frequency.linearRampToValueAtTime(20, t + 0.5);
-      gain.gain.setValueAtTime(0.2, t);
-      gain.gain.linearRampToValueAtTime(0, t + 0.5);
-      osc.start(t);
-      osc.stop(t + 0.5);
-    }
+  useEffect(init, []);
+  const click = (i) => {
+    if(gameOver || revealed[i]) return;
+    const r = [...revealed]; r[i] = true; setRevealed(r);
+    if(grid[i]===1) { setGameOver(true); setRevealed(Array(81).fill(true)); }
   };
-
-  // --- GAME LOGIC ---
-  const spawnBlock = (prev, level) => {
-    const isLeft = Math.random() > 0.5;
-    const yPos = level * BLOCK_HEIGHT;
-    const speed = INITIAL_SPEED + Math.pow(level, 0.6) * 0.5; 
-    
-    return {
-      x: isLeft ? -prev.w : GAME_WIDTH,
-      y: yPos,
-      w: prev.w,
-      h: BLOCK_HEIGHT,
-      dir: isLeft ? 1 : -1,
-      speed: Math.min(speed, 15),
-      color: `hsl(${(level * 10) % 360}, 70%, 60%)` 
-    };
-  };
-
-  const createParticles = (x, y, w, h, color, count = 10) => {
-    for(let i=0; i<count; i++) {
-      game.current.particles.push({
-        x: x + Math.random() * w,
-        y: y + Math.random() * h,
-        vx: (Math.random() - 0.5) * 10,
-        vy: (Math.random() - 0.5) * 10,
-        life: 1.0,
-        color: color
-      });
-    }
-  };
-
-  const startGame = (e) => {
-    if(e) e.stopPropagation(); // FIX: Prevent click from bubbling to container
-    
-    initAudio();
-    setScore(0);
-    setGameState('PLAYING');
-    setCurrentBiome(BIOMES[0]);
-    
-    const base = {
-      x: (GAME_WIDTH - BASE_WIDTH) / 2,
-      y: 0,
-      w: BASE_WIDTH,
-      h: BLOCK_HEIGHT,
-      color: '#33ff33'
-    };
-
-    game.current = {
-      state: 'PLAYING',
-      stack: [base],
-      current: spawnBlock(base, 1),
-      debris: [],
-      particles: [],
-      cameraY: 0,
-      shake: 0,
-      combo: 0,
-      perfectCount: 0,
-      time: 0
-    };
-    
-    if (requestRef.current) cancelAnimationFrame(requestRef.current);
-    requestRef.current = requestAnimationFrame(loop);
-  };
-
-  const placeBlock = () => {
-    if (game.current.state !== 'PLAYING') return;
-    
-    const g = game.current;
-    const curr = g.current;
-    if (!curr) return; // Safety check
-
-    const prev = g.stack[g.stack.length-1];
-    const dist = curr.x - prev.x;
-    const absDist = Math.abs(dist);
-    const tolerance = 10; 
-
-    // MISS
-    if (absDist > curr.w) {
-      createParticles(curr.x, curr.y, curr.w, curr.h, '#ff0000', 20);
-      g.shake = 20;
-      gameOver();
-      return;
-    }
-
-    let newX = curr.x;
-    let newW = curr.w;
-    let isPerfect = false;
-
-    // HIT
-    if (absDist <= tolerance) {
-      newX = prev.x;
-      newW = prev.w;
-      isPerfect = true;
-      g.combo++;
-      g.perfectCount++;
-      
-      if (g.combo >= 3 && newW < BASE_WIDTH) {
-        newW = Math.min(BASE_WIDTH, newW + 20);
-        newX = prev.x - 10; 
-      }
-
-      g.shake = 5;
-      playSound('perfect', g.perfectCount);
-      createParticles(newX, curr.y, newW, curr.h, '#ffffff', 10);
-    } else {
-      g.combo = 0;
-      g.perfectCount = 0;
-      newW = curr.w - absDist;
-      newX = dist > 0 ? curr.x : prev.x;
-      
-      const debrisX = dist > 0 ? curr.x + newW : curr.x;
-      const debrisW = absDist;
-      g.debris.push({
-        x: debrisX, y: curr.y, w: debrisW, h: curr.h,
-        vx: dist > 0 ? 4 : -4, vy: -2, color: curr.color, life: 1.0
-      });
-      
-      g.shake = 2;
-      playSound('place');
-    }
-
-    const placed = { x: newX, y: curr.y, w: newW, h: curr.h, color: curr.color, perfect: isPerfect };
-    g.stack.push(placed);
-    
-    const nextScore = score + 1;
-    setScore(nextScore);
-    if (nextScore > highScore) {
-        setHighScore(nextScore);
-        localStorage.setItem('stackItHighScore', nextScore);
-    }
-    
-    const biome = BIOMES.slice().reverse().find(b => nextScore >= b.score);
-    if (biome && biome.name !== currentBiome.name) setCurrentBiome(biome);
-
-    g.current = spawnBlock(placed, g.stack.length);
-  };
-
-  const gameOver = () => {
-    playSound('fail');
-    setGameState('GAME_OVER');
-    game.current.state = 'GAME_OVER';
-    // Let animation run a bit for effects
-    setTimeout(() => cancelAnimationFrame(requestRef.current), 1000);
-  };
-
-  const loop = () => {
-    const ctx = canvasRef.current?.getContext('2d');
-    if (!ctx) return;
-    const g = game.current;
-    g.time += 0.05;
-
-    // PHYSICS
-    if (g.state === 'PLAYING' && g.current) {
-      g.current.x += g.current.speed * g.current.dir;
-      if (g.current.x > GAME_WIDTH + 50) g.current.dir = -1;
-      if (g.current.x < -50 - g.current.w) g.current.dir = 1;
-      
-      // Camera: Follow top of stack minus offset to keep ~4 blocks visible + space
-      const stackTop = g.stack.length * BLOCK_HEIGHT;
-      const targetY = Math.max(0, stackTop - (GAME_HEIGHT * 0.4));
-      g.cameraY += (targetY - g.cameraY) * 0.1;
-    }
-
-    g.shake *= 0.8;
-    const shakeX = (Math.random() - 0.5) * g.shake;
-    const shakeY = (Math.random() - 0.5) * g.shake;
-
-    g.debris.forEach(d => { d.x += d.vx; d.y += d.vy; d.vy += 0.5; d.life -= 0.02; });
-    g.debris = g.debris.filter(d => d.life > 0);
-
-    g.particles.forEach(p => { p.x += p.vx; p.y += p.vy; p.life -= 0.03; });
-    g.particles = g.particles.filter(p => p.life > 0);
-
-    // DRAW BACKGROUND
-    const gradient = ctx.createLinearGradient(0, 0, 0, GAME_HEIGHT);
-    gradient.addColorStop(0, currentBiome.bgStart);
-    gradient.addColorStop(1, currentBiome.bgEnd);
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
-
-    // GRID
-    ctx.strokeStyle = 'rgba(255,255,255,0.05)';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    const gridOffset = (g.cameraY * 0.5) % 40;
-    for (let x=0; x<GAME_WIDTH; x+=40) { ctx.moveTo(x,0); ctx.lineTo(x,GAME_HEIGHT); }
-    for (let y=0; y<GAME_HEIGHT; y+=40) { ctx.moveTo(0,y+gridOffset); ctx.lineTo(GAME_WIDTH,y+gridOffset); }
-    ctx.stroke();
-
-    ctx.save();
-    // Move world down (positive Y) based on camera
-    ctx.translate(0 + shakeX, GAME_HEIGHT + g.cameraY - 50 + shakeY);
-
-    // STACK
-    g.stack.forEach(b => {
-      const y = -b.y; 
-      
-      if (b.perfect) {
-        ctx.shadowBlur = 15;
-        ctx.shadowColor = '#fff';
-      } else {
-        ctx.shadowBlur = 0;
-      }
-
-      ctx.fillStyle = b.color;
-      ctx.fillRect(b.x, y - b.h, b.w, b.h);
-      
-      ctx.strokeStyle = 'rgba(255,255,255,0.5)';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(b.x, y - b.h, b.w, b.h);
-      
-      ctx.fillStyle = 'rgba(255,255,255,0.8)';
-      ctx.fillRect(b.x + b.w/2 - 1, y - b.h - 8, 2, 8);
-      
-      ctx.shadowBlur = 0;
-    });
-
-    // DEBRIS
-    g.debris.forEach(d => {
-      ctx.fillStyle = d.color;
-      ctx.globalAlpha = d.life;
-      ctx.fillRect(d.x, -d.y - d.h, d.w, d.h);
-      ctx.globalAlpha = 1;
-    });
-
-    // PARTICLES
-    g.particles.forEach(p => {
-      ctx.fillStyle = p.color;
-      ctx.globalAlpha = p.life;
-      ctx.beginPath();
-      ctx.arc(p.x, -p.y, 3, 0, Math.PI*2);
-      ctx.fill();
-      ctx.globalAlpha = 1;
-    });
-
-    // CURRENT BLOCK
-    if (g.state === 'PLAYING' && g.current) {
-      const c = g.current;
-      ctx.fillStyle = c.color;
-      ctx.fillRect(c.x, -c.y - c.h, c.w, c.h);
-      ctx.fillStyle = 'rgba(255,255,255,0.1)';
-      ctx.fillRect(c.x, 0, c.w, -9999); // Guide beam
-    }
-
-    // ATH LINE
-    if (highScore > 0) {
-      const athY = -(highScore * BLOCK_HEIGHT);
-      ctx.strokeStyle = '#ffff00';
-      ctx.setLineDash([5, 5]);
-      ctx.beginPath(); ctx.moveTo(-50, athY); ctx.lineTo(GAME_WIDTH+50, athY); ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.fillStyle = '#ffff00';
-      ctx.font = '10px monospace';
-      ctx.fillText('ATH', 10, athY - 5);
-    }
-
-    ctx.restore();
-
-    // UI OVERLAY
-    ctx.fillStyle = currentBiome.text;
-    ctx.font = '900 40px Impact';
-    ctx.textAlign = 'center';
-    ctx.fillText(score, GAME_WIDTH/2, 60);
-    
-    ctx.font = '12px monospace';
-    ctx.fillText(currentBiome.name, GAME_WIDTH/2, 80);
-
-    if (g.combo > 1) {
-      ctx.fillStyle = `hsl(${g.time * 500}, 100%, 50%)`;
-      ctx.font = 'italic 900 20px Arial';
-      ctx.save();
-      ctx.translate(GAME_WIDTH/2, 110);
-      ctx.rotate(Math.sin(g.time*10)*0.1);
-      ctx.fillText(`${g.combo}X COMBO!`, 0, 0);
-      ctx.restore();
-    }
-
-    if (g.state === 'PLAYING') {
-      requestRef.current = requestAnimationFrame(loop);
-    }
-  };
-
   return (
-    <div className="flex flex-col h-full bg-[#c0c0c0] p-1 font-mono select-none"
-         onPointerDown={(e) => {
-           e.preventDefault(); 
-           // Only place block if game is truly running
-           if (game.current.state === 'PLAYING') placeBlock();
-         }}
-    >
-      <div className="bg-[#000080] text-white px-2 py-1 flex justify-between items-center text-xs font-bold border-2 border-white border-r-gray-500 border-b-gray-500 mb-1">
-        <span>STACK_IT_GOD_MODE.EXE</span>
-        <span className="text-yellow-300">ATH: {highScore}</span>
-      </div>
-
-      <div className="flex-1 bg-black relative border-2 border-gray-600 border-r-white border-b-white overflow-hidden cursor-pointer touch-none">
-        <canvas ref={canvasRef} width={GAME_WIDTH} height={GAME_HEIGHT} className="w-full h-full object-contain block touch-none" />
-        
-        {gameState === 'MENU' && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm text-center text-white p-6 z-10">
-            <h1 className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-t from-green-600 to-green-300 mb-2 drop-shadow-lg italic">STACK IT</h1>
-            <p className="text-sm font-bold text-gray-300 mb-8 tracking-widest">BUILD THE GOD CANDLE</p>
-            <button 
-                onClick={startGame} // Correct handler
-                className="animate-pulse bg-white text-black px-4 py-2 font-black border-4 border-blue-500 shadow-[4px_4px_0_#0000ff] cursor-pointer hover:scale-105 transition-transform"
-            >
-              TAP TO PUMP
-            </button>
+    <div className="flex flex-col h-full bg-[#c0c0c0] p-2 items-center">
+      <div className="bg-black text-red-500 font-mono text-xl p-2 mb-2 border-4 border-gray-400 w-full text-center">{gameOver ? "RUGGED!" : "FIND GEMS"}</div>
+      <div className="grid grid-cols-9 gap-[1px] bg-gray-500 border-4 border-gray-400">
+        {grid.map((c, i) => (
+          <div key={i} onClick={() => click(i)} className={`w-8 h-8 flex items-center justify-center font-bold text-sm cursor-pointer border-2 ${revealed[i] ? 'bg-[#c0c0c0] border-gray-400' : 'bg-[#d4d0c8] border-t-white border-l-white border-b-gray-600 border-r-gray-600'}`}>
+            {revealed[i] ? (c === 1 ? <Skull size={16} className="text-black"/> : <span className="text-blue-700">1</span>) : ""}
           </div>
-        )}
-
-        {gameState === 'GAME_OVER' && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-red-900/90 text-center text-white p-6 z-10">
-            <h1 className="text-4xl font-black mb-2">PAPER HANDS!</h1>
-            <div className="text-6xl font-black text-yellow-400 mb-2">{score}</div>
-            <p className="text-xs mb-8 text-red-200">YOU SOLD TOO EARLY</p>
-            <button 
-                onClick={startGame} // Correct handler
-                className="bg-white text-black px-6 py-3 font-black border-4 border-gray-400 shadow-[4px_4px_0_#000] cursor-pointer hover:bg-gray-100 hover:scale-105 transition-transform"
-            >
-              BUY THE DIP (RETRY)
-            </button>
-          </div>
-        )}
+        ))}
       </div>
+      <Button className="mt-4 w-full h-12" onClick={init}>RESTART</Button>
     </div>
   );
 };
 
-// 6. MEMES APP
 const MemesApp = () => {
   const images = Object.values(ASSETS.memes);
   const keys = Object.keys(ASSETS.memes);
@@ -1715,25 +448,22 @@ const MemesApp = () => {
         <div className="flex-1 flex items-center justify-center p-4 bg-[#1a1a1a]">
           <img src={images[selectedIndex]} className="max-w-full max-h-full object-contain border-4 border-white shadow-2xl" alt="Meme" />
         </div>
-        <div className="absolute top-1/2 left-2 -translate-y-1/2">
-           <button onClick={(e) => { e.stopPropagation(); setSelectedIndex((selectedIndex - 1 + images.length) % images.length)}} className="bg-white/10 hover:bg-white/30 backdrop-blur p-2 rounded-full text-white font-bold transition-all border border-white/50"><SkipBack size={32} /></button>
+        <div className="absolute bottom-16 left-0 w-full flex justify-between px-4">
+           <button onClick={(e) => { e.stopPropagation(); setSelectedIndex((selectedIndex - 1 + images.length) % images.length)}} className="bg-white/20 p-4 rounded-full backdrop-blur"><SkipBack size={32} /></button>
+           <button onClick={(e) => { e.stopPropagation(); setSelectedIndex((selectedIndex + 1) % images.length)}} className="bg-white/20 p-4 rounded-full backdrop-blur"><SkipForward size={32} /></button>
         </div>
-        <div className="absolute top-1/2 right-2 -translate-y-1/2">
-           <button onClick={(e) => { e.stopPropagation(); setSelectedIndex((selectedIndex + 1) % images.length)}} className="bg-white/10 hover:bg-white/30 backdrop-blur p-2 rounded-full text-white font-bold transition-all border border-white/50"><SkipForward size={32} /></button>
-        </div>
-        <div className="bg-[#c0c0c0] p-1 border-t border-white flex justify-center text-black">
-            <Button onClick={() => setSelectedIndex(null)}>Back to Grid</Button>
-            <div className="ml-4 flex items-center text-xs font-mono">{keys[selectedIndex].toUpperCase()}.JPG ({selectedIndex + 1}/{images.length})</div>
+        <div className="bg-[#c0c0c0] p-2 border-t border-white flex justify-center text-black">
+            <Button onClick={() => setSelectedIndex(null)} className="w-full h-10">Back to Grid</Button>
         </div>
       </div>
     );
   }
   return (
-    <div className="bg-white h-full p-4 grid grid-cols-4 gap-4 overflow-y-auto content-start">
+    <div className="bg-white h-full p-4 grid grid-cols-3 sm:grid-cols-4 gap-4 overflow-y-auto content-start">
         {images.map((src, i) => (
-            <div key={i} className="group cursor-pointer flex flex-col items-center gap-1 p-2 hover:bg-blue-100 border border-transparent hover:border-blue-300 rounded" onClick={() => setSelectedIndex(i)}>
-                <div className="w-16 h-16 bg-gray-100 flex items-center justify-center border border-gray-300 shadow-sm group-hover:shadow-md"><img src={src} className="max-w-full max-h-full object-contain" /></div>
-                <div className="text-center text-[10px] font-mono truncate w-full px-1">{keys[i]}.JPG</div>
+            <div key={i} className="group cursor-pointer flex flex-col items-center gap-1 p-1 hover:bg-blue-100 border border-transparent rounded active:opacity-50" onClick={() => setSelectedIndex(i)}>
+                <div className="w-full aspect-square bg-gray-100 flex items-center justify-center border border-gray-300 shadow-sm"><img src={src} className="max-w-full max-h-full object-contain" /></div>
+                <div className="text-center text-[10px] font-mono truncate w-full px-1">{keys[i]}</div>
             </div>
         ))}
     </div>
@@ -1746,7 +476,7 @@ export default function UltimateOS() {
   const [maxZ, setMaxZ] = useState(10);
   const [activeWindowId, setActiveWindowId] = useState(null);
   const [booted, setBooted] = useState(false);
-  const [isStartOpen, setIsStartOpen] = useState(false); // Start Menu State
+  const [isStartOpen, setIsStartOpen] = useState(false); 
   const dexData = useDexData(CA_ADDRESS);
   const { wallet, connect, connecting } = useWallet();
   const [caCopied, setCaCopied] = useState(false);
@@ -1755,34 +485,24 @@ export default function UltimateOS() {
 
   const openApp = (type) => {
     const id = generateId();
+    const titles = { paint: 'Paint IT', terminal: 'Terminal IT', tunes: 'Tune IT', rugsweeper: 'Play IT', notepad: 'Write IT', memes: 'Memes' };
     
-    const titles = { 
-      paint: 'Paint IT', 
-      terminal: 'Terminal IT', 
-      tunes: 'Tune IT', 
-      rugsweeper: 'Stack IT', // Updated title
-      notepad: 'Write IT', 
-      memes: 'Memes' 
-    };
+    // RESPONSIVE SIZING FOR MOBILE
+    const isMobile = window.innerWidth < 768;
+    const defaultW = type==='paint' || type==='memes' ? 640 : 400;
+    const defaultH = type==='paint' || type==='memes' ? 480 : 400;
 
     const newWin = { 
-      id, 
-      type, 
-      title: titles[type] || 'App', 
-      x: 50 + (windows.length * 20), 
-      y: 50 + (windows.length * 20), 
-      
-      // LOGIC: Paint/Memes = Wide (640), Stack IT = Narrow (340), Others = Standard (400)
-      w: (type === 'paint' || type === 'memes') ? 640 : (type === 'rugsweeper' ? 340 : 400),
-      
-      // LOGIC: Paint/Memes = Standard (480), Stack IT = Tall (600), Others = Standard (400)
-      h: (type === 'paint' || type === 'memes') ? 480 : (type === 'rugsweeper' ? 600 : 400),
-      
-      z: maxZ + 1, 
-      isMaximized: false, 
-      isMinimized: false 
+      id, type, title: titles[type] || 'App', 
+      // Center on mobile or cascade on desktop
+      x: isMobile ? 10 : 50 + (windows.length * 20), 
+      y: isMobile ? 20 : 50 + (windows.length * 20), 
+      // Fit to screen on mobile
+      w: isMobile ? window.innerWidth - 20 : defaultW, 
+      h: isMobile ? window.innerHeight - 150 : defaultH, 
+      z: maxZ+1, isMaximized: false, isMinimized: false 
     };
-
+    
     setWindows([...windows, newWin]);
     setActiveWindowId(id);
     setMaxZ(prev => prev + 1);
@@ -1808,7 +528,12 @@ export default function UltimateOS() {
     focusWindow(id);
   };
 
-  const moveWindow = (id, x, y) => setWindows(prev => prev.map(w => w.id === id ? { ...w, x, y } : w));
+  const moveWindow = (id, x, y) => {
+      // Prevent dragging off screen totally
+      const safeX = Math.max(-100, Math.min(window.innerWidth - 50, x));
+      const safeY = Math.max(0, Math.min(window.innerHeight - 50, y));
+      setWindows(prev => prev.map(w => w.id === id ? { ...w, x: safeX, y: safeY } : w));
+  };
 
   const handleTaskbarClick = (id) => {
     const win = windows.find(w => w.id === id);
@@ -1829,21 +554,21 @@ export default function UltimateOS() {
 
   const isAnyWindowMaximized = windows.some(w => w.isMaximized && !w.isMinimized);
 
-  // Close Start Menu if clicking outside
   useEffect(() => {
     const handleClickOutside = (e) => {
       const startMenu = document.getElementById('start-menu-container');
       const startButton = document.getElementById('start-button');
-      
-      // Ensure elements exist before checking contains
       if (isStartOpen && startMenu && !startMenu.contains(e.target) && startButton && !startButton.contains(e.target)) {
         setIsStartOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside); // Added touch listener
+    return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+        document.removeEventListener('touchstart', handleClickOutside);
+    };
   }, [isStartOpen]);
-
 
   if (!booted) return (
     <div className="w-full h-screen bg-black text-green-500 font-mono flex flex-col items-center justify-center relative overflow-hidden">
@@ -1860,19 +585,18 @@ export default function UltimateOS() {
       <div className="absolute inset-0 z-[9999] pointer-events-none mix-blend-overlay opacity-20 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[length:100%_4px,3px_100%]"></div>
       <div className="absolute inset-0 z-0 bg-cover bg-center" style={{ backgroundImage: `url(${ASSETS.wallpaper})` }}></div>
 
-      {/* Desktop Icons */}
-      <div className="absolute top-0 left-0 p-4 z-0 flex flex-col gap-4">
-        <DesktopIcon icon={Terminal} label="Terminal IT" onDoubleClick={() => openApp('terminal')} />
-        <DesktopIcon icon={Paintbrush} label="Paint IT" onDoubleClick={() => openApp('paint')} />
-        <DesktopIcon icon={Music} label="Tune IT" onDoubleClick={() => openApp('tunes')} />
-        <DesktopIcon icon={Gamepad2} label="Play IT" onDoubleClick={() => openApp('rugsweeper')} />
-        <DesktopIcon icon={FileText} label="Write IT" onDoubleClick={() => openApp('notepad')} />
-        <DesktopIcon icon={Folder} label="Memes" onDoubleClick={() => openApp('memes')} />
+      {/* Desktop Icons - SWITCHED TO onClick for Single Tap (Mobile/Desktop friendly) */}
+      <div className="absolute top-0 left-0 p-4 z-0 flex flex-col gap-4 flex-wrap max-h-full">
+        <DesktopIcon icon={Terminal} label="Terminal IT" onClick={() => openApp('terminal')} />
+        <DesktopIcon icon={Paintbrush} label="Paint IT" onClick={() => openApp('paint')} />
+        <DesktopIcon icon={Music} label="Tune IT" onClick={() => openApp('tunes')} />
+        <DesktopIcon icon={Gamepad2} label="Play IT" onClick={() => openApp('rugsweeper')} />
+        <DesktopIcon icon={FileText} label="Write IT" onClick={() => openApp('notepad')} />
+        <DesktopIcon icon={Folder} label="Memes" onClick={() => openApp('memes')} />
       </div>
 
       <Shippy hidden={isAnyWindowMaximized} />
 
-      {/* Windows */}
       {windows.map(win => (
         <DraggableWindow 
           key={win.id} 
@@ -1893,60 +617,29 @@ export default function UltimateOS() {
         </DraggableWindow>
       ))}
 
-      {/* Start Menu Popup */}
       <div id="start-menu-container">
-        <StartMenu 
-            isOpen={isStartOpen} 
-            onClose={() => setIsStartOpen(false)} 
-            onOpenApp={openApp}
-        />
+        <StartMenu isOpen={isStartOpen} onClose={() => setIsStartOpen(false)} onOpenApp={openApp} />
       </div>
 
-      {/* Taskbar */}
       <div className="absolute bottom-0 left-0 w-full h-10 bg-[#c0c0c0] border-t-2 border-white flex items-center px-1 z-[9998] shadow-2xl">
-        <Button 
-            id="start-button"
-            onClick={() => setIsStartOpen(!isStartOpen)} 
-            className="mr-2 font-black italic"
-            active={isStartOpen}
-        >
-            <Globe size={16} /> START
+        <Button id="start-button" onClick={() => setIsStartOpen(!isStartOpen)} className="mr-2 font-black italic" active={isStartOpen}>
+            <Globe size={16} /> <span className="hidden sm:inline">START</span>
         </Button>
         <div className="w-px h-6 bg-gray-500 mx-2"></div>
-        
-        {/* Open Windows List */}
-        <div className="flex-1 flex gap-1 overflow-x-auto">
+        <div className="flex-1 flex gap-1 overflow-x-auto no-scrollbar">
           {windows.map(win => (
-            <Button 
-              key={win.id} 
-              active={win.id === activeWindowId && !win.isMinimized} 
-              onClick={() => handleTaskbarClick(win.id)} 
-              className={`w-32 truncate justify-start ${win.isMinimized ? 'opacity-70' : ''}`}
-            >
+            <Button key={win.id} active={win.id === activeWindowId && !win.isMinimized} onClick={() => handleTaskbarClick(win.id)} className={`min-w-[80px] max-w-[120px] truncate justify-start ${win.isMinimized ? 'opacity-70' : ''}`}>
               {win.title}
             </Button>
           ))}
         </div>
-
-        {/* Tray Area */}
         <div className="flex items-center gap-2 px-2 py-1 border-2 border-gray-600 bg-[#c0c0c0] border-b-white border-r-white">
-          
-          {/* Mini CA Widget */}
-          <Button 
-             className={`h-6 text-xs font-mono px-2 ${caCopied ? 'bg-green-200' : ''}`}
-             onClick={handleCopyCA}
-             title="Copy CA"
-          >
-             {caCopied ? <Check size={12} className="text-green-700"/> : <Copy size={12}/>} 
-             <span className="hidden sm:inline ml-1">CA</span>
+          <Button className={`h-6 text-xs font-mono px-2 ${caCopied ? 'bg-green-200' : ''}`} onClick={handleCopyCA} title="Copy CA">
+             {caCopied ? <Check size={12} className="text-green-700"/> : <Copy size={12}/>} <span className="hidden sm:inline ml-1">CA</span>
           </Button>
-
-          <div className="text-xs font-mono mx-1 text-blue-800 hidden sm:block">
-            {dexData.price !== "LOADING..." ? `$${dexData.price.replace('$','')}` : "..."}
-          </div>
-
-          <Button onClick={connect} disabled={connecting} className="text-xs px-2 py-0 h-6"><Wallet size={12} />{wallet ? `${wallet.slice(0,4)}..` : "Connect"}</Button>
-          <Volume2 size={14} /><span className="text-xs font-mono hidden sm:inline">{new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>
+          <div className="text-xs font-mono mx-1 text-blue-800 hidden md:block">{dexData.price !== "LOADING..." ? `$${dexData.price.replace('$','')}` : "..."}</div>
+          <Button onClick={connect} disabled={connecting} className="text-xs px-2 py-0 h-6"><Wallet size={12} /><span className="hidden sm:inline">{wallet ? `${wallet.slice(0,4)}..` : "Connect"}</span></Button>
+          <Volume2 size={14} className="hidden sm:block"/><span className="text-xs font-mono hidden sm:inline">{new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>
         </div>
       </div>
     </div>
@@ -1954,8 +647,8 @@ export default function UltimateOS() {
 }
 
 // Helpers
-const DesktopIcon = ({ icon: Icon, label, onDoubleClick }) => (
-  <div onDoubleClick={onDoubleClick} className="flex flex-col items-center gap-1 w-20 cursor-pointer p-1 border border-transparent hover:border-white/20 hover:bg-white/10 rounded active:opacity-70 group">
+const DesktopIcon = ({ icon: Icon, label, onClick }) => (
+  <div onClick={onClick} className="flex flex-col items-center gap-1 w-20 cursor-pointer p-1 border border-transparent hover:border-white/20 hover:bg-white/10 rounded active:opacity-70 group active:bg-white/20">
     <Icon size={32} className="text-white drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)]" strokeWidth={1.5} />
     <span className="text-white text-xs text-center font-bold drop-shadow-[0_1px_2px_rgba(0,0,0,1)] bg-teal-800/80 px-1 rounded">{label}</span>
   </div>
@@ -1964,16 +657,26 @@ const DesktopIcon = ({ icon: Icon, label, onDoubleClick }) => (
 const DraggableWindow = ({ win, isActive, children, onFocus, onClose, onMaximize, onMinimize, onMove }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
-  const handleMouseDown = (e) => {
-    // Only allow drag if not maximized
-    if (win.isMaximized) return;
 
-    if (e.target.closest('.overflow-auto') || e.target.closest('button')) return; // Prevent drag on content or buttons
-    
+  const startDrag = (clientX, clientY) => {
+    if (win.isMaximized) return;
     onFocus();
-    const rect = e.currentTarget.getBoundingClientRect();
+    // Locate the container (parent of the header)
+    const element = document.getElementById(`win-${win.id}`);
+    if(!element) return;
+    const rect = element.getBoundingClientRect();
     setIsDragging(true); 
-    setOffset({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+    setOffset({ x: clientX - rect.left, y: clientY - rect.top });
+  };
+
+  const handleMouseDown = (e) => {
+    if (e.target.closest('.overflow-auto') || e.target.closest('button')) return;
+    startDrag(e.clientX, e.clientY);
+  };
+
+  const handleTouchStart = (e) => {
+    if (e.target.closest('.overflow-auto') || e.target.closest('button')) return;
+    startDrag(e.touches[0].clientX, e.touches[0].clientY);
   };
 
   useEffect(() => {
@@ -1981,21 +684,34 @@ const DraggableWindow = ({ win, isActive, children, onFocus, onClose, onMaximize
       if (!isDragging || win.isMaximized) return; 
       onMove(win.id, e.clientX - offset.x, e.clientY - offset.y); 
     };
-    const handleMouseUp = () => setIsDragging(false);
+    const handleTouchMove = (e) => {
+      if (!isDragging || win.isMaximized) return;
+      // Prevent scrolling body while dragging window
+      if (e.cancelable) e.preventDefault(); 
+      onMove(win.id, e.touches[0].clientX - offset.x, e.touches[0].clientY - offset.y);
+    };
+
+    const stopDrag = () => setIsDragging(false);
     
     if (isDragging) { 
       window.addEventListener('mousemove', handleMouseMove); 
-      window.addEventListener('mouseup', handleMouseUp); 
+      window.addEventListener('mouseup', stopDrag);
+      window.addEventListener('touchmove', handleTouchMove, { passive: false });
+      window.addEventListener('touchend', stopDrag);
     }
     return () => { 
       window.removeEventListener('mousemove', handleMouseMove); 
-      window.removeEventListener('mouseup', handleMouseUp); 
+      window.removeEventListener('mouseup', stopDrag);
+      window.removeEventListener('touchmove', handleTouchMove);
+      window.removeEventListener('touchend', stopDrag);
     };
   }, [isDragging, win.isMaximized, offset]);
 
   return (
     <div 
+      id={`win-${win.id}`}
       onMouseDown={handleMouseDown} 
+      onTouchStart={handleTouchStart}
       className="absolute flex flex-col" 
       style={{ 
         zIndex: win.z, 
