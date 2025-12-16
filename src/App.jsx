@@ -8,7 +8,7 @@ import {
   Search, Layout, Type, Folder, Twitter, Users, Copy, Check,
   Menu, LogOut, ChevronRight,
   Move, RotateCcw, RotateCw, Upload,
-  Maximize2, LayoutTemplate, Monitor, Share, Sliders, ChevronLeft
+  Maximize2, LayoutTemplate, Monitor, Share, Sliders, ChevronLeft, Plus
 } from 'lucide-react';
 
 // --- ASSET CONFIGURATION ---
@@ -367,9 +367,8 @@ const PaintApp = () => {
   const [view, setView] = useState({ scale: 1, x: 0, y: 0 });
   
   // --- UI STATE ---
-  // On mobile, we might hide the sticker list or properties to save space
   const [showStickers, setShowStickers] = useState(true);
-  const [showProps, setShowProps] = useState(false); // Hidden by default on mobile, toggled
+  const [showProps, setShowProps] = useState(false);
 
   // --- TOOLS STATE ---
   const [tool, setTool] = useState('move'); 
@@ -446,10 +445,13 @@ const PaintApp = () => {
         ctx.font = `900 ${el.size}px ${el.font}`;
         ctx.textAlign = 'left';
         ctx.textBaseline = 'top';
-        ctx.strokeStyle = '#000000';
-        ctx.lineWidth = el.size / 15; 
-        ctx.lineJoin = 'round';
-        ctx.strokeText(el.text, el.x, el.y);
+        // Dynamic Stroke
+        if (el.strokeWidth > 0) {
+            ctx.strokeStyle = el.strokeColor || '#000000';
+            ctx.lineWidth = el.strokeWidth; 
+            ctx.lineJoin = 'round';
+            ctx.strokeText(el.text, el.x, el.y);
+        }
         ctx.fillStyle = el.color;
         ctx.fillText(el.text, el.x, el.y);
       }
@@ -520,14 +522,14 @@ const PaintApp = () => {
           const imgW = canvasSize.w * 0.8, imgH = canvasSize.h * 0.6;
           if (mainImg) newElements.push({ ...mainImg, x: cx - imgW/2, y: cy - imgH/2, width: imgW, height: imgH });
           else addSticker('main'); 
-          const t1 = textTop || { id: generateId(), type: 'text', text: 'TOP IT', color: '#ffffff', font: FONTS[0].val, size: 60 };
+          const t1 = textTop || { id: generateId(), type: 'text', text: 'TOP IT', color: '#ffffff', strokeWidth: 3, strokeColor: '#000000', font: FONTS[0].val, size: 60 };
           newElements.push({ ...t1, x: 20, y: 20 });
-          const t2 = textBot || { id: generateId(), type: 'text', text: 'BOTTOM IT', color: '#ffffff', font: FONTS[0].val, size: 60 };
+          const t2 = textBot || { id: generateId(), type: 'text', text: 'BOTTOM IT', color: '#ffffff', strokeWidth: 3, strokeColor: '#000000', font: FONTS[0].val, size: 60 };
           newElements.push({ ...t2, x: 20, y: canvasSize.h - 80 });
           elements.forEach(e => { if (e !== mainImg && e !== textTop && e !== textBot) newElements.push(e); });
       } else if (type === 'modern') {
           if (mainImg) newElements.push({ ...mainImg, x: 0, y: 0, width: canvasSize.w, height: canvasSize.h });
-          const t1 = textTop || { id: generateId(), type: 'text', text: 'I AM BUYING IT', color: '#ffffff', font: FONTS[0].val, size: 50 };
+          const t1 = textTop || { id: generateId(), type: 'text', text: 'I AM BUYING IT', color: '#ffffff', strokeWidth: 2, strokeColor: '#000000', font: FONTS[0].val, size: 50 };
           newElements.push({ ...t1, x: 20, y: canvasSize.h - 100 });
       }
       saveHistory(newElements);
@@ -544,22 +546,8 @@ const PaintApp = () => {
       };
   };
 
-  const handlePointerDown = (e) => {
-      // MULTI-TOUCH ZOOM/PAN
-      if (e.touches && e.touches.length === 2) {
-          e.preventDefault();
-          const dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
-          const cx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
-          const cy = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-          gestureRef.current = { startDist: dist, startScale: view.scale, startX: cx, startY: cy, startViewX: view.x, startViewY: view.y };
-          return;
-      }
-
-      // SINGLE TOUCH
-      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+  const handleStart = (clientX, clientY) => {
       const pos = getCanvasCoords(clientX, clientY);
-      
       dragStartRef.current = pos;
       
       if (selectedId) {
@@ -602,7 +590,7 @@ const PaintApp = () => {
               setElements(newEls);
               setSelectedId(hit.id);
               setIsDragging(true);
-              setShowProps(true); // Auto-open props when selecting
+              // Do NOT open props on selection (User requested)
           } else {
               setSelectedId(null);
           }
@@ -613,23 +601,8 @@ const PaintApp = () => {
       }
   };
 
-  const handlePointerMove = (e) => {
-      // MULTI-TOUCH
-      if (e.touches && e.touches.length === 2) {
-          e.preventDefault();
-          const dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
-          const cx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
-          const cy = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-          const scale = Math.max(0.5, Math.min(3, gestureRef.current.startScale * (dist / gestureRef.current.startDist)));
-          const dx = cx - gestureRef.current.startX;
-          const dy = cy - gestureRef.current.startY;
-          setView({ scale, x: gestureRef.current.startViewX + dx, y: gestureRef.current.startViewY + dy });
-          return;
-      }
-
+  const handleMove = (clientX, clientY) => {
       if (!isDragging) return;
-      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
       const pos = getCanvasCoords(clientX, clientY);
 
       if (isResizing && selectedId) {
@@ -656,7 +629,7 @@ const PaintApp = () => {
       }
   };
 
-  const handlePointerUp = (e) => {
+  const handleEnd = () => {
       if (isDragging) {
           if (isResizing || (tool === 'move' && selectedId)) saveHistory(elements);
           else if (tool === 'brush') {
@@ -668,13 +641,54 @@ const PaintApp = () => {
       setIsResizing(false);
   };
 
+  // --- NATIVE TOUCH HANDLERS (ZOOM/PAN + DELEGATION) ---
+  const handleTouchStart = (e) => {
+      if (e.touches.length === 2) {
+          e.preventDefault(); // Prevent Browser Zoom
+          const dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+          const cx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+          const cy = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+          gestureRef.current = { startDist: dist, startScale: view.scale, startX: cx, startY: cy, startViewX: view.x, startViewY: view.y };
+      } else if (e.touches.length === 1) {
+          handleStart(e.touches[0].clientX, e.touches[0].clientY);
+      }
+  };
+
+  const handleTouchMove = (e) => {
+      e.preventDefault(); // Important for no-scroll
+      if (e.touches.length === 2) {
+          const dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+          const cx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+          const cy = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+          const scale = Math.max(0.5, Math.min(3, gestureRef.current.startScale * (dist / gestureRef.current.startDist)));
+          const dx = cx - gestureRef.current.startX;
+          const dy = cy - gestureRef.current.startY;
+          setView({ scale, x: gestureRef.current.startViewX + dx, y: gestureRef.current.startViewY + dy });
+      } else if (e.touches.length === 1) {
+          handleMove(e.touches[0].clientX, e.touches[0].clientY);
+      }
+  };
+
+  const handleTouchEnd = () => {
+      handleEnd();
+  };
+
+  // --- MOUSE HANDLERS (DELEGATION) ---
+  const handleMouseDown = (e) => handleStart(e.clientX, e.clientY);
+  const handleMouseMove = (e) => handleMove(e.clientX, e.clientY);
+  const handleMouseUp = () => handleEnd();
+
   // --- ASSET HELPERS ---
   const addText = () => {
-      const newEl = { id: generateId(), type: 'text', x: 50, y: 50, text: 'EDIT IT', color: toolColor, size: 50, font: FONTS[0].val };
+      const newEl = { 
+          id: generateId(), type: 'text', x: 50, y: 50, 
+          text: 'EDIT IT', color: toolColor, size: 50, font: FONTS[0].val,
+          strokeColor: '#000000', strokeWidth: 2 // Default Stroke
+      };
       saveHistory([...elements, newEl]);
       setSelectedId(newEl.id);
       setTool('move');
-      setShowProps(true);
+      setShowProps(true); // Open props for new item
   };
 
   const addSticker = (key) => {
@@ -688,7 +702,7 @@ const PaintApp = () => {
           saveHistory([...elements, newEl]);
           setSelectedId(newEl.id);
           setTool('move');
-          if (window.innerWidth < 600) setShowStickers(false); // Auto-close drawer on mobile
+          if (window.innerWidth < 600) setShowStickers(false); 
       }
   };
 
@@ -729,7 +743,6 @@ const PaintApp = () => {
         
         {/* --- TOP BAR --- */}
         <div className="h-10 bg-[#c0c0c0] border-b-2 border-white flex items-center px-2 gap-2 shrink-0 z-40 overflow-x-auto no-scrollbar">
-            {/* Props Toggle (Mobile) */}
             <Button className="md:hidden" onClick={() => setShowProps(!showProps)} active={showProps} disabled={!selectedId && tool!=='brush'}>
                 {showProps ? <X size={14}/> : <Sliders size={14}/>} PROPS
             </Button>
@@ -746,13 +759,12 @@ const PaintApp = () => {
             
             <Button active={globalEffect==='deepfry'} onClick={()=>setGlobalEffect(g => g==='none'?'deepfry':'none')} className={globalEffect==='deepfry'?"text-red-800 bg-red-200":""}><Zap size={14}/> FRY IT</Button>
             <Button onClick={download} className="text-blue-800"><Download size={14}/> SAVE IT</Button>
-            <Button onClick={postIt} className="text-white bg-[#1da1f2] border-blue-800"><Share size={14}/> POST IT</Button>
+            <Button onClick={postIt} className="text-white bg-[#1da1f2] border-blue-800 hidden md:flex"><Share size={14}/> POST IT</Button>
         </div>
 
         <div className="flex flex-1 overflow-hidden relative">
             
             {/* --- LEFT SIDEBAR (TOOLS) --- */}
-            {/* Always visible slim bar */}
             <div className="w-20 bg-[#c0c0c0] border-r-2 border-white flex flex-col items-center py-2 gap-2 shadow-xl z-30 shrink-0">
                 <Button onClick={addText} className="w-16 h-12 flex-col gap-1"><Type size={16}/> <span className="text-[9px]">TEXT IT</span></Button>
                 <Button onClick={()=>fileInputRef.current.click()} className="w-16 h-12 flex-col gap-1"><Upload size={16}/> <span className="text-[9px]">ADD IT</span><input type="file" ref={fileInputRef} hidden accept="image/*" onChange={handleFileUpload} /></Button>
@@ -760,13 +772,10 @@ const PaintApp = () => {
                 
                 <div className="w-10 h-px bg-gray-500 border-b border-white my-1"></div>
                 
-                {/* Stickers Toggle (Mobile) or List (Desktop) */}
                 <div className="flex-1 w-full flex flex-col items-center overflow-hidden">
                     <div className="md:hidden w-full px-1">
                         <Button onClick={() => setShowStickers(!showStickers)} active={showStickers} className="w-full h-8 mb-2"><ImageIcon size={14}/> STICKERS</Button>
                     </div>
-                    
-                    {/* Sticker List */}
                     <div className={`flex-col gap-1 w-full px-1 items-center overflow-y-auto ${showStickers ? 'flex' : 'hidden'} md:flex`}>
                         {Object.entries(ASSETS.stickers).map(([k, src]) => (
                             <div key={k} className="w-14 h-14 bg-white border-2 border-gray-600 border-r-white border-b-white cursor-pointer active:border-black p-1 shrink-0" onClick={() => addSticker(k)}>
@@ -789,16 +798,23 @@ const PaintApp = () => {
                         height={canvasSize.h}
                         className="touch-none block"
                         style={{ width: canvasSize.w > 600 ? '100%' : 'auto', maxHeight: '80vh', objectFit: 'contain' }}
-                        onPointerDown={handlePointerDown}
-                        onPointerMove={handlePointerMove}
-                        onPointerUp={handlePointerUp}
-                        onPointerLeave={handlePointerUp}
+                        onTouchStart={handleTouchStart}
+                        onTouchMove={handleTouchMove}
+                        onTouchEnd={handleTouchEnd}
+                        onMouseDown={handleMouseDown}
+                        onMouseMove={handleMouseMove}
+                        onMouseUp={handleMouseUp}
+                        onMouseLeave={handleMouseUp}
                     />
+                </div>
+                
+                {/* View Controls Overlay (Mobile Only) */}
+                <div className="absolute bottom-4 right-4 flex gap-2 md:hidden opacity-50 hover:opacity-100">
+                    <Button onClick={() => setView({scale:1, x:0, y:0})}><Maximize2 size={16}/></Button>
                 </div>
             </div>
 
             {/* --- RIGHT PROPERTIES (CONTEXTUAL) --- */}
-            {/* Sliding Panel on Mobile / Fixed on Desktop */}
             <div className={`
                 absolute md:static top-0 right-0 bottom-0 z-30
                 w-56 bg-[#c0c0c0] border-l-2 border-white flex flex-col shadow-xl md:shadow-none
@@ -823,14 +839,30 @@ const PaintApp = () => {
                                         <InsetPanel><textarea value={el.text} onChange={e => updateElement(el.id, ()=>({text: e.target.value}))} className="w-full p-1 font-bold text-center resize-none outline-none text-xs" rows={2}/></InsetPanel>
                                     </div>
                                     <div className="flex flex-col gap-1">
+                                        <label className="text-[9px] font-bold">SIZE</label>
+                                        <div className="flex items-center gap-1">
+                                            <Button onClick={() => updateElement(el.id, e=>({size: Math.max(10, e.size - 5)}))}><Minus size={12}/></Button>
+                                            <span className="flex-1 text-center font-mono text-xs bg-white border border-gray-500 py-1">{Math.round(el.size)}px</span>
+                                            <Button onClick={() => updateElement(el.id, e=>({size: Math.min(200, e.size + 5)}))}><Plus size={12}/></Button>
+                                        </div>
+                                    </div>
+                                    <div className="flex flex-col gap-1">
                                         <label className="text-[9px] font-bold">FONT</label>
                                         <div className="grid grid-cols-2 gap-1">{FONTS.map(f => (<Button key={f.name} active={el.font === f.val} onClick={() => updateElement(el.id, ()=>({font: f.val}))} className="truncate text-[9px]">{f.name}</Button>))}</div>
+                                    </div>
+                                    <div className="flex flex-col gap-1">
+                                        <label className="text-[9px] font-bold">STROKE</label>
+                                        <div className="flex items-center gap-2 bg-white border border-gray-500 p-1">
+                                            <input type="color" value={el.strokeColor || '#000000'} onChange={e => updateElement(el.id, ()=>({strokeColor: e.target.value}))} className="w-6 h-6 border-none p-0 bg-transparent"/>
+                                            <input type="range" min="0" max="10" value={el.strokeWidth || 0} onChange={e => updateElement(el.id, ()=>({strokeWidth: parseInt(e.target.value)}))} className="flex-1 h-2"/>
+                                            <span className="text-[9px] w-6">{el.strokeWidth || 0}</span>
+                                        </div>
                                     </div>
                                 </>
                             )}
                             {(el.type === 'text' || el.type === 'path') && (
                                 <div className="flex flex-col gap-1">
-                                    <label className="text-[9px] font-bold">COLOR</label>
+                                    <label className="text-[9px] font-bold">FILL COLOR</label>
                                     <div className="flex flex-wrap gap-1">
                                         {MEME_COLORS.map(c => (<div key={c} onClick={() => updateElement(el.id, ()=>({color: c}))} className={`w-6 h-6 border-2 cursor-pointer ${el.color === c ? 'border-black border-dashed' : 'border-gray-500 border-r-white border-b-white'}`} style={{backgroundColor: c}}/>))}
                                         <div className="w-6 h-6 border-2 border-gray-500 bg-gray-200 relative"><input type="color" className="opacity-0 absolute inset-0 w-full h-full" onChange={e => updateElement(el.id, ()=>({color: e.target.value}))} /></div>
@@ -853,6 +885,7 @@ const PaintApp = () => {
     </div>
   );
 };
+
 
 const AmpTunesApp = () => {
   const [playing, setPlaying] = useState(false);
