@@ -888,65 +888,709 @@ const PaintApp = () => {
 
 
 const AmpTunesApp = () => {
-  const [playing, setPlaying] = useState(false);
-  const [track, setTrack] = useState(0);
   const audioRef = useRef(null);
-  useEffect(() => { audioRef.current = new Audio(); return () => { if(audioRef.current) audioRef.current.pause(); }; }, []);
-  useEffect(() => { if (!audioRef.current) return; audioRef.current.src = TUNES_PLAYLIST[track].file; audioRef.current.load(); if (playing) audioRef.current.play().catch(()=>{}); }, [track]);
-  useEffect(() => { if (!audioRef.current) return; playing ? audioRef.current.play().catch(()=>{}) : audioRef.current.pause(); }, [playing]);
-  useEffect(() => { if (audioRef.current) audioRef.current.onended = () => setPlaying(false); }, []);
+  const canvasRef = useRef(null);
+  const requestRef = useRef(null);
+
+  // --- STATE ---
+  const [playing, setPlaying] = useState(false);
+  const [trackIndex, setTrackIndex] = useState(0);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [volume, setVolume] = useState(0.8);
+  const [shuffle, setShuffle] = useState(false);
+  const [loop, setLoop] = useState(false);
+
+  // --- UTILS ---
+  const formatTime = (s) => {
+    if (!s || isNaN(s)) return "00:00";
+    const min = Math.floor(s / 60);
+    const sec = Math.floor(s % 60);
+    return `${min < 10 ? '0' : ''}${min}:${sec < 10 ? '0' : ''}${sec}`;
+  };
+
+  // --- STYLE INJECTION (MARQUEE) ---
+  useEffect(() => {
+    if (!document.getElementById('marquee-style')) {
+        const style = document.createElement('style');
+        style.id = 'marquee-style';
+        style.innerHTML = `
+          @keyframes marquee {
+            0% { transform: translateX(100%); }
+            100% { transform: translateX(-100%); }
+          }
+          .animate-marquee {
+            animation: marquee 10s linear infinite;
+          }
+        `;
+        document.head.appendChild(style);
+    }
+  }, []);
+
+  // --- AUDIO ENGINE ---
+  useEffect(() => {
+    audioRef.current = new Audio();
+    audioRef.current.volume = volume;
+
+    const updateTime = () => setCurrentTime(audioRef.current.currentTime);
+    const updateDuration = () => setDuration(audioRef.current.duration);
+    const handleEnded = () => {
+        if (loop) {
+            audioRef.current.currentTime = 0;
+            audioRef.current.play();
+        } else {
+            nextTrack();
+        }
+    };
+
+    audioRef.current.addEventListener('timeupdate', updateTime);
+    audioRef.current.addEventListener('loadedmetadata', updateDuration);
+    audioRef.current.addEventListener('ended', handleEnded);
+
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.removeEventListener('timeupdate', updateTime);
+        audioRef.current.removeEventListener('loadedmetadata', updateDuration);
+        audioRef.current.removeEventListener('ended', handleEnded);
+        audioRef.current = null;
+      }
+      if (requestRef.current) cancelAnimationFrame(requestRef.current);
+    };
+  }, [loop]); // Re-bind if loop state changes
+
+  // Track Change Effect
+  useEffect(() => {
+    if (!audioRef.current) return;
+    // Ensure TUNES_PLAYLIST exists in scope (from main file)
+    const track = typeof TUNES_PLAYLIST !== 'undefined' ? TUNES_PLAYLIST[trackIndex] : null;
+    if (!track) return;
+
+    // LOGIC FIX: Try 'file' prop first, then 'src', fallback to 'title'
+    // You need to update TUNES_PLAYLIST to include { file: "path/to/song.mp3" }
+    audioRef.current.src = track.file || track.src || track.title; 
+    
+    audioRef.current.load();
+    
+    if (playing) {
+        var playPromise = audioRef.current.play();
+        if (playPromise !== undefined) {
+            playPromise.catch(error => {
+                console.error("Playback failed. Check if file exists:", error);
+            });
+        }
+    }
+  }, [trackIndex]);
+
+  // Volume Effect
+  useEffect(() => {
+      if(audioRef.current) audioRef.current.volume = volume;
+  }, [volume]);
+
+  // Play/Pause Effect
+  useEffect(() => {
+      if (!audioRef.current) return;
+      if (playing) audioRef.current.play().catch(e => console.log("Playback error:", e));
+      else audioRef.current.pause();
+  }, [playing]);
+
+  // --- CONTROLS ---
+  const togglePlay = () => setPlaying(!playing);
+  
+  const nextTrack = () => {
+      if (typeof TUNES_PLAYLIST === 'undefined') return;
+      if (shuffle) {
+          setTrackIndex(Math.floor(Math.random() * TUNES_PLAYLIST.length));
+      } else {
+          setTrackIndex((prev) => (prev + 1) % TUNES_PLAYLIST.length);
+      }
+  };
+
+  const prevTrack = () => {
+      if (typeof TUNES_PLAYLIST === 'undefined') return;
+      setTrackIndex((prev) => (prev - 1 + TUNES_PLAYLIST.length) % TUNES_PLAYLIST.length);
+  };
+
+  const handleSeek = (e) => {
+      const time = parseFloat(e.target.value);
+      if (audioRef.current) audioRef.current.currentTime = time;
+      setCurrentTime(time);
+  };
+
+  // --- VISUALIZER LOOP ---
+  const drawVisualizer = () => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      const w = canvas.width;
+      const h = canvas.height;
+
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(0, 0, w, h);
+
+      // Draw Grid
+      ctx.strokeStyle = 'rgba(0, 50, 0, 0.5)';
+      ctx.lineWidth = 1;
+      for(let i=0; i<w; i+=4) { ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,h); ctx.stroke(); }
+      for(let i=0; i<h; i+=4) { ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(w,i); ctx.stroke(); }
+
+      if (playing) {
+          // Simulated Spectrum Analyzer
+          const bars = 20;
+          const barW = w / bars;
+          ctx.fillStyle = '#00ff00'; // Matrix Green
+          
+          for(let i=0; i<bars; i++) {
+              // Generate fake frequency data based on time + index
+              const noise = Math.random() * 0.5 + 0.5;
+              const height = Math.sin(Date.now()/200 + i) * h * 0.5 * noise;
+              const barH = Math.abs(height);
+              
+              // Draw Bar
+              ctx.fillRect(i * barW + 1, h - barH, barW - 2, barH);
+              
+              // Draw "Peak" (falling dot)
+              ctx.fillStyle = '#ccffcc';
+              ctx.fillRect(i * barW + 1, h - barH - 4, barW - 2, 2);
+              ctx.fillStyle = '#00ff00';
+          }
+      } else {
+          // Idle State: Flat Line
+          ctx.strokeStyle = '#00ff00';
+          ctx.beginPath();
+          ctx.moveTo(0, h/2);
+          ctx.lineTo(w, h/2);
+          ctx.stroke();
+      }
+
+      requestRef.current = requestAnimationFrame(drawVisualizer);
+  };
+
+  useEffect(() => {
+      requestRef.current = requestAnimationFrame(drawVisualizer);
+      return () => cancelAnimationFrame(requestRef.current);
+  }, [playing]);
+
+  const playlist = typeof TUNES_PLAYLIST !== 'undefined' ? TUNES_PLAYLIST : [];
+  const currentTrack = playlist[trackIndex] || { title: "NO DISK", artist: "INSERT COIN", duration: "00:00" };
 
   return (
-    <div className="bg-[#29293d] h-full text-[#00ff00] font-mono p-2 flex flex-col">
-      <div className="h-24 bg-black border-2 border-gray-600 mb-2 flex items-center justify-center">
-         <div className="flex items-end gap-1 h-16">{new Array(10).fill(0).map((_,i) => <div key={i} className={`w-3 bg-green-500 ${playing ? 'animate-pulse' : ''}`} style={{height: `${Math.random()*100}%`}}></div>)}</div>
-      </div>
-      <div className="bg-black border border-gray-600 p-2 mb-2 text-xs text-yellow-400 font-bold truncate">{TUNES_PLAYLIST[track].title}</div>
-      <div className="flex justify-between items-center mb-4 px-4">
-        <button onClick={() => setTrack(Math.max(0, track-1))}><SkipBack size={32} className="text-white active:scale-90"/></button>
-        <button onClick={() => setPlaying(!playing)}>{playing ? <Pause size={48} className="text-white active:scale-90"/> : <Play size={48} className="text-white active:scale-90"/>}</button>
-        <button onClick={() => setTrack(Math.min(TUNES_PLAYLIST.length-1, track+1))}><SkipForward size={32} className="text-white active:scale-90"/></button>
-      </div>
-      <div className="flex-1 bg-white text-black overflow-y-auto border border-gray-600 font-sans text-xs">
-        {TUNES_PLAYLIST.map((t, i) => (
-          <div key={i} className={`px-2 py-2 cursor-pointer border-b flex justify-between ${track === i ? 'bg-blue-800 text-white' : ''}`} onClick={() => { setTrack(i); setPlaying(true); }}>
-            <span>{i+1}. {t.title}</span><span>{t.duration}</span>
-          </div>
-        ))}
-      </div>
+    <div className="flex flex-col h-full bg-[#1a1a1a] text-[#00ff00] font-mono select-none border-2 border-gray-600">
+        
+        {/* --- 1. MAIN DECK (DISPLAY & CONTROLS) --- */}
+        <div className="p-2 border-b-2 border-gray-700 bg-gradient-to-b from-[#2a2a2a] to-[#1a1a1a]">
+            {/* LCD SCREEN */}
+            <div className="bg-black border-2 border-gray-600 rounded mb-2 relative h-16 flex overflow-hidden shadow-[inset_0_0_10px_rgba(0,0,0,1)]">
+                
+                {/* LEFT: VISUALIZER */}
+                <canvas ref={canvasRef} width={80} height={60} className="border-r border-gray-800 opacity-90" />
+                
+                {/* RIGHT: TEXT INFO */}
+                <div className="flex-1 flex flex-col p-1 relative overflow-hidden">
+                    {/* SCROLLING MARQUEE */}
+                    <div className="whitespace-nowrap overflow-hidden">
+                        <div className={`text-sm font-bold ${playing ? 'animate-marquee' : ''}`}>
+                            {trackIndex + 1}. {currentTrack.artist} - {currentTrack.title} *** ({currentTrack.duration}) ***
+                        </div>
+                    </div>
+                    
+                    {/* TECH SPECS */}
+                    <div className="mt-auto flex justify-between text-[10px] text-green-700 font-bold">
+                        <span>{playing ? 320 : 0} kbps</span>
+                        <span>44 khz</span>
+                        <span className={playing ? "animate-pulse text-green-400" : ""}>{playing ? "STEREO" : "MONO"}</span>
+                    </div>
+
+                    {/* BIG TIMER */}
+                    <div className="absolute top-6 right-1 text-2xl font-black tracking-widest text-[#ccffcc] drop-shadow-[0_0_5px_rgba(0,255,0,0.5)]">
+                        {formatTime(currentTime)}
+                    </div>
+                </div>
+            </div>
+
+            {/* SEEK BAR */}
+            <div className="flex items-center gap-2 mb-2">
+                <input 
+                    type="range" 
+                    min="0" max={duration || 100} 
+                    value={currentTime} 
+                    onChange={handleSeek}
+                    className="w-full h-2 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-green-500 border border-gray-600"
+                />
+            </div>
+
+            {/* CONTROLS ROW */}
+            <div className="flex justify-between items-center pt-1">
+                {/* Transport Controls */}
+                <div className="flex gap-0.5">
+                    <button onClick={prevTrack} title="Previous" className="w-8 h-8 bg-gray-300 border-b-2 border-r-2 border-gray-600 active:border-t-2 active:border-l-2 flex items-center justify-center hover:bg-white text-black"><SkipBack size={14}/></button>
+                    <button onClick={togglePlay} title="Play/Pause" className="w-10 h-8 bg-gray-300 border-b-2 border-r-2 border-gray-600 active:border-t-2 active:border-l-2 flex items-center justify-center hover:bg-white text-black">
+                        {playing ? <Pause size={16} fill="black"/> : <Play size={16} fill="black"/>}
+                    </button>
+                    <button onClick={() => {setPlaying(false); setCurrentTime(0); if(audioRef.current) audioRef.current.currentTime=0;}} title="Stop" className="w-8 h-8 bg-gray-300 border-b-2 border-r-2 border-gray-600 active:border-t-2 active:border-l-2 flex items-center justify-center hover:bg-white text-black"><Square size={12} fill="black"/></button>
+                    <button onClick={nextTrack} title="Next" className="w-8 h-8 bg-gray-300 border-b-2 border-r-2 border-gray-600 active:border-t-2 active:border-l-2 flex items-center justify-center hover:bg-white text-black"><SkipForward size={14}/></button>
+                </div>
+
+                {/* Volume & Toggles */}
+                <div className="flex flex-col items-end gap-1">
+                    <div className="flex items-center gap-1">
+                        <Volume2 size={10} className="text-gray-500"/>
+                        <input 
+                            type="range" 
+                            min="0" max="1" step="0.01" 
+                            value={volume} 
+                            onChange={e => setVolume(parseFloat(e.target.value))}
+                            className="w-16 h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-green-500"
+                            title="Volume"
+                        />
+                    </div>
+                    <div className="flex gap-1">
+                        <button onClick={() => setShuffle(!shuffle)} className={`px-1 h-4 text-[9px] font-bold border flex items-center ${shuffle ? 'bg-green-900 text-green-100 border-green-500 shadow-[0_0_5px_green]' : 'bg-gray-800 text-gray-500 border-gray-600'}`}>SHILL</button>
+                        <button onClick={() => setLoop(!loop)} className={`px-1 h-4 text-[9px] font-bold border flex items-center ${loop ? 'bg-green-900 text-green-100 border-green-500 shadow-[0_0_5px_green]' : 'bg-gray-800 text-gray-500 border-gray-600'}`}>LOOP</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {/* --- 2. PLAYLIST DECK --- */}
+        <div className="flex-1 bg-[#111] overflow-y-auto p-1 font-sans text-xs">
+            <div className="text-[#00ff00] text-[10px] mb-1 font-bold border-b border-gray-800">PLAYLIST.IT</div>
+            {playlist.map((t, i) => (
+                <div 
+                    key={i} 
+                    onClick={() => { setTrackIndex(i); setPlaying(true); }}
+                    className={`
+                        cursor-pointer flex justify-between px-1 py-0.5 mb-[1px]
+                        ${trackIndex === i ? 'bg-green-900 text-white font-bold' : 'text-green-600 hover:bg-gray-800'}
+                    `}
+                >
+                    <div className="truncate flex-1">
+                        <span className="mr-2 text-[9px] opacity-70">{i+1}.</span>
+                        {t.artist} - {t.title}
+                    </div>
+                    <div className="w-10 text-right">{t.duration}</div>
+                </div>
+            ))}
+        </div>
     </div>
   );
 };
+
+//STACK IT
+
+// --- CONSTANTS & CONFIG ---
+const GAME_WIDTH = 320;
+const GAME_HEIGHT = 550;
+const BLOCK_HEIGHT = 35;
+const BASE_WIDTH = 220;
+const INITIAL_SPEED = 4;
+
+// Musical Scale (Pentatonic C Majorish) for that triumphant feeling
+const NOTES = [261.63, 293.66, 329.63, 392.00, 523.25, 587.33, 659.25, 783.99];
+
+// Biomes for progression
+const BIOMES = [
+  { score: 0, name: "THE TRENCHES", bgStart: '#1a1a2e', bgEnd: '#16213e', text: '#fff' },
+  { score: 10, name: "ATMOSPHERE", bgStart: '#2b5876', bgEnd: '#4e4376', text: '#fff' },
+  { score: 25, name: "ORBIT", bgStart: '#000000', bgEnd: '#434343', text: '#00ff00' },
+  { score: 50, name: "LUNAR BASE", bgStart: '#232526', bgEnd: '#414345', text: '#fff' },
+  { score: 75, name: "MARS COLONY", bgStart: '#870000', bgEnd: '#190a05', text: '#ffcc00' },
+  { score: 100, name: "THE CITADEL", bgStart: '#cc95c0', bgEnd: '#dbd4b4', text: '#000' },
+];
 
 const RugSweeperApp = () => {
-  const [grid, setGrid] = useState(Array(81).fill(0));
-  const [revealed, setRevealed] = useState(Array(81).fill(false));
-  const [gameOver, setGameOver] = useState(false);
-  const init = () => {
-    const g = Array(81).fill(0);
-    for(let i=0; i<10; i++) { let idx; do { idx = Math.floor(Math.random() * 81); } while(g[idx]===1); g[idx] = 1; }
-    setGrid(g); setRevealed(Array(81).fill(false)); setGameOver(false);
+  const canvasRef = useRef(null);
+  const requestRef = useRef();
+  const audioCtxRef = useRef(null);
+
+  // --- STATE ---
+  const [gameState, setGameState] = useState('MENU');
+  const [score, setScore] = useState(0);
+  const [highScore, setHighScore] = useState(0);
+  const [currentBiome, setCurrentBiome] = useState(BIOMES[0]);
+
+  // --- ENGINE REFS ---
+  const game = useRef({
+    state: 'MENU', // SYNC STATE FOR LOOP
+    stack: [],
+    current: null,
+    debris: [],
+    particles: [],
+    cameraY: 0,
+    shake: 0,
+    combo: 0,
+    perfectCount: 0,
+    hue: 0,
+    time: 0
+  });
+
+  // --- INIT ---
+  useEffect(() => {
+    const saved = localStorage.getItem('stackItHighScore');
+    if (saved) setHighScore(parseInt(saved, 10));
+  }, []);
+
+  // --- AUDIO SYSTEM (SYNTHWAVE STYLE) ---
+  const initAudio = () => {
+    if (!audioCtxRef.current) {
+      try { audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)(); } 
+      catch (e) { console.warn("Audio fail"); }
+    }
+    if (audioCtxRef.current?.state === 'suspended') audioCtxRef.current.resume();
   };
-  useEffect(init, []);
-  const click = (i) => {
-    if(gameOver || revealed[i]) return;
-    const r = [...revealed]; r[i] = true; setRevealed(r);
-    if(grid[i]===1) { setGameOver(true); setRevealed(Array(81).fill(true)); }
+
+  const playSound = (type, comboIndex = 0) => {
+    if (!audioCtxRef.current) return;
+    const ctx = audioCtxRef.current;
+    const t = ctx.currentTime;
+    
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    if (type === 'perfect') {
+      osc.type = 'square';
+      const noteFreq = NOTES[comboIndex % NOTES.length] * (1 + Math.floor(comboIndex/NOTES.length)*0.5);
+      osc.frequency.setValueAtTime(noteFreq, t);
+      gain.gain.setValueAtTime(0.1, t);
+      gain.gain.exponentialRampToValueAtTime(0.01, t + 0.3);
+      osc.start(t);
+      osc.stop(t + 0.3);
+    } 
+    else if (type === 'place') {
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(150, t);
+      osc.frequency.linearRampToValueAtTime(50, t + 0.1);
+      gain.gain.setValueAtTime(0.1, t);
+      gain.gain.linearRampToValueAtTime(0, t + 0.1);
+      osc.start(t);
+      osc.stop(t + 0.1);
+    } 
+    else if (type === 'fail') {
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(100, t);
+      osc.frequency.linearRampToValueAtTime(20, t + 0.5);
+      gain.gain.setValueAtTime(0.2, t);
+      gain.gain.linearRampToValueAtTime(0, t + 0.5);
+      osc.start(t);
+      osc.stop(t + 0.5);
+    }
   };
+
+  // --- GAME LOGIC ---
+  const spawnBlock = (prev, level) => {
+    const isLeft = Math.random() > 0.5;
+    const yPos = level * BLOCK_HEIGHT;
+    const speed = INITIAL_SPEED + Math.pow(level, 0.6) * 0.5; 
+    
+    return {
+      x: isLeft ? -prev.w : GAME_WIDTH,
+      y: yPos,
+      w: prev.w,
+      h: BLOCK_HEIGHT,
+      dir: isLeft ? 1 : -1,
+      speed: Math.min(speed, 15),
+      color: `hsl(${(level * 10) % 360}, 70%, 60%)` 
+    };
+  };
+
+  const createParticles = (x, y, w, h, color, count = 10) => {
+    for(let i=0; i<count; i++) {
+      game.current.particles.push({
+        x: x + Math.random() * w,
+        y: y + Math.random() * h,
+        vx: (Math.random() - 0.5) * 10,
+        vy: (Math.random() - 0.5) * 10,
+        life: 1.0,
+        color: color
+      });
+    }
+  };
+
+  const startGame = () => {
+    initAudio();
+    setScore(0);
+    setGameState('PLAYING');
+    game.current.state = 'PLAYING'; // Sync ref immediately
+    
+    const base = {
+      x: (GAME_WIDTH - BASE_WIDTH) / 2,
+      y: 0,
+      w: BASE_WIDTH,
+      h: BLOCK_HEIGHT,
+      color: '#33ff33'
+    };
+
+    game.current.stack = [base];
+    game.current.current = spawnBlock(base, 1);
+    game.current.debris = [];
+    game.current.particles = [];
+    game.current.cameraY = 0;
+    game.current.shake = 0;
+    game.current.combo = 0;
+    game.current.perfectCount = 0;
+    game.current.time = 0;
+    
+    if (requestRef.current) cancelAnimationFrame(requestRef.current);
+    requestRef.current = requestAnimationFrame(loop);
+  };
+
+  const placeBlock = () => {
+    if (game.current.state !== 'PLAYING') return;
+    
+    const g = game.current;
+    const curr = g.current;
+    if (!curr) return;
+
+    const prev = g.stack[g.stack.length-1];
+    
+    const dist = curr.x - prev.x;
+    const absDist = Math.abs(dist);
+    const tolerance = 10; // Forgiving hit box
+
+    // 1. Check Miss
+    if (absDist > curr.w) {
+      createParticles(curr.x, curr.y, curr.w, curr.h, '#ff0000', 20);
+      g.shake = 20;
+      gameOver();
+      return;
+    }
+
+    let newX = curr.x;
+    let newW = curr.w;
+    let isPerfect = false;
+
+    // 2. Check Perfect or Chop
+    if (absDist <= tolerance) {
+      newX = prev.x;
+      newW = prev.w;
+      isPerfect = true;
+      g.combo++;
+      g.perfectCount++;
+      
+      if (g.combo >= 3 && newW < BASE_WIDTH) {
+        newW = Math.min(BASE_WIDTH, newW + 20);
+        newX = prev.x - 10; 
+      }
+
+      g.shake = 5;
+      playSound('perfect', g.perfectCount);
+      createParticles(newX, curr.y, newW, curr.h, '#ffffff', 10);
+    } else {
+      g.combo = 0;
+      g.perfectCount = 0;
+      newW = curr.w - absDist;
+      newX = dist > 0 ? curr.x : prev.x;
+      
+      const debrisX = dist > 0 ? curr.x + newW : curr.x;
+      const debrisW = absDist;
+      g.debris.push({
+        x: debrisX, y: curr.y, w: debrisW, h: curr.h,
+        vx: dist > 0 ? 4 : -4, vy: -2, color: curr.color, life: 1.0
+      });
+      
+      g.shake = 2;
+      playSound('place');
+    }
+
+    const placed = { x: newX, y: curr.y, w: newW, h: curr.h, color: curr.color, perfect: isPerfect };
+    g.stack.push(placed);
+    
+    const nextScore = score + 1;
+    setScore(nextScore);
+    if (nextScore > highScore) {
+        setHighScore(nextScore);
+        localStorage.setItem('stackItHighScore', nextScore);
+    }
+    
+    const biome = BIOMES.slice().reverse().find(b => nextScore >= b.score);
+    if (biome && biome.name !== currentBiome.name) setCurrentBiome(biome);
+
+    g.current = spawnBlock(placed, g.stack.length);
+  };
+
+  const gameOver = () => {
+    playSound('fail');
+    setGameState('GAME_OVER');
+    game.current.state = 'GAME_OVER';
+    setTimeout(() => cancelAnimationFrame(requestRef.current), 2000);
+  };
+
+  // --- RENDER LOOP ---
+  const loop = () => {
+    const ctx = canvasRef.current?.getContext('2d');
+    if (!ctx) return;
+    const g = game.current;
+    g.time += 0.05;
+
+    // 1. PHYSICS
+    if (g.state === 'PLAYING' && g.current) {
+      g.current.x += g.current.speed * g.current.dir;
+      if (g.current.x > GAME_WIDTH + 50) g.current.dir = -1;
+      if (g.current.x < -50 - g.current.w) g.current.dir = 1;
+      
+      // Camera Logic (Follow Top)
+      const stackTop = g.stack.length * BLOCK_HEIGHT;
+      // Start scrolling when stack > 200px (approx 6 blocks)
+      const targetY = Math.max(0, stackTop - 200);
+      g.cameraY += (targetY - g.cameraY) * 0.1;
+    }
+
+    g.shake *= 0.8;
+    const shakeX = (Math.random() - 0.5) * g.shake;
+    const shakeY = (Math.random() - 0.5) * g.shake;
+
+    g.debris.forEach(d => { d.x += d.vx; d.y += d.vy; d.vy += 0.5; d.life -= 0.02; });
+    g.debris = g.debris.filter(d => d.life > 0);
+
+    g.particles.forEach(p => { p.x += p.vx; p.y += p.vy; p.life -= 0.03; });
+    g.particles = g.particles.filter(p => p.life > 0);
+
+    // 2. DRAW
+    const gradient = ctx.createLinearGradient(0, 0, 0, GAME_HEIGHT);
+    gradient.addColorStop(0, currentBiome.bgStart);
+    gradient.addColorStop(1, currentBiome.bgEnd);
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+
+    ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    const gridOffset = (g.cameraY * 0.5) % 40;
+    for (let x=0; x<GAME_WIDTH; x+=40) { ctx.moveTo(x,0); ctx.lineTo(x,GAME_HEIGHT); }
+    for (let y=0; y<GAME_HEIGHT; y+=40) { ctx.moveTo(0,y+gridOffset); ctx.lineTo(GAME_WIDTH,y+gridOffset); }
+    ctx.stroke();
+
+    ctx.save();
+    // Move world down as we go up.
+    // + g.cameraY means pushing the world down.
+    ctx.translate(0 + shakeX, GAME_HEIGHT + g.cameraY - 50 + shakeY);
+
+    g.stack.forEach(b => {
+      const y = -b.y; // Flip Y for canvas
+      
+      if (b.perfect) {
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = '#fff';
+      } else {
+        ctx.shadowBlur = 0;
+      }
+
+      ctx.fillStyle = b.color;
+      ctx.fillRect(b.x, y - b.h, b.w, b.h);
+      
+      ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(b.x, y - b.h, b.w, b.h);
+      
+      ctx.fillStyle = 'rgba(255,255,255,0.8)';
+      ctx.fillRect(b.x + b.w/2 - 1, y - b.h - 8, 2, 8);
+      
+      ctx.shadowBlur = 0;
+    });
+
+    g.debris.forEach(d => {
+      ctx.fillStyle = d.color;
+      ctx.globalAlpha = d.life;
+      ctx.fillRect(d.x, -d.y - d.h, d.w, d.h);
+      ctx.globalAlpha = 1;
+    });
+
+    g.particles.forEach(p => {
+      ctx.fillStyle = p.color;
+      ctx.globalAlpha = p.life;
+      ctx.beginPath();
+      ctx.arc(p.x, -p.y, 3, 0, Math.PI*2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    });
+
+    if (g.state === 'PLAYING' && g.current) {
+      const c = g.current;
+      ctx.fillStyle = c.color;
+      ctx.fillRect(c.x, -c.y - c.h, c.w, c.h);
+      ctx.fillStyle = 'rgba(255,255,255,0.1)';
+      ctx.fillRect(c.x, 0, c.w, -9999);
+    }
+
+    if (highScore > 0) {
+      const athY = -(highScore * BLOCK_HEIGHT);
+      ctx.strokeStyle = '#ffff00';
+      ctx.setLineDash([5, 5]);
+      ctx.beginPath(); ctx.moveTo(-50, athY); ctx.lineTo(GAME_WIDTH+50, athY); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = '#ffff00';
+      ctx.font = '10px monospace';
+      ctx.fillText('ATH', 10, athY - 5);
+    }
+
+    ctx.restore();
+
+    ctx.fillStyle = currentBiome.text;
+    ctx.font = '900 40px Impact';
+    ctx.textAlign = 'center';
+    ctx.fillText(score, GAME_WIDTH/2, 60);
+    
+    ctx.font = '12px monospace';
+    ctx.fillText(currentBiome.name, GAME_WIDTH/2, 80);
+
+    if (g.combo > 1) {
+      ctx.fillStyle = `hsl(${g.time * 500}, 100%, 50%)`;
+      ctx.font = 'italic 900 20px Arial';
+      ctx.save();
+      ctx.translate(GAME_WIDTH/2, 110);
+      ctx.rotate(Math.sin(g.time*10)*0.1);
+      ctx.fillText(`${g.combo}X COMBO!`, 0, 0);
+      ctx.restore();
+    }
+
+    if (g.state === 'PLAYING') {
+      requestRef.current = requestAnimationFrame(loop);
+    }
+  };
+
   return (
-    <div className="flex flex-col h-full bg-[#c0c0c0] p-2 items-center">
-      <div className="bg-black text-red-500 font-mono text-xl p-2 mb-2 border-4 border-gray-400 w-full text-center">{gameOver ? "RUGGED!" : "FIND GEMS"}</div>
-      <div className="grid grid-cols-9 gap-[1px] bg-gray-500 border-4 border-gray-400">
-        {grid.map((c, i) => (
-          <div key={i} onClick={() => click(i)} className={`w-8 h-8 flex items-center justify-center font-bold text-sm cursor-pointer border-2 ${revealed[i] ? 'bg-[#c0c0c0] border-gray-400' : 'bg-[#d4d0c8] border-t-white border-l-white border-b-gray-600 border-r-gray-600'}`}>
-            {revealed[i] ? (c === 1 ? <Skull size={16} className="text-black"/> : <span className="text-blue-700">1</span>) : ""}
-          </div>
-        ))}
+    <div className="flex flex-col h-full bg-[#c0c0c0] p-1 font-mono select-none"
+         onPointerDown={(e) => {
+           e.preventDefault(); 
+           // Safety: Check ref state, not async React state
+           game.current.state === 'PLAYING' ? placeBlock() : startGame();
+         }}
+    >
+      <div className="bg-[#000080] text-white px-2 py-1 flex justify-between items-center text-xs font-bold border-2 border-white border-r-gray-500 border-b-gray-500 mb-1">
+        <span>STACK_IT_GOD_MODE.EXE</span>
+        <span className="text-yellow-300">ATH: {highScore}</span>
       </div>
-      <Button className="mt-4 w-full h-12" onClick={init}>RESTART</Button>
+
+      <div className="flex-1 bg-black relative border-2 border-gray-600 border-r-white border-b-white overflow-hidden cursor-pointer touch-none">
+        <canvas ref={canvasRef} width={GAME_WIDTH} height={GAME_HEIGHT} className="w-full h-full object-contain block touch-none" />
+        
+        {gameState === 'MENU' && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm text-center text-white p-6 z-10 pointer-events-none">
+            <h1 className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-t from-green-600 to-green-300 mb-2 drop-shadow-lg italic">STACK IT</h1>
+            <p className="text-sm font-bold text-gray-300 mb-8 tracking-widest">BUILD THE GOD CANDLE</p>
+            <div className="animate-pulse bg-white text-black px-4 py-2 font-black border-4 border-blue-500 shadow-[4px_4px_0_#0000ff]">
+              TAP TO PUMP
+            </div>
+          </div>
+        )}
+
+        {gameState === 'GAME_OVER' && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-red-900/90 text-center text-white p-6 z-10 pointer-events-none">
+            <h1 className="text-4xl font-black mb-2">PAPER HANDS!</h1>
+            <div className="text-6xl font-black text-yellow-400 mb-2">{score}</div>
+            <p className="text-xs mb-8 text-red-200">YOU SOLD TOO EARLY</p>
+            <div className="bg-white text-black px-6 py-3 font-black border-4 border-gray-400 shadow-[4px_4px_0_#000] cursor-pointer">
+              BUY THE DIP (RETRY)
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
+
 
 const MemesApp = () => {
   const images = Object.values(ASSETS.memes);
