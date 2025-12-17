@@ -1364,18 +1364,16 @@ const RugSweeperApp = () => {
     }
   };
 
-  // FIX 2: Completely Replaced submitScore
   const submitScore = async (nameOverride = null, finalScore = 0) => {
-      const uid = auth.currentUser?.uid; // Use direct auth UID
+      const uid = auth.currentUser?.uid; 
       const nameToUse = (nameOverride || username).trim();
       const scoreToSubmit = finalScore > 0 ? finalScore : game.current.score;
 
-      // Helper to prevent freezing
+      // FIX: Force transition to GAME_OVER unconditionally if something fails
+      // This prevents the user from being "stuck" on the submit screen.
       const forceGameOver = () => {
-        if (nameOverride || localStorage.getItem('stackItUsername')) {
-            setGameState('GAME_OVER');
-            game.current.state = 'GAME_OVER';
-        }
+          setGameState('GAME_OVER');
+          game.current.state = 'GAME_OVER';
       };
 
       if (!nameToUse || scoreToSubmit === 0) {
@@ -1385,6 +1383,8 @@ const RugSweeperApp = () => {
 
       if (!uid) {
         console.warn("No UID available, skipping score submit.");
+        // Even if auth fails, save username locally so they don't have to type it again
+        if (!nameOverride) localStorage.setItem('stackItUsername', nameToUse.toUpperCase());
         forceGameOver();
         return;
       }
@@ -1393,10 +1393,7 @@ const RugSweeperApp = () => {
       
       try {
           const upperName = nameToUse.toUpperCase();
-          
-          // DIRECT DOC REFERENCE using UID
           const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'stackit_scores', uid);
-          
           const snap = await getDoc(docRef);
           let didUpdate = false;
 
@@ -1408,7 +1405,6 @@ const RugSweeperApp = () => {
                   timestamp: Date.now()
               });
               
-              // Only set local storage if this was a new user creation event
               if (!nameOverride) localStorage.setItem('stackItUsername', upperName);
               didUpdate = true;
               console.log("Created New User via UID");
@@ -1428,7 +1424,6 @@ const RugSweeperApp = () => {
 
           // 2. Fetch Leaderboard & Calculate Rank
           const freshList = await fetchLeaderboard(true);
-          // Find index using UID instead of name for perfect accuracy
           const rank = freshList.sort((a, b) => b.score - a.score).findIndex(x => x.id === uid) + 1;
           setPlayerRank(rank > 0 ? rank : null);
 
@@ -1438,11 +1433,9 @@ const RugSweeperApp = () => {
               game.current.state = 'NEW_HIGHSCORE';
           } else {
               if (!nameOverride) {
-                  // Manual submit
                   setGameState('LEADERBOARD');
                   game.current.state = 'LEADERBOARD';
               } else {
-                  // Auto submit (Game Over)
                   setGameState('GAME_OVER');
                   game.current.state = 'GAME_OVER';
               }
@@ -1450,6 +1443,8 @@ const RugSweeperApp = () => {
 
       } catch (e) {
           console.error("Submit error:", e);
+          // If the DB call fails (e.g. offline), save name locally and exit screen
+          if (!nameOverride && nameToUse) localStorage.setItem('stackItUsername', nameToUse.toUpperCase());
           forceGameOver();
       }
       setIsSubmitting(false);
@@ -1921,6 +1916,7 @@ const RugSweeperApp = () => {
     </div>
   );
 };
+
 
 
 const MemesApp = () => {
