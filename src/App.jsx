@@ -107,9 +107,9 @@ const SOCIALS = {
 // --- MUSIC CONFIGURATION ---
 const TUNES_PLAYLIST = [
   { file: "PUMP_IT_UP.mp3", title: "PUMP IT UP", duration: "3:45", artist: "Unknown Degen" },
-  { file: "GREEN_CANDLES.wav", title: "GREEN CANDLES", duration: "4:20", artist: "Satoshi" },
+  { file: "GREEN_CANDLES.mp3", title: "GREEN CANDLES", duration: "4:01", artist: "Satoshi" },
   { file: "LIKE_TO_MEME_IT.mp3", title: "I LIKE TO MEME IT", duration: "3:30", artist: "MEMERS" },
-  { file: "WAGMI_ANTHEM.mp3", title: "WAGMI ANTHEM", duration: "5:55", artist: "Community" }
+  { file: "WAGMI_ANTHEM.mp3", title: "WAGMI ANTHEM", duration: "3:56", artist: "Community" }
 ];
 
 const CA_ADDRESS = "So11111111111111111111111111111111111111112"; 
