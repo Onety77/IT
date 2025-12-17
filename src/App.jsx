@@ -1243,7 +1243,7 @@ const RugSweeperApp = () => {
   const audioCtxRef = useRef(null);
 
   // --- STATE ---
-  const [gameState, setGameState] = useState('MENU'); 
+  const [gameState, setGameState] = useState('MENU'); // MENU, PLAYING, GAME_OVER, SUBMIT_SCORE, LEADERBOARD, NEW_HIGHSCORE
   const [score, setScore] = useState(0);
   const [highScore, setHighScore] = useState(0);
   const [username, setUsername] = useState('');
@@ -1286,6 +1286,9 @@ const RugSweeperApp = () => {
   ];
   const [currentBiome, setCurrentBiome] = useState(BIOMES[0]);
 
+  // --- HELPER ---
+  const getSavedName = () => localStorage.getItem('stackItUsername');
+
   // --- INIT ---
   useEffect(() => {
     if (typeof auth !== 'undefined') signInAnonymously(auth).catch(console.error);
@@ -1294,7 +1297,7 @@ const RugSweeperApp = () => {
     if (saved) setHighScore(parseInt(saved, 10));
     
     // Check for saved username
-    const savedName = localStorage.getItem('stackItUsername');
+    const savedName = getSavedName();
     if (savedName) setUsername(savedName);
 
     return () => {
@@ -1302,9 +1305,28 @@ const RugSweeperApp = () => {
     };
   }, []);
 
+  // --- SPACEBAR SUPPORT ---
+  useEffect(() => {
+      const handleKeyDown = (e) => {
+          if (e.code === 'Space') {
+              e.preventDefault(); 
+              if (['MENU', 'GAME_OVER'].includes(game.current.state)) {
+                  startGame();
+              } else if (game.current.state === 'NEW_HIGHSCORE') {
+                   // If name saved, retry. If not, ignore (needs typing)
+                   if(getSavedName()) handleAthAction('RETRY');
+              } else if (game.current.state === 'PLAYING') {
+                  placeBlock();
+              }
+          }
+      };
+      window.addEventListener('keydown', handleKeyDown);
+      return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   // --- FIREBASE LOGIC ---
-  const fetchLeaderboard = async () => {
-    if (typeof db === 'undefined') return;
+  const fetchLeaderboard = async (returnList = false) => {
+    if (typeof db === 'undefined') return [];
     setLoadingLB(true);
     try {
         const q = collection(db, 'artifacts', appId, 'public', 'data', 'stackit_scores');
@@ -1312,17 +1334,28 @@ const RugSweeperApp = () => {
         const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
         const sorted = data.sort((a, b) => Number(b.score) - Number(a.score));
         
+        // Calculate Rank for current user
+        const myName = getSavedName();
+        if (myName) {
+            const rank = sorted.findIndex(x => x.username === myName) + 1;
+            setPlayerRank(rank > 0 ? rank : null);
+        }
+
         setLeaderboard(sorted.slice(0, 10));
         setLoadingLB(false);
+        
+        if (returnList) return sorted;
+        return sorted;
     } catch (e) {
         console.error("Leaderboard fetch error:", e);
         setLoadingLB(false);
+        return [];
     }
   };
 
   // THE NEW SUBMIT LOGIC
   const handleAthAction = async (action) => {
-      const savedName = localStorage.getItem('stackItUsername');
+      const savedName = getSavedName();
       const nameToUse = savedName || username;
 
       if (!nameToUse.trim()) {
@@ -1366,7 +1399,7 @@ const RugSweeperApp = () => {
           const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'stackit_scores', uid);
 
           // 1. Check for duplicates ONLY if this is a NEW username (not saved locally)
-          const isReturningUser = !!localStorage.getItem('stackItUsername');
+          const isReturningUser = !!getSavedName();
           
           if (!isReturningUser) {
               const snapshot = await getDocs(scoresRef);
@@ -1407,7 +1440,7 @@ const RugSweeperApp = () => {
           }
           
           // Pre-fetch rank for display
-          const freshList = await fetchLeaderboard(); // Update LB state
+          await fetchLeaderboard(); 
           
           return true;
 
@@ -1417,7 +1450,7 @@ const RugSweeperApp = () => {
       }
   };
 
-  // --- AUDIO ---
+  // --- AUDIO & GAMEPLAY ---
   const initAudio = () => {
     if (!audioCtxRef.current) {
       try { audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)(); } 
@@ -1462,7 +1495,6 @@ const RugSweeperApp = () => {
     }
   };
 
-  // --- GAME LOGIC ---
   const spawnBlock = (prev, level) => {
     const isLeft = Math.random() > 0.5;
     const yPos = level * BLOCK_HEIGHT;
@@ -1596,7 +1628,7 @@ const RugSweeperApp = () => {
     // Sync React state for rendering
     setScore(g.score);
     
-    // Update Local High Score
+    // Update Local High Score immediately for UI
     if (g.score > highScore) {
         setHighScore(g.score);
         localStorage.setItem('stackItHighScore', g.score);
@@ -1612,10 +1644,7 @@ const RugSweeperApp = () => {
     playSound('fail');
     const finalScore = game.current.score; 
     
-    // Logic: Only show New Highscore screen if we beat local highscore
-    // Note: We already updated highScore state during play, so we check against stored or just assume if score > 0 and matches highScore it is new?
-    // Safer: Check if this run's score >= highScore.
-    
+    // Check if new ATH
     if (finalScore > 0 && finalScore >= highScore) {
         setGameState('NEW_HIGHSCORE');
         game.current.state = 'NEW_HIGHSCORE';
@@ -1750,8 +1779,6 @@ const RugSweeperApp = () => {
       game.current.state = 'LEADERBOARD';
   };
 
-  const getSavedName = () => localStorage.getItem('stackItUsername');
-
   return (
     <div className="flex flex-col h-full bg-[#c0c0c0] p-1 font-mono select-none"
          onPointerDown={(e) => {
@@ -1848,8 +1875,7 @@ const RugSweeperApp = () => {
                         </thead>
                         <tbody>
                             {leaderboard.map((entry, i) => {
-                                // Simple username match fallback, ideally UID if stored in leaderboard data too
-                                const saved = localStorage.getItem('stackItUsername');
+                                const saved = getSavedName();
                                 const isCurrentUser = saved && entry.username === saved;
                                 return (
                                     <tr key={i} className={`border-b border-gray-800 ${isCurrentUser ? 'text-orange-500 font-black' : 'text-gray-300'}`}>
@@ -1896,7 +1922,6 @@ const RugSweeperApp = () => {
     </div>
   );
 };
-
 
 
 const MemesApp = () => {
