@@ -1243,15 +1243,14 @@ const RugSweeperApp = () => {
   const audioCtxRef = useRef(null);
 
   // --- STATE ---
-  const [gameState, setGameState] = useState('MENU');
+  const [gameState, setGameState] = useState('MENU'); // MENU, PLAYING, GAME_OVER, SUBMIT_SCORE, LEADERBOARD, NEW_HIGHSCORE
   const [score, setScore] = useState(0);
   const [highScore, setHighScore] = useState(0);
   const [username, setUsername] = useState('');
   const [leaderboard, setLeaderboard] = useState([]);
-  const [playerRank, setPlayerRank] = useState(null);
+  const [playerRank, setPlayerRank] = useState(null); // Stores current rank
   const [loadingLB, setLoadingLB] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [user, setUser] = useState(null);
 
   // --- ENGINE REFS ---
   const game = useRef({
@@ -1287,26 +1286,10 @@ const RugSweeperApp = () => {
   ];
   const [currentBiome, setCurrentBiome] = useState(BIOMES[0]);
 
-  // --- INIT AUTH & DATA ---
+  // --- INIT ---
   useEffect(() => {
-    // 1. Auth Logic
-    const initAuth = async () => {
-        try {
-            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                await signInWithCustomToken(auth, __initial_auth_token);
-            } else {
-                await signInAnonymously(auth);
-            }
-        } catch (e) {
-            console.error("Auth failed:", e);
-        }
-    };
-    initAuth();
-    const unsubscribe = auth.onAuthStateChanged((u) => {
-        setUser(u);
-    });
+    if (typeof auth !== 'undefined') signInAnonymously(auth).catch(console.error);
 
-    // 2. Local Storage Logic
     const saved = localStorage.getItem('stackItHighScore');
     if (saved) setHighScore(parseInt(saved, 10));
     
@@ -1315,7 +1298,6 @@ const RugSweeperApp = () => {
 
     return () => {
       if (requestRef.current) cancelAnimationFrame(requestRef.current);
-      unsubscribe();
     };
   }, []);
 
@@ -1337,17 +1319,13 @@ const RugSweeperApp = () => {
 
   // --- FIREBASE LOGIC ---
   const fetchLeaderboard = async (returnList = false) => {
+    if (typeof db === 'undefined') return [];
     setLoadingLB(true);
     try {
         const q = collection(db, 'artifacts', appId, 'public', 'data', 'stackit_scores');
         const snapshot = await getDocs(q);
-        
-        // FIX 1: Map ID along with data for accurate ranking
-        const data = snapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-        }));
-        
+        // FIX 1: Include ID in the map to identify the user later
+        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         // Sort descending
         const sorted = data.sort((a, b) => Number(b.score) - Number(a.score));
         
@@ -1364,39 +1342,23 @@ const RugSweeperApp = () => {
     }
   };
 
-  // FIX 2: Completely Replaced submitScore
+  // FIX 2: REPLACED SUBMIT LOGIC WITH UID-BASED APPROACH
   const submitScore = async (nameOverride = null, finalScore = 0) => {
-      const uid = auth.currentUser?.uid; // Use direct auth UID
+      if (typeof db === 'undefined' || !auth?.currentUser) return;
+
+      const uid = auth.currentUser.uid;
       const nameToUse = (nameOverride || username).trim();
       const scoreToSubmit = finalScore > 0 ? finalScore : game.current.score;
 
-      // Helper to prevent freezing
-      const forceGameOver = () => {
-        if (nameOverride || localStorage.getItem('stackItUsername')) {
-            setGameState('GAME_OVER');
-            game.current.state = 'GAME_OVER';
-        }
-      };
-
-      if (!nameToUse || scoreToSubmit === 0) {
-        forceGameOver();
-        return;
-      }
-
-      if (!uid) {
-        console.warn("No UID available, skipping score submit.");
-        forceGameOver();
-        return;
-      }
+      if (!nameToUse || scoreToSubmit === 0) return;
 
       setIsSubmitting(true);
-      
+
       try {
           const upperName = nameToUse.toUpperCase();
-          
-          // DIRECT DOC REFERENCE using UID
+          // Use UID as document ID - guarantees uniqueness per user
           const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'stackit_scores', uid);
-          
+
           const snap = await getDoc(docRef);
           let didUpdate = false;
 
@@ -1407,11 +1369,10 @@ const RugSweeperApp = () => {
                   score: scoreToSubmit,
                   timestamp: Date.now()
               });
-              
-              // Only set local storage if this was a new user creation event
-              if (!nameOverride) localStorage.setItem('stackItUsername', upperName);
+
+              localStorage.setItem('stackItUsername', upperName);
               didUpdate = true;
-              console.log("Created New User via UID");
+
           } else {
               const existingScore = Number(snap.data().score || 0);
 
@@ -1419,38 +1380,31 @@ const RugSweeperApp = () => {
               if (scoreToSubmit > existingScore) {
                   await updateDoc(docRef, {
                       score: scoreToSubmit,
-                      timestamp: Date.now()
+                      timestamp: Date.now(),
+                      username: upperName // Update name just in case they changed it
                   });
                   didUpdate = true;
-                  console.log("Updated High Score via UID");
               }
           }
 
-          // 2. Fetch Leaderboard & Calculate Rank
+          // REFRESH LEADERBOARD + RANK
           const freshList = await fetchLeaderboard(true);
-          // Find index using UID instead of name for perfect accuracy
+          // Find rank using the UID
           const rank = freshList.sort((a, b) => b.score - a.score).findIndex(x => x.id === uid) + 1;
+
           setPlayerRank(rank > 0 ? rank : null);
 
-          // 3. Determine Next Screen
+          // NEXT SCREEN
           if (didUpdate) {
               setGameState('NEW_HIGHSCORE');
               game.current.state = 'NEW_HIGHSCORE';
           } else {
-              if (!nameOverride) {
-                  // Manual submit
-                  setGameState('LEADERBOARD');
-                  game.current.state = 'LEADERBOARD';
-              } else {
-                  // Auto submit (Game Over)
-                  setGameState('GAME_OVER');
-                  game.current.state = 'GAME_OVER';
-              }
+              setGameState(nameOverride ? 'GAME_OVER' : 'LEADERBOARD');
+              game.current.state = nameOverride ? 'GAME_OVER' : 'LEADERBOARD';
           }
 
       } catch (e) {
           console.error("Submit error:", e);
-          forceGameOver();
       }
       setIsSubmitting(false);
   };
@@ -1649,6 +1603,7 @@ const RugSweeperApp = () => {
     if (finalScore > 0) {
         if (savedName) {
             submitScore(savedName, finalScore);
+            // State set inside submitScore
         } else {
             setGameState('SUBMIT_SCORE');
             game.current.state = 'SUBMIT_SCORE';
@@ -1874,8 +1829,8 @@ const RugSweeperApp = () => {
                         </thead>
                         <tbody>
                             {leaderboard.map((entry, i) => {
-                                // Check if this is the current user's entry
-                                const isCurrentUser = entry.username === (username || localStorage.getItem('stackItUsername'));
+                                // Check if this is the current user's entry (by UID)
+                                const isCurrentUser = auth?.currentUser?.uid === entry.id;
                                 return (
                                     <tr key={i} className={`border-b border-gray-800 ${isCurrentUser ? 'text-orange-500 font-black' : 'text-gray-300'}`}>
                                         <td className="py-2">{i+1}</td>
