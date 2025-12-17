@@ -1228,7 +1228,7 @@ const RugSweeperApp = () => {
     perfectCount: 0,
     startTime: 0,
     time: 0,
-    score: 0 // <--- LIVE SCORE STORED HERE
+    score: 0 
   });
 
   // --- CONSTANTS ---
@@ -1296,12 +1296,12 @@ const RugSweeperApp = () => {
     setLoadingLB(false);
   };
 
-  const submitScore = async (nameOverride = null, finalScore = 0) => {
+  const submitScore = async (nameOverride = null) => {
       const nameToUse = nameOverride || username;
-      // CRITICAL: Ensure we use the passed finalScore if state is stale
-      const scoreToSubmit = finalScore > 0 ? finalScore : game.current.score;
+      // CRITICAL: ALWAYS use the ref score as it is the absolute truth from the engine
+      const currentScore = game.current.score;
 
-      if (!nameToUse.trim() || scoreToSubmit === 0) return;
+      if (!nameToUse.trim() || currentScore === 0) return;
       if (typeof db === 'undefined') return;
 
       setIsSubmitting(true);
@@ -1310,6 +1310,7 @@ const RugSweeperApp = () => {
           const upperName = nameToUse.toUpperCase();
           const scoresRef = collection(db, 'artifacts', appId, 'public', 'data', 'stackit_scores');
           
+          // 1. Fetch ALL to find if user exists
           const snapshot = await getDocs(scoresRef);
           let existingDocId = null;
           let existingScore = 0;
@@ -1324,19 +1325,20 @@ const RugSweeperApp = () => {
               }
           });
 
-          // Check ownership via local storage
+          // 2. Determine Action
           const isOwner = nameOverride || (localStorage.getItem('stackItUsername') === upperName);
 
           if (isNameTaken) {
               if (isOwner) {
                   // UPDATE if new score is higher
-                  if (scoreToSubmit > existingScore) {
+                  if (currentScore > existingScore) {
                       const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'stackit_scores', existingDocId);
                       await updateDoc(docRef, {
-                          score: scoreToSubmit,
+                          score: currentScore,
                           timestamp: Date.now()
                       });
                   }
+                  // Even if we didn't update (score was lower), we still proceed to leaderboard
                   if (!nameOverride) {
                       await fetchLeaderboard();
                       setGameState('LEADERBOARD');
@@ -1352,7 +1354,7 @@ const RugSweeperApp = () => {
               if (!nameOverride) localStorage.setItem('stackItUsername', upperName);
               await addDoc(scoresRef, {
                   username: upperName,
-                  score: scoreToSubmit,
+                  score: currentScore,
                   timestamp: Date.now()
               });
               
@@ -1543,7 +1545,7 @@ const RugSweeperApp = () => {
     // UPDATE SCORE IN REF DIRECTLY
     g.score += scoreAdd;
     
-    // Update Local High Score immediately
+    // Update Local High Score immediately for UI
     if (g.score > highScore) {
         setHighScore(g.score);
         localStorage.setItem('stackItHighScore', g.score);
@@ -1559,12 +1561,12 @@ const RugSweeperApp = () => {
     playSound('fail');
     const finalScore = game.current.score; // Capture final score from ref
     
-    // Auto-Submit if user exists
+    // Check local storage for existing username
     const savedName = localStorage.getItem('stackItUsername');
 
     if (finalScore > 0) {
         if (savedName) {
-            submitScore(savedName, finalScore); // Pass explicit score
+            submitScore(savedName); // This now handles the update logic correctly
             setGameState('GAME_OVER');
             game.current.state = 'GAME_OVER';
         } else {
