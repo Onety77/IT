@@ -1246,11 +1246,16 @@ const RugSweeperApp = () => {
   const [gameState, setGameState] = useState('MENU'); // MENU, PLAYING, GAME_OVER, SUBMIT_SCORE, LEADERBOARD, NEW_HIGHSCORE
   const [score, setScore] = useState(0);
   const [highScore, setHighScore] = useState(0);
-  const [username, setUsername] = useState('');
+  
+  // Username state (for input) and Saved Name state (for logic)
+  const [usernameInput, setUsernameInput] = useState('');
+  const [savedName, setSavedName] = useState(null);
+  
   const [leaderboard, setLeaderboard] = useState([]);
-  const [playerRank, setPlayerRank] = useState(null); 
+  const [playerRank, setPlayerRank] = useState(null);
   const [loadingLB, setLoadingLB] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [user, setUser] = useState(null);
 
   // --- ENGINE REFS ---
   const game = useRef({
@@ -1265,7 +1270,7 @@ const RugSweeperApp = () => {
     perfectCount: 0,
     startTime: 0,
     time: 0,
-    score: 0 
+    score: 0
   });
 
   // --- CONSTANTS ---
@@ -1286,174 +1291,180 @@ const RugSweeperApp = () => {
   ];
   const [currentBiome, setCurrentBiome] = useState(BIOMES[0]);
 
-  // --- HELPER ---
-  const getSavedName = () => localStorage.getItem('stackItUsername');
-
-  // --- INIT ---
+  // --- INIT & AUTH ---
   useEffect(() => {
-    if (typeof auth !== 'undefined') signInAnonymously(auth).catch(console.error);
+    const initAuth = async () => {
+      if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+        await signInWithCustomToken(auth, __initial_auth_token);
+      } else {
+        await signInAnonymously(auth);
+      }
+    };
+    initAuth();
+    const unsubscribe = onAuthStateChanged(auth, setUser);
 
-    const saved = localStorage.getItem('stackItHighScore');
-    if (saved) setHighScore(parseInt(saved, 10));
-    
-    // Check for saved username
-    const savedName = getSavedName();
-    if (savedName) setUsername(savedName);
+    // Load Local High Score
+    const localHighScore = localStorage.getItem('stackItHighScore');
+    if (localHighScore) setHighScore(parseInt(localHighScore, 10));
+
+    // Load Local Username
+    const localName = localStorage.getItem('stackItUsername');
+    if (localName) {
+      setSavedName(localName);
+      setUsernameInput(localName);
+    }
 
     return () => {
+      unsubscribe();
       if (requestRef.current) cancelAnimationFrame(requestRef.current);
     };
   }, []);
 
   // --- SPACEBAR SUPPORT ---
   useEffect(() => {
-      const handleKeyDown = (e) => {
-          if (e.code === 'Space') {
-              e.preventDefault(); 
-              if (['MENU', 'GAME_OVER'].includes(game.current.state)) {
-                  startGame();
-              } else if (game.current.state === 'NEW_HIGHSCORE') {
-                   // If name saved, retry. If not, ignore (needs typing)
-                   if(getSavedName()) handleAthAction('RETRY');
-              } else if (game.current.state === 'PLAYING') {
-                  placeBlock();
-              }
-          }
-      };
-      window.addEventListener('keydown', handleKeyDown);
-      return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+    const handleKeyDown = (e) => {
+      if (e.code === 'Space') {
+        e.preventDefault();
+        if (['MENU', 'GAME_OVER'].includes(game.current.state)) {
+          startGame();
+        } else if (game.current.state === 'NEW_HIGHSCORE') {
+           // If we have a saved name, spacebar can trigger retry
+           if (savedName) handleReturningSubmit('RETRY');
+        } else if (game.current.state === 'PLAYING') {
+          placeBlock();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [savedName]); // Re-bind if savedName changes
 
   // --- FIREBASE LOGIC ---
-  const fetchLeaderboard = async (returnList = false) => {
-    if (typeof db === 'undefined') return [];
+
+  const fetchLeaderboard = async () => {
+    if (!user) return;
     setLoadingLB(true);
     try {
-        const q = collection(db, 'artifacts', appId, 'public', 'data', 'stackit_scores');
-        const snapshot = await getDocs(q);
-        const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-        const sorted = data.sort((a, b) => Number(b.score) - Number(a.score));
-        
-        // Calculate Rank for current user
-        const myName = getSavedName();
-        if (myName) {
-            const rank = sorted.findIndex(x => x.username === myName) + 1;
-            setPlayerRank(rank > 0 ? rank : null);
-        }
+      const q = collection(db, 'artifacts', appId, 'public', 'data', 'stackit_scores');
+      const snapshot = await getDocs(q);
+      const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      const sorted = data.sort((a, b) => Number(b.score) - Number(a.score));
 
-        setLeaderboard(sorted.slice(0, 10));
-        setLoadingLB(false);
-        
-        if (returnList) return sorted;
-        return sorted;
+      // Calculate Rank using the saved name
+      const currentName = localStorage.getItem('stackItUsername'); // Force read latest
+      if (currentName) {
+        const rank = sorted.findIndex(x => x.username === currentName) + 1;
+        setPlayerRank(rank > 0 ? rank : null);
+      }
+
+      setLeaderboard(sorted.slice(0, 10));
     } catch (e) {
-        console.error("Leaderboard fetch error:", e);
-        setLoadingLB(false);
-        return [];
+      console.error("Leaderboard fetch error:", e);
     }
-  };
-
-  // THE NEW SUBMIT LOGIC
-  const handleAthAction = async (action) => {
-      const savedName = getSavedName();
-      const nameToUse = savedName || username;
-
-      if (!nameToUse.trim()) {
-          alert("ENTER NAME TO SAVE SCORE");
-          return;
-      }
-      
-      setIsSubmitting(true);
-
-      // Perform Save
-      const success = await saveScoreToDb(nameToUse, game.current.score);
-      
-      setIsSubmitting(false);
-
-      // Navigate only if save successful or we proceed anyway
-      if (success) {
-          if (action === 'RETRY') {
-              startGame();
-          } else if (action === 'RANK') {
-              await fetchLeaderboard();
-              setGameState('LEADERBOARD');
-              game.current.state = 'LEADERBOARD';
-          }
-      }
+    setLoadingLB(false);
   };
 
   const saveScoreToDb = async (nameToUse, scoreToSave) => {
-      if (typeof db === 'undefined' || typeof auth === 'undefined') return false;
-      
-      try {
-          // Ensure Auth
-          let user = auth.currentUser;
-          if (!user) {
-              const cred = await signInAnonymously(auth);
-              user = cred.user;
-          }
+    if (!user) return false;
 
-          const upperName = nameToUse.toUpperCase().trim();
-          const uid = user.uid;
-          const scoresRef = collection(db, 'artifacts', appId, 'public', 'data', 'stackit_scores');
-          const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'stackit_scores', uid);
+    try {
+      const upperName = nameToUse.toUpperCase().trim();
+      const uid = user.uid;
+      const scoresRef = collection(db, 'artifacts', appId, 'public', 'data', 'stackit_scores');
+      const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'stackit_scores', uid);
 
-          // 1. Check for duplicates ONLY if this is a NEW username (not saved locally)
-          const isReturningUser = !!getSavedName();
-          
-          if (!isReturningUser) {
-              const snapshot = await getDocs(scoresRef);
-              let isTaken = false;
-              snapshot.forEach(d => {
-                  // If name exists and ID is different, it's taken
-                  if (d.data().username === upperName && d.id !== uid) isTaken = true;
-              });
+      // 1. Check for duplicates ONLY if this is a brand new name (no local storage)
+      const isReturningUser = !!localStorage.getItem('stackItUsername');
 
-              if (isTaken) {
-                  alert(`USERNAME '${upperName}' IS TAKEN.`);
-                  return false;
-              }
-              // It's free, lock it in
-              localStorage.setItem('stackItUsername', upperName);
-          }
+      if (!isReturningUser) {
+        const snapshot = await getDocs(scoresRef);
+        let isTaken = false;
+        snapshot.forEach(d => {
+          if (d.data().username === upperName && d.id !== uid) isTaken = true;
+        });
 
-          // 2. Upsert Score (Create or Update if Higher)
-          const snap = await getDoc(docRef);
-          
-          if (!snap.exists()) {
-              // New Doc
-              await setDoc(docRef, {
-                  username: upperName,
-                  score: scoreToSave,
-                  timestamp: Date.now()
-              });
-          } else {
-              // Existing Doc
-              const existingScore = Number(snap.data().score || 0);
-              if (scoreToSave > existingScore) {
-                  await updateDoc(docRef, {
-                      score: scoreToSave,
-                      timestamp: Date.now(),
-                      username: upperName // Ensure consistency
-                  });
-              }
-          }
-          
-          // Pre-fetch rank for display
-          await fetchLeaderboard(); 
-          
-          return true;
-
-      } catch (e) {
-          console.error("DB Error:", e);
+        if (isTaken) {
+          alert(`USERNAME '${upperName}' IS TAKEN.`);
           return false;
+        }
+        
+        // Success! Lock it in local storage forever
+        localStorage.setItem('stackItUsername', upperName);
+        setSavedName(upperName); // Update state to trigger UI change next time
       }
+
+      // 2. Upsert Score
+      const snap = await getDoc(docRef);
+
+      if (!snap.exists()) {
+        // Create New
+        await setDoc(docRef, {
+          username: upperName,
+          score: scoreToSave,
+          timestamp: Date.now()
+        });
+      } else {
+        // Update Existing
+        const existingScore = Number(snap.data().score || 0);
+        if (scoreToSave > existingScore) {
+          await updateDoc(docRef, {
+            score: scoreToSave,
+            timestamp: Date.now(),
+            username: upperName // Ensure consistency
+          });
+        }
+      }
+
+      return true;
+    } catch (e) {
+      console.error("DB Error:", e);
+      return false;
+    }
+  };
+
+  // --- HANDLERS FOR ATH SCREEN ---
+
+  // PATH A.1: First time user submits name
+  const handleFirstTimeSubmit = async () => {
+    if (!usernameInput.trim()) {
+      alert("ENTER NAME TO SAVE SCORE");
+      return;
+    }
+    setIsSubmitting(true);
+    const success = await saveScoreToDb(usernameInput, game.current.score);
+    setIsSubmitting(false);
+
+    if (success) {
+      // After first submit, go to leaderboard to show them their glory
+      await fetchLeaderboard();
+      setGameState('LEADERBOARD');
+      game.current.state = 'LEADERBOARD';
+    }
+  };
+
+  // PATH A.2: Returning user (Auto-saved name) clicks Retry or Rank
+  const handleReturningSubmit = async (action) => {
+    const name = savedName || localStorage.getItem('stackItUsername');
+    if (!name) return; // Should not happen in this view
+
+    setIsSubmitting(true);
+    // Force save the score
+    await saveScoreToDb(name, game.current.score);
+    setIsSubmitting(false);
+
+    if (action === 'RETRY') {
+      startGame();
+    } else if (action === 'RANK') {
+      await fetchLeaderboard();
+      setGameState('LEADERBOARD');
+      game.current.state = 'LEADERBOARD';
+    }
   };
 
   // --- AUDIO & GAMEPLAY ---
   const initAudio = () => {
     if (!audioCtxRef.current) {
-      try { audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)(); } 
+      try { audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)(); }
       catch (e) {}
     }
     if (audioCtxRef.current?.state === 'suspended') audioCtxRef.current.resume();
@@ -1498,7 +1509,7 @@ const RugSweeperApp = () => {
   const spawnBlock = (prev, level) => {
     const isLeft = Math.random() > 0.5;
     const yPos = level * BLOCK_HEIGHT;
-    const speed = INITIAL_SPEED + Math.pow(level, 0.6) * 0.5; 
+    const speed = INITIAL_SPEED + Math.pow(level, 0.6) * 0.5;
     return {
       x: isLeft ? -prev.w : GAME_WIDTH,
       y: yPos,
@@ -1506,7 +1517,7 @@ const RugSweeperApp = () => {
       h: BLOCK_HEIGHT,
       dir: isLeft ? 1 : -1,
       speed: Math.min(speed, 15),
-      color: `hsl(${(level * 10) % 360}, 70%, 60%)` 
+      color: `hsl(${(level * 10) % 360}, 70%, 60%)`
     };
   };
 
@@ -1526,7 +1537,7 @@ const RugSweeperApp = () => {
   const startGame = (e) => {
     if(e) { e.stopPropagation(); e.preventDefault(); }
     initAudio();
-    
+
     // RESET GAME REF
     game.current = {
         state: 'PLAYING',
@@ -1540,13 +1551,13 @@ const RugSweeperApp = () => {
         perfectCount: 0,
         startTime: Date.now(),
         time: 0,
-        score: 0 
+        score: 0
     };
 
     setScore(0);
     setGameState('PLAYING');
     setCurrentBiome(BIOMES[0]);
-    
+
     const base = {
       x: (GAME_WIDTH - BASE_WIDTH) / 2,
       y: 0,
@@ -1557,7 +1568,7 @@ const RugSweeperApp = () => {
 
     game.current.stack = [base];
     game.current.current = spawnBlock(base, 1);
-    
+
     if (requestRef.current) cancelAnimationFrame(requestRef.current);
     requestRef.current = requestAnimationFrame(loop);
   };
@@ -1568,12 +1579,12 @@ const RugSweeperApp = () => {
     if (Date.now() - g.startTime < 200) return;
 
     const curr = g.current;
-    if (!curr) return; 
+    if (!curr) return;
 
     const prev = g.stack[g.stack.length-1];
     const dist = curr.x - prev.x;
     const absDist = Math.abs(dist);
-    const tolerance = 10; 
+    const tolerance = 10;
 
     // MISS
     if (absDist > curr.w) {
@@ -1595,11 +1606,11 @@ const RugSweeperApp = () => {
       isPerfect = true;
       g.combo++;
       g.perfectCount++;
-      if (g.combo >= 3) scoreAdd = 2; // COMBO BONUS (+2)
-      
+      if (g.combo >= 3) scoreAdd = 2; // COMBO BONUS
+
       if (g.combo >= 3 && newW < BASE_WIDTH) {
         newW = Math.min(BASE_WIDTH, newW + 20);
-        newX = prev.x - 10; 
+        newX = prev.x - 10;
       }
       g.shake = 5;
       playSound('perfect', g.perfectCount);
@@ -1621,19 +1632,16 @@ const RugSweeperApp = () => {
 
     const placed = { x: newX, y: curr.y, w: newW, h: curr.h, color: curr.color, perfect: isPerfect };
     g.stack.push(placed);
-    
-    // UPDATE SCORE IN REF DIRECTLY
+
     g.score += scoreAdd;
-    
-    // Sync React state for rendering
     setScore(g.score);
-    
+
     // Update Local High Score immediately for UI
     if (g.score > highScore) {
         setHighScore(g.score);
         localStorage.setItem('stackItHighScore', g.score);
     }
-    
+
     const biome = BIOMES.slice().reverse().find(b => g.score >= b.score);
     if (biome && biome.name !== currentBiome.name) setCurrentBiome(biome);
 
@@ -1642,10 +1650,15 @@ const RugSweeperApp = () => {
 
   const gameOver = () => {
     playSound('fail');
-    const finalScore = game.current.score; 
+    const finalScore = game.current.score;
+
+    // Logic Split: ATH vs Regular Game Over
+    // We check local HighScore (which we just updated in placeBlock)
+    const storedHS = parseInt(localStorage.getItem('stackItHighScore') || '0', 10);
     
-    // Check if new ATH
-    if (finalScore > 0 && finalScore >= highScore) {
+    // If the game score matches the stored high score, it's a new record (or tied)
+    // We treat it as ATH if score > 0
+    if (finalScore > 0 && finalScore >= storedHS) {
         setGameState('NEW_HIGHSCORE');
         game.current.state = 'NEW_HIGHSCORE';
     } else {
@@ -1666,7 +1679,7 @@ const RugSweeperApp = () => {
       g.current.x += g.current.speed * g.current.dir;
       if (g.current.x > GAME_WIDTH + 50) g.current.dir = -1;
       if (g.current.x < -50 - g.current.w) g.current.dir = 1;
-      
+
       const stackTop = g.stack.length * BLOCK_HEIGHT;
       const targetY = Math.max(0, stackTop - (GAME_HEIGHT * 0.4));
       g.cameraY += (targetY - g.cameraY) * 0.1;
@@ -1701,7 +1714,7 @@ const RugSweeperApp = () => {
     ctx.translate(0 + shakeX, GAME_HEIGHT + g.cameraY - 50 + shakeY);
 
     g.stack.forEach(b => {
-      const y = -b.y; 
+      const y = -b.y;
       if (b.perfect) { ctx.shadowBlur = 15; ctx.shadowColor = '#fff'; } else { ctx.shadowBlur = 0; }
       ctx.fillStyle = b.color;
       ctx.fillRect(b.x, y - b.h, b.w, b.h);
@@ -1753,7 +1766,7 @@ const RugSweeperApp = () => {
     ctx.fillStyle = currentBiome.text;
     ctx.font = '900 40px Impact';
     ctx.textAlign = 'center';
-    ctx.fillText(g.score, GAME_WIDTH/2, 60); 
+    ctx.fillText(g.score, GAME_WIDTH/2, 60);
     ctx.font = '12px monospace';
     ctx.fillText(currentBiome.name, GAME_WIDTH/2, 80);
 
@@ -1795,7 +1808,7 @@ const RugSweeperApp = () => {
 
       <div className="flex-1 bg-black relative border-2 border-gray-600 border-r-white border-b-white overflow-hidden cursor-pointer touch-none">
         <canvas ref={canvasRef} width={GAME_WIDTH} height={GAME_HEIGHT} className="w-full h-full object-contain block touch-none" />
-        
+
         {/* MENU */}
         {gameState === 'MENU' && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm text-center text-white p-6 z-10">
@@ -1812,50 +1825,63 @@ const RugSweeperApp = () => {
           </div>
         )}
 
-        {/* NEW HIGH SCORE (ATH) SCREEN */}
+        {/* NEW HIGH SCORE (ATH) SCREEN - THE FIX */}
         {gameState === 'NEW_HIGHSCORE' && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-blue-900/95 text-center text-white p-6 z-20 pointer-events-auto" onPointerDown={e=>e.stopPropagation()}>
             <h1 className="text-4xl font-black text-yellow-400 mb-2 animate-bounce">GGs NEW ATH!</h1>
             <div className="text-6xl font-black text-white mb-6">{score}</div>
-            
-            {getSavedName() ? (
-                <div className="mb-6 flex flex-col items-center">
-                    <p className="text-xs text-blue-300 font-bold mb-1">CONTINUE AS</p>
-                    <div className="text-2xl font-black text-white bg-blue-950 border-2 border-blue-400 px-4 py-2 uppercase tracking-widest shadow-md">
-                        {getSavedName()}
+
+            {savedName ? (
+                // --- SCENARIO 2: RETURNING USER (HAS SAVED NAME) ---
+                <div className="flex flex-col items-center w-full">
+                    <div className="mb-6 flex flex-col items-center">
+                        <p className="text-xs text-blue-300 font-bold mb-1">CONTINUE AS</p>
+                        <div className="text-2xl font-black text-white bg-blue-950 border-2 border-blue-400 px-4 py-2 uppercase tracking-widest shadow-md">
+                            {savedName}
+                        </div>
                     </div>
+                    
+                    <div className="flex gap-3">
+                        <button
+                            onPointerDown={() => handleReturningSubmit('RETRY')}
+                            disabled={isSubmitting}
+                            className="bg-white text-blue-900 px-6 py-3 font-black border-4 border-blue-500 shadow-[4px_4px_0_#000] cursor-pointer hover:scale-105 transition-transform w-32 flex justify-center"
+                        >
+                            {isSubmitting ? '...' : 'RETRY'}
+                        </button>
+                        <button
+                            onPointerDown={() => handleReturningSubmit('RANK')}
+                            disabled={isSubmitting}
+                            className="bg-yellow-400 text-black px-6 py-3 font-black border-4 border-orange-500 shadow-[4px_4px_0_#ff0000] cursor-pointer hover:scale-105 transition-transform w-32 flex justify-center"
+                        >
+                            {isSubmitting ? '...' : 'RANK'}
+                        </button>
+                    </div>
+                    <p className="text-[10px] text-blue-300 mt-4 max-w-[200px]">CLICKING RETRY OR RANK SAVES YOUR SCORE ON-CHAIN</p>
                 </div>
             ) : (
-                <>
+                // --- SCENARIO 1: FIRST TIME USER (NO SAVED NAME) ---
+                <div className="flex flex-col items-center w-full">
                     <p className="text-xs text-blue-200 mb-2 font-bold">ENTER DEGEN NAME:</p>
-                    <input 
-                        type="text" 
+                    <input
+                        type="text"
                         maxLength={10}
                         className="bg-blue-950 border-2 border-blue-400 text-white text-center text-xl font-bold p-2 mb-6 uppercase w-48 outline-none focus:border-yellow-400"
-                        value={username}
-                        onChange={e => setUsername(e.target.value.toUpperCase())}
+                        value={usernameInput}
+                        onChange={e => setUsernameInput(e.target.value.toUpperCase())}
                         placeholder="USERNAME"
-                        onPointerDown={e => e.stopPropagation()} 
+                        onPointerDown={e => e.stopPropagation()}
                     />
-                </>
+                    
+                    <button
+                        onPointerDown={handleFirstTimeSubmit}
+                        disabled={isSubmitting}
+                        className="bg-green-500 text-white px-6 py-3 font-black border-4 border-green-700 shadow-[4px_4px_0_#003300] cursor-pointer hover:scale-105 transition-transform w-48 flex justify-center"
+                    >
+                        {isSubmitting ? 'SAVING...' : 'SUBMIT TO CHAIN'}
+                    </button>
+                </div>
             )}
-
-            <div className="flex gap-3">
-                <button 
-                    onPointerDown={() => handleAthAction('RETRY')}
-                    disabled={isSubmitting}
-                    className="bg-white text-blue-900 px-6 py-3 font-black border-4 border-blue-500 shadow-[4px_4px_0_#000] cursor-pointer hover:scale-105 transition-transform w-32 flex justify-center"
-                >
-                    {isSubmitting ? <span className="animate-pulse">...</span> : 'RETRY'}
-                </button>
-                <button 
-                    onPointerDown={() => handleAthAction('RANK')}
-                    disabled={isSubmitting}
-                    className="bg-yellow-400 text-black px-6 py-3 font-black border-4 border-orange-500 shadow-[4px_4px_0_#ff0000] cursor-pointer hover:scale-105 transition-transform w-32 flex justify-center"
-                >
-                    {isSubmitting ? <span className="animate-pulse">...</span> : 'RANK'}
-                </button>
-            </div>
           </div>
         )}
 
@@ -1864,9 +1890,9 @@ const RugSweeperApp = () => {
           <div className="absolute inset-0 flex flex-col items-center bg-blue-900/95 text-white p-4 z-20 pointer-events-auto" onPointerDown={e=>e.stopPropagation()}>
             <div className="flex justify-between items-center w-full border-b-4 border-yellow-300 pb-2 mb-2">
                 <h2 className="text-2xl font-black text-yellow-300">TOP JEET SLAYERS</h2>
-                {playerRank && <div className="bg-black/50 px-2 py-1 text-xs font-bold border border-yellow-300 text-yellow-300">YOU: #{playerRank}</div>}
+                {playerRank && <div className="bg-black/50 px-2 py-1 text-xs font-bold border border-yellow-300 text-yellow-300">YOUR POSITION: #{playerRank}</div>}
             </div>
-            
+
             <div className="flex-1 w-full overflow-y-auto mb-4 border-2 border-white bg-black/50 p-2">
                 {loadingLB ? <div className="text-center mt-10 animate-pulse">LOADING ON-CHAIN DATA...</div> : (
                     <table className="w-full text-left text-sm">
@@ -1875,13 +1901,15 @@ const RugSweeperApp = () => {
                         </thead>
                         <tbody>
                             {leaderboard.map((entry, i) => {
-                                const saved = getSavedName();
-                                const isCurrentUser = saved && entry.username === saved;
+                                // Logic: Highlight ONLY if this specific entry matches our saved name
+                                const isCurrentUser = savedName && entry.username === savedName;
                                 return (
-                                    <tr key={i} className={`border-b border-gray-800 ${isCurrentUser ? 'text-orange-500 font-black' : 'text-gray-300'}`}>
+                                    <tr key={i} className="border-b border-gray-800 text-gray-300">
                                         <td className="py-2">{i+1}</td>
-                                        <td className="py-2">{entry.username} {isCurrentUser && ' (YOU)'}</td>
-                                        <td className="py-2 text-right">{entry.score}</td>
+                                        <td className={`py-2 ${isCurrentUser ? 'text-orange-500 font-black' : ''}`}>
+                                            {entry.username} {isCurrentUser && ' (YOU)'}
+                                        </td>
+                                        <td className="py-2 text-right text-green-400">{entry.score}</td>
                                     </tr>
                                 );
                             })}
@@ -1889,27 +1917,27 @@ const RugSweeperApp = () => {
                     </table>
                 )}
             </div>
-            
+
             <button onPointerDown={(e) => { e.stopPropagation(); setGameState('MENU'); game.current.state='MENU'; }} className="bg-white text-blue-900 px-6 py-2 font-black border-4 border-blue-500 shadow-[4px_4px_0_#000]">
                 BACK TO MENU
             </button>
           </div>
         )}
 
-        {/* GAME OVER (No New High Score) */}
+        {/* STANDARD GAME OVER (No New High Score) - No Writes to DB Here */}
         {gameState === 'GAME_OVER' && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-red-900/90 text-center text-white p-6 z-10 pointer-events-none">
             <h1 className="text-4xl font-black mb-2">PAPER HANDS!</h1>
             <div className="text-6xl font-black text-yellow-400 mb-2">{game.current.score}</div>
             <p className="text-xs mb-8 text-red-200">YOU SOLD TOO EARLY</p>
             <div className="flex gap-2">
-                <button 
-                    onPointerDown={startGame} 
+                <button
+                    onPointerDown={startGame}
                     className="bg-white text-black px-6 py-3 font-black border-4 border-gray-400 shadow-[4px_4px_0_#000] cursor-pointer hover:bg-gray-100 hover:scale-105 transition-transform pointer-events-auto"
                 >
                 BUY THE DIP (RETRY)
                 </button>
-                <button 
+                <button
                     onPointerDown={openLeaderboard}
                     className="bg-gray-800 text-white px-4 py-3 font-bold border-4 border-gray-600 cursor-pointer pointer-events-auto"
                 >
@@ -1922,7 +1950,6 @@ const RugSweeperApp = () => {
     </div>
   );
 };
-
 
 const MemesApp = () => {
   const images = Object.values(ASSETS.memes);
