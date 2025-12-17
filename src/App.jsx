@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, addDoc, getDocs } from 'firebase/firestore';
-import { getAuth, signInAnonymously } from 'firebase/auth';
+// UPDATED: Added updateDoc, doc, setDoc, getDoc for the leaderboard logic
+import { getFirestore, collection, addDoc, getDocs, updateDoc, doc, setDoc, getDoc } from 'firebase/firestore';
+// UPDATED: Added signInWithCustomToken, onAuthStateChanged for user sessions
+import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
 
 import {
   Terminal, X, Minus, Square, Play, Pause, SkipForward, SkipBack,
@@ -30,6 +32,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
+
 
 // This defines the folder name in your database. 
 // We hardcode it so it stays consistent for everyone.
