@@ -1236,6 +1236,7 @@ const AmpTunesApp = () => {
   );
 };
 
+// 5. PLAY IT (STACK IT - TO THE MOON)
 const RugSweeperApp = () => {
   const canvasRef = useRef(null);
   const requestRef = useRef();
