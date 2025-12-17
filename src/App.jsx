@@ -57,6 +57,41 @@ const ASSETS = {
     sendit: "sendit.jpg",
     moonit: "moonit.jpg",
     hodlit: "hodlit.jpg",
+    meme_06: "memes/1.jpg",
+    meme_07: "memes/2.jpg",
+    meme_08: "memes/3.jpg",
+    meme_09: "memes/4.jpg",
+    meme_10: "memes/5.jpg",
+    meme_11: "memes/6.jpg",
+    meme_12: "memes/7.jpg",
+    meme_13: "memes/8.jpg",
+    meme_14: "memes/9.jpg",
+    meme_15: "memes/10.jpg",
+    meme_16: "memes/11.jpg",
+    meme_17: "memes/12.jpg",
+    meme_18: "memes/13.jpg",
+    meme_19: "memes/14.jpg",
+    meme_20: "memes/15.jpg",
+    meme_21: "memes/16.jpg",
+    meme_22: "memes/17.jpg",
+    meme_23: "memes/18.jpg",
+    meme_24: "memes/19.jpg",
+    meme_25: "memes/20.jpg",
+    meme_26: "memes/21.jpg",
+    meme_27: "memes/22.jpg",
+    meme_28: "memes/23.jpg",
+    meme_29: "memes/24.jpg",
+    meme_30: "memes/25.jpg",
+    meme_31: "memes/26.jpg",
+    meme_32: "memes/27.jpg",
+    meme_33: "memes/28.jpg",
+    meme_34: "memes/29.jpg",
+    meme_35: "memes/30.jpg",
+    meme_36: "memes/31.jpg",
+    meme_37: "memes/32.jpg",
+    meme_38: "memes/33.jpg",
+    meme_39: "memes/34.jpg",
+    meme_40: "memes/35.jpg",
   }
 };
 
@@ -1208,14 +1243,15 @@ const RugSweeperApp = () => {
   const audioCtxRef = useRef(null);
 
   // --- STATE ---
-  const [gameState, setGameState] = useState('MENU'); // MENU, PLAYING, GAME_OVER, SUBMIT_SCORE, LEADERBOARD, NEW_HIGHSCORE
+  const [gameState, setGameState] = useState('MENU');
   const [score, setScore] = useState(0);
   const [highScore, setHighScore] = useState(0);
   const [username, setUsername] = useState('');
   const [leaderboard, setLeaderboard] = useState([]);
-  const [playerRank, setPlayerRank] = useState(null); // Stores current rank
+  const [playerRank, setPlayerRank] = useState(null);
   const [loadingLB, setLoadingLB] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [user, setUser] = useState(null);
 
   // --- ENGINE REFS ---
   const game = useRef({
@@ -1251,10 +1287,26 @@ const RugSweeperApp = () => {
   ];
   const [currentBiome, setCurrentBiome] = useState(BIOMES[0]);
 
-  // --- INIT ---
+  // --- INIT AUTH & DATA ---
   useEffect(() => {
-    if (typeof auth !== 'undefined') signInAnonymously(auth).catch(console.error);
+    // 1. Auth Logic
+    const initAuth = async () => {
+        try {
+            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                await signInWithCustomToken(auth, __initial_auth_token);
+            } else {
+                await signInAnonymously(auth);
+            }
+        } catch (e) {
+            console.error("Auth failed:", e);
+        }
+    };
+    initAuth();
+    const unsubscribe = auth.onAuthStateChanged((u) => {
+        setUser(u);
+    });
 
+    // 2. Local Storage Logic
     const saved = localStorage.getItem('stackItHighScore');
     if (saved) setHighScore(parseInt(saved, 10));
     
@@ -1263,6 +1315,7 @@ const RugSweeperApp = () => {
 
     return () => {
       if (requestRef.current) cancelAnimationFrame(requestRef.current);
+      unsubscribe();
     };
   }, []);
 
@@ -1284,12 +1337,17 @@ const RugSweeperApp = () => {
 
   // --- FIREBASE LOGIC ---
   const fetchLeaderboard = async (returnList = false) => {
-    if (typeof db === 'undefined') return [];
     setLoadingLB(true);
     try {
         const q = collection(db, 'artifacts', appId, 'public', 'data', 'stackit_scores');
         const snapshot = await getDocs(q);
-        const data = snapshot.docs.map(doc => doc.data());
+        
+        // FIX 1: Map ID along with data for accurate ranking
+        const data = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        }));
+        
         // Sort descending
         const sorted = data.sort((a, b) => Number(b.score) - Number(a.score));
         
@@ -1306,81 +1364,85 @@ const RugSweeperApp = () => {
     }
   };
 
+  // FIX 2: Completely Replaced submitScore
   const submitScore = async (nameOverride = null, finalScore = 0) => {
-      const nameToUse = nameOverride || username;
+      const uid = auth.currentUser?.uid; // Use direct auth UID
+      const nameToUse = (nameOverride || username).trim();
       const scoreToSubmit = finalScore > 0 ? finalScore : game.current.score;
 
-      if (!nameToUse.trim() || scoreToSubmit === 0) return;
-      if (typeof db === 'undefined') return;
+      // Helper to prevent freezing
+      const forceGameOver = () => {
+        if (nameOverride || localStorage.getItem('stackItUsername')) {
+            setGameState('GAME_OVER');
+            game.current.state = 'GAME_OVER';
+        }
+      };
+
+      if (!nameToUse || scoreToSubmit === 0) {
+        forceGameOver();
+        return;
+      }
+
+      if (!uid) {
+        console.warn("No UID available, skipping score submit.");
+        forceGameOver();
+        return;
+      }
 
       setIsSubmitting(true);
       
       try {
           const upperName = nameToUse.toUpperCase();
-          const scoresRef = collection(db, 'artifacts', appId, 'public', 'data', 'stackit_scores');
           
-          // 1. Fetch ALL to check user
-          const snapshot = await getDocs(scoresRef);
-          let existingDocId = null;
-          let existingScore = 0;
-          let isNameTaken = false;
-
-          snapshot.forEach(doc => {
-              const d = doc.data();
-              if (d.username === upperName) {
-                  existingDocId = doc.id;
-                  existingScore = Number(d.score);
-                  isNameTaken = true;
-              }
-          });
-
-          const isOwner = nameOverride || (localStorage.getItem('stackItUsername') === upperName);
+          // DIRECT DOC REFERENCE using UID
+          const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'stackit_scores', uid);
+          
+          const snap = await getDoc(docRef);
           let didUpdate = false;
 
-          if (isNameTaken) {
-              if (isOwner) {
-                  // UPDATE if new score is higher
-                  if (scoreToSubmit > existingScore) {
-                      const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'stackit_scores', existingDocId);
-                      await updateDoc(docRef, {
-                          score: scoreToSubmit,
-                          timestamp: Date.now()
-                      });
-                      didUpdate = true;
-                  }
-              } else {
-                  alert(`USERNAME '${upperName}' IS TAKEN.`);
-                  setIsSubmitting(false);
-                  return; 
-              }
-          } else {
-              // CREATE NEW
-              if (!nameOverride) localStorage.setItem('stackItUsername', upperName);
-              await addDoc(scoresRef, {
+          // FIRST TIME PLAYER
+          if (!snap.exists()) {
+              await setDoc(docRef, {
                   username: upperName,
                   score: scoreToSubmit,
                   timestamp: Date.now()
               });
+              
+              // Only set local storage if this was a new user creation event
+              if (!nameOverride) localStorage.setItem('stackItUsername', upperName);
               didUpdate = true;
+              console.log("Created New User via UID");
+          } else {
+              const existingScore = Number(snap.data().score || 0);
+
+              // ONLY UPDATE IF HIGHER
+              if (scoreToSubmit > existingScore) {
+                  await updateDoc(docRef, {
+                      score: scoreToSubmit,
+                      timestamp: Date.now()
+                  });
+                  didUpdate = true;
+                  console.log("Updated High Score via UID");
+              }
           }
 
           // 2. Fetch Leaderboard & Calculate Rank
           const freshList = await fetchLeaderboard(true);
-          const rank = freshList.findIndex(x => x.username === upperName) + 1;
+          // Find index using UID instead of name for perfect accuracy
+          const rank = freshList.sort((a, b) => b.score - a.score).findIndex(x => x.id === uid) + 1;
           setPlayerRank(rank > 0 ? rank : null);
 
           // 3. Determine Next Screen
-          // If we updated the DB (meaning personal best), show High Score Screen
           if (didUpdate) {
               setGameState('NEW_HIGHSCORE');
               game.current.state = 'NEW_HIGHSCORE';
           } else {
-              // If manual submit but didn't beat high score, show Leaderboard
               if (!nameOverride) {
+                  // Manual submit
                   setGameState('LEADERBOARD');
                   game.current.state = 'LEADERBOARD';
               } else {
-                  // Auto-submit but no new high score -> Game Over
+                  // Auto submit (Game Over)
                   setGameState('GAME_OVER');
                   game.current.state = 'GAME_OVER';
               }
@@ -1388,6 +1450,7 @@ const RugSweeperApp = () => {
 
       } catch (e) {
           console.error("Submit error:", e);
+          forceGameOver();
       }
       setIsSubmitting(false);
   };
@@ -1586,7 +1649,6 @@ const RugSweeperApp = () => {
     if (finalScore > 0) {
         if (savedName) {
             submitScore(savedName, finalScore);
-            // State will be set inside submitScore based on result (NEW_HIGHSCORE or GAME_OVER)
         } else {
             setGameState('SUBMIT_SCORE');
             game.current.state = 'SUBMIT_SCORE';
