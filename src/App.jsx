@@ -1207,15 +1207,17 @@ const RugSweeperApp = () => {
   const requestRef = useRef();
   const audioCtxRef = useRef(null);
 
-  // --- STATE (UI Only) ---
-  const [gameState, setGameState] = useState('MENU'); 
+  // --- STATE ---
+  const [gameState, setGameState] = useState('MENU'); // MENU, PLAYING, GAME_OVER, SUBMIT_SCORE, LEADERBOARD, NEW_HIGHSCORE
+  const [score, setScore] = useState(0);
   const [highScore, setHighScore] = useState(0);
   const [username, setUsername] = useState('');
   const [leaderboard, setLeaderboard] = useState([]);
+  const [playerRank, setPlayerRank] = useState(null); // Stores current rank
   const [loadingLB, setLoadingLB] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // --- ENGINE REFS (The Source of Truth) ---
+  // --- ENGINE REFS ---
   const game = useRef({
     state: 'MENU',
     stack: [],
@@ -1269,7 +1271,7 @@ const RugSweeperApp = () => {
       const handleKeyDown = (e) => {
           if (e.code === 'Space') {
               e.preventDefault(); 
-              if (game.current.state === 'MENU' || game.current.state === 'GAME_OVER') {
+              if (['MENU', 'GAME_OVER', 'NEW_HIGHSCORE'].includes(game.current.state)) {
                   startGame();
               } else if (game.current.state === 'PLAYING') {
                   placeBlock();
@@ -1281,27 +1283,34 @@ const RugSweeperApp = () => {
   }, []);
 
   // --- FIREBASE LOGIC ---
-  const fetchLeaderboard = async () => {
-    if (typeof db === 'undefined') return;
+  const fetchLeaderboard = async (returnList = false) => {
+    if (typeof db === 'undefined') return [];
     setLoadingLB(true);
     try {
         const q = collection(db, 'artifacts', appId, 'public', 'data', 'stackit_scores');
         const snapshot = await getDocs(q);
         const data = snapshot.docs.map(doc => doc.data());
-        const sorted = data.sort((a, b) => Number(b.score) - Number(a.score)).slice(0, 10);
-        setLeaderboard(sorted);
+        // Sort descending
+        const sorted = data.sort((a, b) => Number(b.score) - Number(a.score));
+        
+        // Update state with top 10
+        setLeaderboard(sorted.slice(0, 10));
+        setLoadingLB(false);
+        
+        if (returnList) return sorted;
+        return sorted;
     } catch (e) {
         console.error("Leaderboard fetch error:", e);
+        setLoadingLB(false);
+        return [];
     }
-    setLoadingLB(false);
   };
 
-  const submitScore = async (nameOverride = null) => {
+  const submitScore = async (nameOverride = null, finalScore = 0) => {
       const nameToUse = nameOverride || username;
-      // CRITICAL: ALWAYS use the ref score as it is the absolute truth from the engine
-      const currentScore = game.current.score;
+      const scoreToSubmit = finalScore > 0 ? finalScore : game.current.score;
 
-      if (!nameToUse.trim() || currentScore === 0) return;
+      if (!nameToUse.trim() || scoreToSubmit === 0) return;
       if (typeof db === 'undefined') return;
 
       setIsSubmitting(true);
@@ -1310,7 +1319,7 @@ const RugSweeperApp = () => {
           const upperName = nameToUse.toUpperCase();
           const scoresRef = collection(db, 'artifacts', appId, 'public', 'data', 'stackit_scores');
           
-          // 1. Fetch ALL to find if user exists
+          // 1. Fetch ALL to check user
           const snapshot = await getDocs(scoresRef);
           let existingDocId = null;
           let existingScore = 0;
@@ -1325,24 +1334,19 @@ const RugSweeperApp = () => {
               }
           });
 
-          // 2. Determine Action
           const isOwner = nameOverride || (localStorage.getItem('stackItUsername') === upperName);
+          let didUpdate = false;
 
           if (isNameTaken) {
               if (isOwner) {
                   // UPDATE if new score is higher
-                  if (currentScore > existingScore) {
+                  if (scoreToSubmit > existingScore) {
                       const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'stackit_scores', existingDocId);
                       await updateDoc(docRef, {
-                          score: currentScore,
+                          score: scoreToSubmit,
                           timestamp: Date.now()
                       });
-                  }
-                  // Even if we didn't update (score was lower), we still proceed to leaderboard
-                  if (!nameOverride) {
-                      await fetchLeaderboard();
-                      setGameState('LEADERBOARD');
-                      game.current.state = 'LEADERBOARD';
+                      didUpdate = true;
                   }
               } else {
                   alert(`USERNAME '${upperName}' IS TAKEN.`);
@@ -1354,14 +1358,31 @@ const RugSweeperApp = () => {
               if (!nameOverride) localStorage.setItem('stackItUsername', upperName);
               await addDoc(scoresRef, {
                   username: upperName,
-                  score: currentScore,
+                  score: scoreToSubmit,
                   timestamp: Date.now()
               });
-              
+              didUpdate = true;
+          }
+
+          // 2. Fetch Leaderboard & Calculate Rank
+          const freshList = await fetchLeaderboard(true);
+          const rank = freshList.findIndex(x => x.username === upperName) + 1;
+          setPlayerRank(rank > 0 ? rank : null);
+
+          // 3. Determine Next Screen
+          // If we updated the DB (meaning personal best), show High Score Screen
+          if (didUpdate) {
+              setGameState('NEW_HIGHSCORE');
+              game.current.state = 'NEW_HIGHSCORE';
+          } else {
+              // If manual submit but didn't beat high score, show Leaderboard
               if (!nameOverride) {
-                  await fetchLeaderboard();
                   setGameState('LEADERBOARD');
                   game.current.state = 'LEADERBOARD';
+              } else {
+                  // Auto-submit but no new high score -> Game Over
+                  setGameState('GAME_OVER');
+                  game.current.state = 'GAME_OVER';
               }
           }
 
@@ -1371,7 +1392,7 @@ const RugSweeperApp = () => {
       setIsSubmitting(false);
   };
 
-  // --- AUDIO & GAMEPLAY ---
+  // --- AUDIO SYSTEM ---
   const initAudio = () => {
     if (!audioCtxRef.current) {
       try { audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)(); } 
@@ -1461,7 +1482,7 @@ const RugSweeperApp = () => {
         perfectCount: 0,
         startTime: Date.now(),
         time: 0,
-        score: 0 // Start at 0
+        score: 0 
     };
 
     setGameState('PLAYING');
@@ -1560,15 +1581,12 @@ const RugSweeperApp = () => {
   const gameOver = () => {
     playSound('fail');
     const finalScore = game.current.score; // Capture final score from ref
-    
-    // Check local storage for existing username
     const savedName = localStorage.getItem('stackItUsername');
 
     if (finalScore > 0) {
         if (savedName) {
-            submitScore(savedName); // This now handles the update logic correctly
-            setGameState('GAME_OVER');
-            game.current.state = 'GAME_OVER';
+            submitScore(savedName, finalScore);
+            // State will be set inside submitScore based on result (NEW_HIGHSCORE or GAME_OVER)
         } else {
             setGameState('SUBMIT_SCORE');
             game.current.state = 'SUBMIT_SCORE';
@@ -1675,11 +1693,10 @@ const RugSweeperApp = () => {
 
     ctx.restore();
 
-    // UI DRAWING - USE REF SCORE HERE
     ctx.fillStyle = currentBiome.text;
     ctx.font = '900 40px Impact';
     ctx.textAlign = 'center';
-    ctx.fillText(g.score, GAME_WIDTH/2, 60); // <--- Using g.score
+    ctx.fillText(g.score, GAME_WIDTH/2, 60); 
     ctx.font = '12px monospace';
     ctx.fillText(currentBiome.name, GAME_WIDTH/2, 80);
 
@@ -1760,10 +1777,32 @@ const RugSweeperApp = () => {
           </div>
         )}
 
+        {/* NEW HIGH SCORE SCREEN */}
+        {gameState === 'NEW_HIGHSCORE' && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-blue-900/90 text-center text-white p-6 z-20 pointer-events-auto" onPointerDown={e=>e.stopPropagation()}>
+            <h1 className="text-4xl font-black text-yellow-400 mb-2 animate-bounce">NEW ATH!</h1>
+            <div className="text-6xl font-black text-white mb-2">{game.current.score}</div>
+            
+            {playerRank && (
+                <div className="bg-blue-800 border-2 border-blue-400 px-4 py-2 mb-6 rounded">
+                    <div className="text-xs text-blue-200">GLOBAL RANK</div>
+                    <div className="text-2xl font-bold">#{playerRank}</div>
+                </div>
+            )}
+            
+            <button onPointerDown={startGame} className="bg-white text-blue-900 px-6 py-3 font-black border-4 border-blue-500 shadow-[4px_4px_0_#000] cursor-pointer hover:scale-105 transition-transform">
+                PUMP IT AGAIN
+            </button>
+          </div>
+        )}
+
         {/* LEADERBOARD */}
         {gameState === 'LEADERBOARD' && (
           <div className="absolute inset-0 flex flex-col items-center bg-blue-900/95 text-white p-4 z-20 pointer-events-auto" onPointerDown={e=>e.stopPropagation()}>
-            <h2 className="text-2xl font-black text-yellow-300 mb-4 border-b-4 border-yellow-300 w-full text-center pb-2">TOP JEET SLAYERS</h2>
+            <div className="flex justify-between items-center w-full border-b-4 border-yellow-300 pb-2 mb-2">
+                <h2 className="text-2xl font-black text-yellow-300">TOP JEET SLAYERS</h2>
+                {playerRank && <div className="bg-black/50 px-2 py-1 text-xs font-bold border border-yellow-300 text-yellow-300">YOU: #{playerRank}</div>}
+            </div>
             
             <div className="flex-1 w-full overflow-y-auto mb-4 border-2 border-white bg-black/50 p-2">
                 {loadingLB ? <div className="text-center mt-10 animate-pulse">LOADING ON-CHAIN DATA...</div> : (
@@ -1772,13 +1811,17 @@ const RugSweeperApp = () => {
                             <tr className="text-gray-400 border-b border-gray-600"><th className="pb-1">#</th><th className="pb-1">NAME</th><th className="pb-1 text-right">HT</th></tr>
                         </thead>
                         <tbody>
-                            {leaderboard.map((entry, i) => (
-                                <tr key={i} className={`border-b border-gray-800 ${i===0?'text-yellow-300 font-bold':''}`}>
-                                    <td className="py-2">{i+1}</td>
-                                    <td className="py-2">{entry.username}</td>
-                                    <td className="py-2 text-right">{entry.score}</td>
-                                </tr>
-                            ))}
+                            {leaderboard.map((entry, i) => {
+                                // Check if this is the current user's entry
+                                const isCurrentUser = entry.username === (username || localStorage.getItem('stackItUsername'));
+                                return (
+                                    <tr key={i} className={`border-b border-gray-800 ${isCurrentUser ? 'text-orange-500 font-black' : 'text-gray-300'}`}>
+                                        <td className="py-2">{i+1}</td>
+                                        <td className="py-2">{entry.username} {isCurrentUser && ' (YOU)'}</td>
+                                        <td className="py-2 text-right">{entry.score}</td>
+                                    </tr>
+                                );
+                            })}
                         </tbody>
                     </table>
                 )}
