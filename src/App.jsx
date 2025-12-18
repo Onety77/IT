@@ -309,17 +309,24 @@ const Shippy = ({ hidden }) => {
   const [messages, setMessages] = useState([{ role: 'shippy', text: "I see you're online. Would you like to PUMP IT?" }]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const API_KEY = "sk-YOUR_OPENAI_API_KEY_HERE"; 
+  
+  // PASTE YOUR GOOGLE API KEY HERE
+  const API_KEY = "AIzaSyCFstB9OJYD9HBUF6X4Cde8zhy09M4dze8"; 
   
   const SYSTEM_PROMPT = `You are Shippy, the chaotic AI assistant for the $IT memecoin. Rules: 1. Bullish. 2. Hate FUD. 3. End sentences with 'T'. 4. Short & funny. 5. 1 IT = 1 IT.`;
 
   const handleSend = async () => {
     if(!input.trim()) return;
-    const userText = input; setInput("");
-    setMessages(prev => [...prev, { role: 'user', text: userText }]);
+    const userText = input; 
+    setInput("");
+    
+    // Add user message to UI immediately
+    const newHistory = [...messages, { role: 'user', text: userText }];
+    setMessages(newHistory);
     setLoading(true);
 
-    if (!API_KEY || API_KEY.includes("YOUR_OPENAI_API_KEY")) {
+    // Check for missing key
+    if (!API_KEY || API_KEY.includes("YOUR_GOOGLE_API_KEY")) {
       setTimeout(() => {
         const replies = ["I NEED A BRAIN (API KEY) TO THINK T.", "SYSTEM ERROR: NO GAS T."];
         setMessages(prev => [...prev, { role: 'shippy', text: replies[Math.floor(Math.random() * replies.length)] }]);
@@ -329,27 +336,49 @@ const Shippy = ({ hidden }) => {
     }
 
     try {
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      // CALL GOOGLE GEMINI API
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${API_KEY}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${API_KEY}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: "gpt-4o-mini",
-          messages: [{ role: "system", content: SYSTEM_PROMPT }, ...messages.slice(-4).map(m => ({ role: m.role === 'shippy' ? 'assistant' : 'user', content: m.text })), { role: "user", content: userText }],
-          max_tokens: 60, temperature: 0.9
+          systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+          contents: [
+            // Pass last few messages for context (mapped to Gemini format)
+            ...newHistory.slice(-5).map(m => ({
+                role: m.role === 'shippy' ? 'model' : 'user',
+                parts: [{ text: m.text }]
+            }))
+          ],
+          generationConfig: {
+            maxOutputTokens: 100, // Keep it cheap and short
+            temperature: 1.2      // High creativity/chaos
+          }
         })
       });
+
       const data = await response.json();
-      if (data.error) throw new Error(data.error.message);
-      setMessages(prev => [...prev, { role: 'shippy', text: data.choices[0].message.content }]);
+      
+      if (data.error) {
+        throw new Error(data.error.message);
+      }
+
+      // Extract text from Gemini response
+      const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || "BUFFERING T...";
+      setMessages(prev => [...prev, { role: 'shippy', text: reply }]);
+      
     } catch (e) {
+      console.error(e);
       const errorReplies = ["MY BRAIN IS BUFFERING T.", "TOO MUCH PUMP TO PROCESS T.", "CONNECTION RUGGED T."];
       setMessages(prev => [...prev, { role: 'shippy', text: errorReplies[Math.floor(Math.random() * errorReplies.length)] }]);
-    } finally { setLoading(false); }
+    } finally { 
+      setLoading(false); 
+    }
   };
 
   if (!isOpen) return (
     <div className="fixed bottom-12 right-4 z-[9999] cursor-pointer flex flex-col items-center group" onClick={() => setIsOpen(true)} style={{ display: hidden ? 'none' : 'flex' }}>
        <div className="bg-white border-2 border-black px-2 py-1 mb-1 relative text-xs font-bold font-mono shadow-[4px_4px_0px_rgba(0,0,0,0.5)] group-hover:scale-105 transition-transform">Talk IT</div>
+       {/* Ensure ASSETS is defined in your main file logic */}
        <img src={ASSETS.logo} alt="IT Bot" className="w-14 h-14 object-contain drop-shadow-[0_4px_4px_rgba(0,0,0,0.5)]" />
     </div>
   );
@@ -368,8 +397,6 @@ const Shippy = ({ hidden }) => {
     </div>
   );
 };
-
-
 
 const ASCII_IT = [
   "██╗████████╗",
