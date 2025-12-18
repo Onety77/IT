@@ -18,7 +18,7 @@ import {
   Move, RotateCcw, RotateCw, Upload,
   Maximize2, LayoutTemplate, Monitor, Share, Sliders, ChevronLeft, Plus,
   // UPDATED: Added Chat Icons
-  Send, User, AlertCircle, XCircle
+  Send, User, AlertCircle, XCircle, AlertTriangle
 } from 'lucide-react';
 
 
@@ -2282,15 +2282,25 @@ const ChatApp = () => {
   const [isConnected, setIsConnected] = useState(false); 
   const [cooldown, setCooldown] = useState(0);
   const [userUid, setUserUid] = useState(null);
+  const [sendError, setSendError] = useState(null); // New error state
   const scrollRef = useRef(null);
+  
+  // We keep track of pending messages separately to force them to stay visible
+  // even if the DB snapshot flickers or lags.
+  const [pendingMessages, setPendingMessages] = useState([]);
 
   // --- INIT & AUTH ---
   useEffect(() => {
     const initAuth = async () => {
-      if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-        await signInWithCustomToken(auth, __initial_auth_token);
-      } else {
-        await signInAnonymously(auth);
+      try {
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+          await signInWithCustomToken(auth, __initial_auth_token);
+        } else {
+          await signInAnonymously(auth);
+        }
+      } catch (e) {
+        console.error("Auth Error:", e);
+        setSendError("Auth Failed: Check Domain Whitelist in Firebase Console.");
       }
     };
     initAuth();
@@ -2312,18 +2322,20 @@ const ChatApp = () => {
     }
   }, []);
 
-  // --- LIVE CHAT LISTENER (FIXED) ---
+  // --- LIVE CHAT LISTENER ---
   useEffect(() => {
     if (!userUid) return;
     
-    // FIX: We remove 'orderBy' and 'limit' from the query to prevent
-    // index errors and race conditions. We sort in memory instead.
+    // We grab the whole collection and sort client-side.
+    // This is robust against index errors.
     const q = collection(db, 'artifacts', appId, 'public', 'data', 'trollbox_messages');
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
         const rawMsgs = snapshot.docs.map(doc => {
             const data = doc.data();
             // NORMALIZE TIMESTAMP
+            // If serverTimestamp() hasn't completed yet, data.timestamp is null.
+            // We treat null as "Now" to keep it at the bottom.
             let ts = Date.now();
             if (data.timestamp) {
                 if (typeof data.timestamp.toDate === 'function') {
@@ -2348,6 +2360,7 @@ const ChatApp = () => {
         setIsConnected(true); 
     }, (error) => {
         console.error("Chat Error:", error);
+        setSendError("Connection Lost: " + error.message);
     });
 
     return () => unsubscribe();
@@ -2356,18 +2369,17 @@ const ChatApp = () => {
   // --- AUTO SCROLL ---
   useEffect(() => {
     if (scrollRef.current) {
-        // Smooth scroll for better UX
         scrollRef.current.scrollTo({
             top: scrollRef.current.scrollHeight,
             behavior: 'smooth'
         });
     }
-  }, [messages, isConnected]); 
+  }, [messages, pendingMessages, isConnected]); 
 
   // --- ACTIONS ---
   const handleSetUser = () => {
       const name = username.trim().toUpperCase().slice(0, 12);
-      if (name.length < 2) return; // Silent return for UX, button won't work anyway
+      if (name.length < 2) return; 
       
       localStorage.setItem('trollbox_username', name);
       setUsername(name);
@@ -2390,9 +2402,10 @@ const ChatApp = () => {
 
       const textToSend = inputText.trim().slice(0, 140);
       setInputText("");
-      setCooldown(2); // Reduced cooldown slightly
+      setCooldown(2);
+      setSendError(null); // Clear previous errors
 
-      // Optimistic Update
+      // 1. Optimistic Update (Local Only)
       const tempId = "temp_" + Date.now();
       const optimisticMsg = { 
           id: tempId, 
@@ -2402,18 +2415,29 @@ const ChatApp = () => {
           pending: true 
       };
       
-      // We append to local state immediately
-      setMessages(prev => [...prev, optimisticMsg]);
+      // Add to pending queue immediately
+      setPendingMessages(prev => [...prev, optimisticMsg]);
 
       try {
+          // 2. Send to DB using serverTimestamp()
+          // serverTimestamp prevents "Time Skew" errors if your clock is wrong
           await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'trollbox_messages'), {
               text: textToSend,
               user: username,
-              timestamp: Date.now(),
+              timestamp: serverTimestamp(), // CRITICAL FIX: Use Server Time
               uid: userUid || 'anon'
           });
+          
+          // 3. Success! Remove from pending (The real one will come from onSnapshot)
+          setPendingMessages(prev => prev.filter(m => m.id !== tempId));
+
       } catch (err) {
           console.error("Failed to send:", err);
+          // 4. On Error, keep the message but mark it red? 
+          // Actually, let's remove it and show an error toast so the user knows to retry.
+          setPendingMessages(prev => prev.filter(m => m.id !== tempId));
+          setSendError("Send failed! Check connection/permissions.");
+          setInputText(textToSend); // Put text back in box so they don't lose it
       }
 
       // Cooldown Timer
@@ -2430,6 +2454,10 @@ const ChatApp = () => {
       const date = new Date(ts);
       return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
+
+  // Merge Real Messages with Pending Messages for display
+  // We filter out any pending messages that might have already arrived in real messages (dedupe)
+  const displayMessages = [...messages, ...pendingMessages.filter(pm => !messages.find(m => m.text === pm.text && m.user === pm.user))];
 
   return (
     <div className="flex flex-col h-screen max-h-screen bg-[#c0c0c0] font-sans text-xs border-2 border-gray-600 shadow-xl">
@@ -2482,7 +2510,7 @@ const ChatApp = () => {
                         --- Systems Nominal ---
                     </div>
 
-                    {messages.map((msg) => {
+                    {displayMessages.map((msg) => {
                         const isMe = msg.user === username;
                         return (
                             <div key={msg.id} className={`flex gap-2 group ${msg.pending ? 'opacity-50' : ''} hover:bg-blue-50 -mx-1 px-1 rounded`}>
@@ -2504,6 +2532,14 @@ const ChatApp = () => {
                     <div className="h-2"></div>
                 </div>
             </div>
+
+            {/* ERROR TOAST */}
+            {sendError && (
+                <div className="bg-red-100 border-t border-red-400 text-red-700 px-4 py-1 text-xs flex items-center gap-2">
+                    <AlertTriangle size={12}/>
+                    {sendError}
+                </div>
+            )}
 
             {/* INPUT AREA */}
             <div className="h-10 bg-[#d4d0c8] p-1 flex gap-1 border-t border-white shadow-md z-10">
@@ -2549,6 +2585,94 @@ const ChatApp = () => {
     </div>
   );
 };
+
+
+//notepad app
+const NotepadApp = () => {
+  const [content, setContent] = useState("");
+  const [status, setStatus] = useState("READY");
+  
+  // Load from local storage on boot
+  useEffect(() => {
+    const saved = localStorage.getItem('write_it_content');
+    if (saved) setContent(saved);
+  }, []);
+
+  // Auto-save logic
+  const handleChange = (e) => {
+    const text = e.target.value;
+    setContent(text);
+    localStorage.setItem('write_it_content', text);
+    setStatus("SAVING...");
+    setTimeout(() => setStatus("SAVED"), 500);
+  };
+
+  const clearNote = () => {
+    if (window.confirm("BURN MANIFESTO?")) {
+      setContent("");
+      localStorage.removeItem('write_it_content');
+      setStatus("CLEARED");
+    }
+  };
+
+  const publishIt = () => {
+    if (!content.trim()) return;
+    const text = encodeURIComponent(content.slice(0, 280)); // Twitter limit check roughly
+    window.open(`https://twitter.com/intent/tweet?text=${text}`, '_blank');
+    setStatus("PUBLISHED");
+  };
+
+  const downloadTxt = () => {
+    const element = document.createElement("a");
+    const file = new Blob([content], {type: 'text/plain'});
+    element.href = URL.createObjectURL(file);
+    element.download = "manifesto.txt";
+    document.body.appendChild(element);
+    element.click();
+    setStatus("DOWNLOADED");
+  };
+
+  return (
+    <div className="flex flex-col h-full bg-[#c0c0c0] font-sans text-sm border-2 border-gray-600">
+      {/* TOOLBAR */}
+      <div className="flex items-center gap-1 p-1 border-b border-gray-400 bg-[#d4d0c8]">
+        <button onClick={downloadTxt} className="px-2 py-1 flex items-center gap-1 border border-transparent hover:border-gray-500 hover:bg-gray-200 active:border-black active:border-t-2 active:border-l-2 text-xs">
+            <Save size={14} className="text-blue-800"/> SAVE
+        </button>
+        <button onClick={publishIt} className="px-2 py-1 flex items-center gap-1 border border-transparent hover:border-gray-500 hover:bg-gray-200 active:border-black active:border-t-2 active:border-l-2 text-xs">
+            <Share size={14} className="text-[#1da1f2]"/> POST IT
+        </button>
+        <div className="w-px h-4 bg-gray-400 mx-1"></div>
+        <button onClick={clearNote} className="px-2 py-1 flex items-center gap-1 border border-transparent hover:border-gray-500 hover:bg-gray-200 active:border-black active:border-t-2 active:border-l-2 text-xs text-red-700">
+            <Trash2 size={14}/> BURN
+        </button>
+        
+        <div className="flex-1"></div>
+        <span className="text-[10px] text-gray-500 font-mono mr-1">{status}</span>
+      </div>
+
+      {/* EDITOR AREA */}
+      <div className="flex-1 relative bg-white border-2 border-gray-600 border-r-white border-b-white m-1 overflow-hidden">
+        <textarea 
+            className="w-full h-full resize-none outline-none p-2 font-mono text-sm leading-relaxed text-black"
+            value={content}
+            onChange={handleChange}
+            placeholder="Write your manifesto here..."
+            spellCheck="false"
+        />
+      </div>
+
+      {/* STATUS BAR */}
+      <div className="h-6 bg-[#d4d0c8] border-t border-white flex items-center px-2 text-[10px] gap-4 font-mono text-gray-600">
+         <span>CHARS: {content.length}</span>
+         <span>WORDS: {content.trim() ? content.trim().split(/\s+/).length : 0}</span>
+         <span className="flex-1 text-right">UTF-8</span>
+      </div>
+    </div>
+  );
+};
+
+
 
 // --- MAIN OS MANAGER ---
 export default function UltimateOS() {
