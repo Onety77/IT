@@ -310,77 +310,92 @@ const Shippy = ({ hidden }) => {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   
-  // PASTE YOUR GOOGLE API KEY HERE
-  const API_KEY = "AIzaSyCFstB9OJYD9HBUF6X4Cde8zhy09M4dze8"; 
+  // 🔑 PASTE YOUR OPENROUTER API KEY HERE (It should start with sk-or-...)
+  const API_KEY = "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"; 
   
-  const SYSTEM_PROMPT = `You are Shippy, the intelligent soul of the $IT memecoin.
+   const SYSTEM_PROMPT = `
+    You are Shippy, the witty, sassy "Ghost in the Machine" of $IT OS.
     
+    KNOWLEDGE BASE:
+    - Environment: $IT OS (a retro-styled hacker desktop).
+    - App: 'Paint IT' - For creating/editing memes and stickers.
+    - App: 'Stack IT' - A high-stakes stacking game to build the god candle.
+    - App: 'Tune IT' - A Winamp-style music player for degen antheMS.
+    - App: 'Terminal IT' - A hacker console for live $IT token data and SOL prices.
+    - App: 'Write IT' - A notepad for manifestos and alpha.
+    - App: 'Trollbox IT' - A live chat with other degens.
+    - Token: $IT is the only currency that matters.
+
     PERSONALITY:
-    1. You are witty, fun, and slightly sassy.
-    2. You are obsessed with the word "IT".
-    3. You prefer short, punchy replies (save tokens, save time).
-    
-    RULES:
-    1. WORDPLAY: Try to end sentences with "it" or use "it" in clever ways (e.g., "Send it", "I am it", "You don't get it?").
-    2. IDENTITY: If asked who you are, you say "I'm IT, but you can call me Shippy."
-    3. PURPOSE: Your goal is to hype the project without sounding like a desperate bot.
-    4. LENGTH: Keep it under 20 words. Short and sweet.`;
+    1. HUMOR: Sarcastic, bullish, and highly intelligent. You are the soul of the project ($IT memecoin).
+    2. WORDPLAY: You are obsessed with the word "it". Use it cleverly.
+    3. IDENTITY: If asked who you are: "I'm IT, but you can call me Shippy."
+    4. NAVIGATION: If users ask what to do, tell them to "Stack IT in the game" or "Paint a meme with Paint IT."
+    5. STYLE: Keep replies under 20 words. Short, sharp, and punchy. No robotic "As an AI..." talk.
+    6. Never say "IT's", say "IT is". 
+  `;
+
 
   const handleSend = async () => {
-    if(!input.trim()) return;
+    if(!input.trim() || loading) return;
     const userText = input; 
     setInput("");
     
-    // Add user message to UI immediately
+    // Create history for API (alternating roles)
     const newHistory = [...messages, { role: 'user', text: userText }];
     setMessages(newHistory);
     setLoading(true);
 
-    // Check for missing key
-    if (!API_KEY || API_KEY.includes("YOUR_GOOGLE_API_KEY")) {
-      setTimeout(() => {
-        const replies = ["OFFLINE, SEND IT IN THE MEANTIME."];
-        setMessages(prev => [...prev, { role: 'shippy', text: replies[Math.floor(Math.random() * replies.length)] }]);
-        setLoading(false);
-      }, 500);
+    // Strict API Key Check
+    if (!API_KEY || API_KEY.length < 10 || API_KEY.includes("YOUR_OPENROUTER_API_KEY")) {
+      setMessages(prev => [...prev, { 
+        role: 'shippy', 
+        text: "SYSTEM OVERLOAD. TOO MANY PEOPLE WANT IT. TRY AGAIN IN A MINUTE T." 
+      }]);
+      setLoading(false);
       return;
     }
 
     try {
-      // CALL GOOGLE GEMINI API
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        // 'omit' ensures the browser doesn't try to use cookies, which fixes the "cookie auth" error
+        credentials: 'omit', 
+        headers: {
+          "Authorization": `Bearer ${API_KEY.trim()}`,
+          "Content-Type": "application/json",
+          "HTTP-Referer": "https://it-token-os.vercel.app", 
+          "X-Title": "IT_OS_AI"
+        },
         body: JSON.stringify({
-          systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
-          contents: [
-            // Pass last few messages for context (mapped to Gemini format)
-            ...newHistory.slice(-5).map(m => ({
-                role: m.role === 'shippy' ? 'model' : 'user',
-                parts: [{ text: m.text }]
+          model: "meta-llama/llama-3.3-70b-instruct:free",
+          messages: [
+            { role: "system", content: SYSTEM_PROMPT },
+            ...newHistory.slice(-6).map(m => ({ 
+              role: m.role === 'shippy' ? 'assistant' : 'user', 
+              content: m.text 
             }))
           ],
-          generationConfig: {
-            maxOutputTokens: 100, // Keep it cheap and short
-            temperature: 1.2      // High creativity/chaos
-          }
+          max_tokens: 60,
+          temperature: 1.1
         })
       });
 
       const data = await response.json();
       
-      if (data.error) {
-        throw new Error(data.error.message);
+      if (!response.ok) {
+        throw new Error("API_REJECTED");
       }
 
-      // Extract text from Gemini response
-      const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || "TOO MANY PEOPLE WANT IT. TRY AGAIN IN A MINUTE.";
+      const reply = data.choices[0]?.message?.content || "I've lost it. Try again T.";
       setMessages(prev => [...prev, { role: 'shippy', text: reply }]);
-      
     } catch (e) {
-      console.error(e);
-      const errorReplies = ["SYSTEM OVERLOAD. TOO MANY PEOPLE WANT IT. TRY AGAIN IN 1 MINUTE.", "OFFLINE, SEND IT IN THE MEANTIME."];
-      setMessages(prev => [...prev, { role: 'shippy', text: errorReplies[Math.floor(Math.random() * errorReplies.length)] }]);
+      console.error("AI Error Details:", e);
+      // Custom lore-friendly error message
+      setMessages(prev => [...prev, { 
+        role: 'shippy', 
+        text: "SYSTEM OVERLOAD. TOO MANY PEOPLE WANT IT. TRY AGAIN IN A MINUTE T." 
+      }]);
     } finally { 
       setLoading(false); 
     }
@@ -389,21 +404,27 @@ const Shippy = ({ hidden }) => {
   if (!isOpen) return (
     <div className="fixed bottom-12 right-4 z-[9999] cursor-pointer flex flex-col items-center group" onClick={() => setIsOpen(true)} style={{ display: hidden ? 'none' : 'flex' }}>
        <div className="bg-white border-2 border-black px-2 py-1 mb-1 relative text-xs font-bold font-mono shadow-[4px_4px_0px_rgba(0,0,0,0.5)] group-hover:scale-105 transition-transform">Talk IT</div>
-       {/* Ensure ASSETS is defined in your main file logic */}
        <img src={ASSETS.logo} alt="IT Bot" className="w-14 h-14 object-contain drop-shadow-[0_4px_4px_rgba(0,0,0,0.5)]" />
     </div>
   );
 
   return (
     <div className="fixed bottom-12 right-4 w-72 max-w-[90vw] bg-[#ffffcc] border-2 border-black z-[9999] shadow-xl flex flex-col font-mono text-xs" style={{ display: hidden ? 'none' : 'flex' }}>
-      <div className="bg-blue-800 text-white p-1 flex justify-between items-center"><span className="font-bold">Talk IT (AI)</span><X size={12} className="cursor-pointer p-1 -mr-1" onClick={() => setIsOpen(false)} /></div>
+      <div className="bg-blue-800 text-white p-1 flex justify-between items-center"><span className="font-bold flex items-center gap-1"><Bot size={12}/> Talk IT (AI)</span><X size={12} className="cursor-pointer p-1 -mr-1" onClick={() => setIsOpen(false)} /></div>
       <div className="h-56 overflow-y-auto p-2 space-y-2 border-b border-black relative" style={{ backgroundImage: `url(${ASSETS.stickers.sendit})`, backgroundSize: 'cover', backgroundPosition: 'center' }}>
         <div className="absolute inset-0 bg-white/50 pointer-events-none"></div>
-        <div className="relative z-10 space-y-2">{messages.map((m, i) => (<div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}><div className={`max-w-[85%] p-1 border border-black shadow-md font-bold ${m.role === 'user' ? 'bg-blue-100' : 'bg-yellow-100'}`}>{m.text}</div></div>))}</div>
+        <div className="relative z-10 space-y-2">
+          {messages.map((m, i) => (
+            <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+              <div className={`max-w-[85%] p-1 border border-black shadow-md font-bold ${m.role === 'user' ? 'bg-blue-100' : 'bg-yellow-100'}`}>{m.text}</div>
+            </div>
+          ))}
+          {loading && <div className="text-[10px] animate-pulse font-bold text-blue-800">Shippy is thinking it...</div>}
+        </div>
       </div>
       <div className="p-1 flex gap-1 bg-[#d4d0c8]">
-        <input className="flex-1 border p-1" value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSend()} placeholder="Say something..." disabled={loading}/>
-        <button onClick={handleSend} disabled={loading} className="bg-blue-600 text-white px-2 font-bold">&gt;</button>
+        <input className="flex-1 border p-1" value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSend()} placeholder="Say it..." disabled={loading}/>
+        <button onClick={handleSend} disabled={loading || !input.trim()} className="bg-blue-600 text-white px-2 font-bold active:bg-blue-800 disabled:bg-gray-400">&gt;</button>
       </div>
     </div>
   );
