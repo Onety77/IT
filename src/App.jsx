@@ -104,8 +104,8 @@ const ASSETS = {
 
 // --- SOCIAL LINKS & CA ---
 const SOCIALS = {
-  twitter: "https://twitter.com/your_project",
-  community: "https://t.me/your_community",
+  twitter: "https://x.com/ITonSol",
+  community: "https://x.com/ITonSol",
 };
 
 // --- MUSIC CONFIGURATION ---
@@ -348,7 +348,7 @@ const Shippy = ({ hidden }) => {
 
     try {
       // CALL GOOGLE GEMINI API
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${API_KEY}`, {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
