@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
-
-import { getFirestore, collection, addDoc, getDocs, updateDoc, doc, setDoc, getDoc } from 'firebase/firestore';
-
+// UPDATED: Added all necessary Firestore functions for Chat and Leaderboard
+import { 
+  getFirestore, collection, addDoc, getDocs, updateDoc, doc, setDoc, getDoc, 
+  onSnapshot, query, orderBy, limit, serverTimestamp, deleteDoc 
+} from 'firebase/firestore';
 import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
 
 import {
@@ -14,7 +16,9 @@ import {
   Search, Layout, Type, Folder, Twitter, Users, Copy, Check,
   Menu, LogOut, ChevronRight,
   Move, RotateCcw, RotateCw, Upload,
-  Maximize2, LayoutTemplate, Monitor, Share, Sliders, ChevronLeft, Plus
+  Maximize2, LayoutTemplate, Monitor, Share, Sliders, ChevronLeft, Plus,
+  // UPDATED: Added Chat Icons
+  Send, User, AlertCircle
 } from 'lucide-react';
 
 
@@ -167,7 +171,6 @@ const useWallet = () => {
         const response = await window.solana.connect();
         setWallet(response.publicKey.toString());
       } else {
-        // No more simulation. Direct user guidance.
         alert("Please open IT on PC to Connect IT, or install the Phantom Wallet extension!");
       }
     } catch (err) { alert("Connection Failed"); } finally { setConnecting(false); }
@@ -281,8 +284,10 @@ const StartMenu = ({ isOpen, onClose, onOpenApp }) => {
                { id: 'paint', icon: Paintbrush, label: 'Paint IT' },
                { id: 'memes', icon: Folder, label: 'Memes' },
                { id: 'tunes', icon: Music, label: 'Tune IT' },
-               { id: 'rugsweeper', icon: Gamepad2, label: 'Play IT' },
+               { id: 'rugsweeper', icon: Gamepad2, label: 'Stack IT' },
                { id: 'notepad', icon: FileText, label: 'Write IT' },
+               // UPDATED: Added Trollbox
+               { id: 'trollbox', icon: MessageSquare, label: 'Trollbox IT' },
              ].map(app => (
                  <div key={app.id} className="hover:bg-[#000080] hover:text-white cursor-pointer px-2 py-2 flex items-center gap-2 active:bg-[#000080] active:text-white" onClick={() => { onOpenApp(app.id); onClose(); }}>
                      <app.icon size={16} /> <span>{app.label}</span>
@@ -294,6 +299,9 @@ const StartMenu = ({ isOpen, onClose, onOpenApp }) => {
   );
 };
 
+
+
+
 // --- APPS (Same content, optimized containers) ---
 
 const Shippy = ({ hidden }) => {
@@ -301,7 +309,7 @@ const Shippy = ({ hidden }) => {
   const [messages, setMessages] = useState([{ role: 'shippy', text: "I see you're online. Would you like to PUMP IT?" }]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const API_KEY = "sk-ijklmnopqrstuvwxijklmnopqrstuvwxijklmnop"; 
+  const API_KEY = "sk-YOUR_OPENAI_API_KEY_HERE"; 
   
   const SYSTEM_PROMPT = `You are Shippy, the chaotic AI assistant for the $IT memecoin. Rules: 1. Bullish. 2. Hate FUD. 3. End sentences with 'T'. 4. Short & funny. 5. 1 IT = 1 IT.`;
 
@@ -2265,6 +2273,229 @@ const MemesApp = () => {
   );
 };
 
+
+// 7. TROLLBOX IT (CHAT APP - FIXED)
+const ChatApp = () => {
+  const [messages, setMessages] = useState([]);
+  const [inputText, setInputText] = useState("");
+  const [username, setUsername] = useState("");
+  const [isSetup, setIsSetup] = useState(false);
+  const [isConnected, setIsConnected] = useState(false); // Track real connection
+  const [cooldown, setCooldown] = useState(0);
+  const scrollRef = useRef(null);
+
+  // --- INIT & AUTH ---
+  useEffect(() => {
+    // 1. Ensure Auth
+    if (typeof auth !== 'undefined') {
+      const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+          if (!user) signInAnonymously(auth).catch(e => console.error("Auth failed:", e));
+      });
+      return () => unsubscribeAuth();
+    }
+  }, []);
+
+  // --- CHECK LOCAL STORAGE ---
+  useEffect(() => {
+    const savedName = localStorage.getItem('chatUsername') || localStorage.getItem('stackItUsername');
+    if (savedName) {
+      setUsername(savedName);
+      setIsSetup(true);
+    }
+  }, []);
+
+  // --- LIVE CHAT LISTENER ---
+  useEffect(() => {
+    if (typeof db === 'undefined') return;
+    
+    let unsubscribe;
+    try {
+      const q = query(
+          collection(db, 'artifacts', appId, 'public', 'data', 'trollbox_messages'),
+          orderBy('timestamp', 'desc'),
+          limit(50)
+      );
+
+      unsubscribe = onSnapshot(q, (snapshot) => {
+          const msgs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          setMessages(msgs.reverse());
+          setIsConnected(true); // We got data (even if empty), so we are connected
+      }, (error) => {
+          console.error("Chat Listener Error:", error);
+          setIsConnected(false);
+      });
+
+    } catch (error) {
+      console.error("Chat Setup Error:", error);
+    }
+
+    return () => { if(unsubscribe) unsubscribe(); };
+  }, []);
+
+  // --- AUTO SCROLL ---
+  useEffect(() => {
+    if (scrollRef.current) {
+        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [messages, isConnected]); // Scroll when connected too
+
+  // --- ACTIONS ---
+  const handleSetUser = () => {
+      const name = username.trim().toUpperCase().slice(0, 12);
+      if (name.length < 2) return alert("NAME TOO SHORT");
+      
+      localStorage.setItem('chatUsername', name);
+      localStorage.setItem('stackItUsername', name); 
+      setUsername(name);
+      setIsSetup(true);
+  };
+
+  const handleResetUser = () => {
+      if(confirm("Reset Identity?")) {
+          localStorage.removeItem('chatUsername');
+          localStorage.removeItem('stackItUsername');
+          setIsSetup(false);
+          setUsername("");
+      }
+  };
+
+  const handleSend = async (e) => {
+      if(e) e.preventDefault();
+      
+      if (!inputText.trim()) return;
+      if (cooldown > 0) return; 
+
+      const textToSend = inputText.trim().slice(0, 140);
+      setInputText("");
+      setCooldown(3); 
+
+      try {
+          if (typeof db !== 'undefined') {
+            await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'trollbox_messages'), {
+                text: textToSend,
+                user: username,
+                timestamp: serverTimestamp(),
+                uid: auth?.currentUser?.uid || 'anon'
+            });
+          }
+      } catch (err) {
+          console.error("Failed to send:", err);
+          setMessages(prev => [...prev, { id: Date.now(), user: 'SYSTEM', text: 'FAILED TO SEND.', isSystem: true }]);
+      }
+
+      let timer = 3;
+      const interval = setInterval(() => {
+          timer--;
+          setCooldown(timer);
+          if (timer <= 0) clearInterval(interval);
+      }, 1000);
+  };
+
+  const formatTime = (ts) => {
+      if (!ts) return "--:--";
+      // Firebase timestamp conversion
+      const date = ts.toDate ? ts.toDate() : new Date(); 
+      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
+  return (
+    <div className="flex flex-col h-full bg-[#c0c0c0] font-sans text-xs border-2 border-gray-600">
+      
+      {/* HEADER */}
+      <div className="bg-[#000080] text-white px-2 py-1 flex justify-between items-center font-bold border-b-2 border-white">
+        <div className="flex items-center gap-2">
+            <MessageSquare size={14}/>
+            <span>TROLLBOX.EXE</span>
+        </div>
+        <div className={`text-[10px] ${isConnected ? 'text-green-300' : 'text-red-300 animate-pulse'}`}>
+            {isConnected ? (messages.length > 0 ? "LIVE" : "READY (EMPTY)") : "CONNECTING..."}
+        </div>
+      </div>
+
+      {/* LOGIN SCREEN */}
+      {!isSetup ? (
+        <div className="flex-1 bg-[#000000] flex flex-col items-center justify-center p-6 text-green-500 font-mono">
+            <User size={48} className="mb-4 text-green-500"/>
+            <p className="mb-2 text-white">IDENTIFY YOURSELF</p>
+            <input 
+                autoFocus
+                className="bg-[#111] border-2 border-green-500 text-green-500 p-2 w-full text-center outline-none uppercase font-bold text-lg mb-4"
+                placeholder="USERNAME"
+                maxLength={12}
+                value={username}
+                onChange={e => setUsername(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleSetUser()}
+            />
+            <button onClick={handleSetUser} className="bg-green-700 text-black font-bold px-6 py-2 hover:bg-green-600 w-full">
+                CONNECT
+            </button>
+        </div>
+      ) : (
+        /* CHAT INTERFACE */
+        <>
+            <div className="flex-1 bg-white border-2 border-gray-500 m-1 overflow-hidden relative flex flex-col">
+                <div ref={scrollRef} className="flex-1 overflow-y-auto p-2 space-y-1 font-mono text-sm">
+                    <div className="text-gray-500 italic text-[10px] text-center mb-2">
+                        --- Connected to Node 8x01 ---<br/>
+                        --- Don't get rekt ---
+                    </div>
+
+                    {messages.length === 0 && isConnected && (
+                        <div className="text-center text-gray-400 mt-10">No messages yet. Start the pump!</div>
+                    )}
+
+                    {messages.map((msg, i) => {
+                        const isMe = msg.user === username;
+                        const isSystem = msg.isSystem;
+                        const key = msg.id || i; 
+                        return (
+                            <div key={key} className={`flex gap-2 ${isSystem ? 'text-red-600 font-bold' : ''}`}>
+                                <span className="text-gray-400 text-[10px] min-w-[35px] pt-0.5 select-none">
+                                    [{formatTime(msg.timestamp)}]
+                                </span>
+                                <div className="flex-1 break-words">
+                                    <span className={`font-bold cursor-pointer hover:underline ${isMe ? 'text-blue-700' : 'text-purple-800'}`}>
+                                        &lt;{msg.user}&gt;
+                                    </span>
+                                    <span className="text-black ml-1">
+                                        {msg.text}
+                                    </span>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+
+            <div className="h-10 bg-[#d4d0c8] p-1 flex gap-1 border-t border-white">
+                <input 
+                    className="flex-1 border-2 border-gray-500 border-b-white border-r-white px-2 font-mono outline-none focus:bg-white"
+                    placeholder={cooldown > 0 ? `COOLDOWN ${cooldown}s...` : "Say something..."}
+                    value={inputText}
+                    onChange={e => setInputText(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleSend(e)}
+                    disabled={cooldown > 0}
+                    maxLength={140}
+                />
+                <button 
+                    onClick={handleSend}
+                    disabled={cooldown > 0}
+                    className={`w-10 flex items-center justify-center border-2 border-gray-400 border-l-white border-t-white active:border-gray-600 active:border-l-gray-400 active:border-t-gray-400 ${cooldown > 0 ? 'bg-gray-400' : 'bg-[#c0c0c0]'}`}
+                >
+                    {cooldown > 0 ? <span className="font-bold text-red-600">{cooldown}</span> : <Send size={16} className="text-blue-800"/>}
+                </button>
+            </div>
+            
+            <div className="bg-[#c0c0c0] px-2 py-0.5 text-[9px] flex justify-between text-gray-600 border-t border-gray-400">
+                <span>USER: {username}</span>
+                <span className="cursor-pointer hover:text-red-600 underline" onClick={handleResetUser}>RESET IDENTITY</span>
+            </div>
+        </>
+      )}
+    </div>
+  );
+};
+
 // --- MAIN OS MANAGER ---
 export default function UltimateOS() {
   const [windows, setWindows] = useState([]);
@@ -2280,19 +2511,30 @@ export default function UltimateOS() {
 
   const openApp = (type) => {
     const id = generateId();
-    const titles = { paint: 'Paint IT', terminal: 'Terminal', tunes: 'Tune IT', rugsweeper: 'Play IT', notepad: 'Write IT', memes: 'Memes' };
+    // UPDATED: Added Trollbox
+    const titles = { 
+        paint: 'Paint IT', 
+        terminal: 'Terminal IT', 
+        tunes: 'Tune IT', 
+        rugsweeper: 'Stack IT', 
+        notepad: 'Write IT', 
+        memes: 'Memes',
+        trollbox: 'Trollbox IT' 
+    };
     
-    // RESPONSIVE SIZING FOR MOBILE
+    // RESPONSIVE SIZING
     const isMobile = window.innerWidth < 768;
-    const defaultW = type==='paint' || type==='memes' ? 640 : 400;
-    const defaultH = type==='paint' || type==='memes' ? 480 : 400;
+    // Special sizing for Phone-style apps
+    const isPhoneApp = type === 'rugsweeper' || type === 'trollbox';
+    const isWideApp = type === 'paint' || type === 'memes';
+    
+    const defaultW = isWideApp ? 640 : (isPhoneApp ? 340 : 500);
+    const defaultH = isWideApp ? 480 : (isPhoneApp ? 600 : 400);
 
     const newWin = { 
       id, type, title: titles[type] || 'App', 
-      // Center on mobile or cascade on desktop
       x: isMobile ? 10 : 50 + (windows.length * 20), 
       y: isMobile ? 20 : 50 + (windows.length * 20), 
-      // Fit to screen on mobile
       w: isMobile ? window.innerWidth - 20 : defaultW, 
       h: isMobile ? window.innerHeight - 150 : defaultH, 
       z: maxZ+1, isMaximized: false, isMinimized: false 
@@ -2324,7 +2566,6 @@ export default function UltimateOS() {
   };
 
   const moveWindow = (id, x, y) => {
-      // Prevent dragging off screen totally
       const safeX = Math.max(-100, Math.min(window.innerWidth - 50, x));
       const safeY = Math.max(0, Math.min(window.innerHeight - 50, y));
       setWindows(prev => prev.map(w => w.id === id ? { ...w, x: safeX, y: safeY } : w));
@@ -2332,13 +2573,9 @@ export default function UltimateOS() {
 
   const handleTaskbarClick = (id) => {
     const win = windows.find(w => w.id === id);
-    if (win.isMinimized) {
-      restoreWindow(id);
-    } else if (activeWindowId === id) {
-      minimizeWindow(id);
-    } else {
-      focusWindow(id);
-    }
+    if (win.isMinimized) restoreWindow(id);
+    else if (activeWindowId === id) minimizeWindow(id);
+    else focusWindow(id);
   };
   
   const handleCopyCA = () => {
@@ -2358,7 +2595,7 @@ export default function UltimateOS() {
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
-    document.addEventListener('touchstart', handleClickOutside); // Added touch listener
+    document.addEventListener('touchstart', handleClickOutside); 
     return () => {
         document.removeEventListener('mousedown', handleClickOutside);
         document.removeEventListener('touchstart', handleClickOutside);
@@ -2380,13 +2617,15 @@ export default function UltimateOS() {
       <div className="absolute inset-0 z-[9999] pointer-events-none mix-blend-overlay opacity-20 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[length:100%_4px,3px_100%]"></div>
       <div className="absolute inset-0 z-0 bg-cover bg-center" style={{ backgroundImage: `url(${ASSETS.wallpaper})` }}></div>
 
-      {/* Desktop Icons - SWITCHED TO onClick for Single Tap (Mobile/Desktop friendly) */}
+      {/* Desktop Icons */}
       <div className="absolute top-0 left-0 p-4 z-0 flex flex-col gap-4 flex-wrap max-h-full">
         <DesktopIcon icon={Terminal} label="Terminal" onClick={() => openApp('terminal')} />
         <DesktopIcon icon={Paintbrush} label="Paint IT" onClick={() => openApp('paint')} />
         <DesktopIcon icon={Music} label="Tune IT" onClick={() => openApp('tunes')} />
-        <DesktopIcon icon={Gamepad2} label="Play IT" onClick={() => openApp('rugsweeper')} />
+        <DesktopIcon icon={Gamepad2} label="Stack IT" onClick={() => openApp('rugsweeper')} />
         <DesktopIcon icon={FileText} label="Write IT" onClick={() => openApp('notepad')} />
+        {/* UPDATED: Trollbox Icon */}
+        <DesktopIcon icon={MessageSquare} label="Trollbox" onClick={() => openApp('trollbox')} />
         <DesktopIcon icon={Folder} label="Memes" onClick={() => openApp('memes')} />
       </div>
 
@@ -2399,15 +2638,17 @@ export default function UltimateOS() {
           isActive={win.id === activeWindowId} 
           onFocus={() => focusWindow(win.id)} 
           onClose={() => closeWindow(win.id)} 
-          onMaximize={() => toggleMax(win.id)}
-          onMinimize={() => minimizeWindow(win.id)}
+          onMaximize={() => toggleMax(win.id)} 
+          onMinimize={() => minimizeWindow(win.id)} 
           onMove={moveWindow}
         >
           {win.type === 'paint' && <PaintApp />}
           {win.type === 'terminal' && <TerminalApp dexData={dexData} />}
           {win.type === 'tunes' && <AmpTunesApp />}
           {win.type === 'rugsweeper' && <RugSweeperApp />}
-          {win.type === 'notepad' && <div className="h-full flex flex-col"><textarea className="flex-1 resize-none p-2 font-mono text-sm outline-none" placeholder="Write manifesto..." /></div>}
+          {/* UPDATED: Notepad and ChatApp Renderers */}
+          {win.type === 'notepad' && <NotepadApp />}
+          {win.type === 'trollbox' && <ChatApp />}
           {win.type === 'memes' && <MemesApp />}
         </DraggableWindow>
       ))}
@@ -2465,12 +2706,12 @@ const DraggableWindow = ({ win, isActive, children, onFocus, onClose, onMaximize
   };
 
   const handleMouseDown = (e) => {
-    if (e.target.closest('.overflow-auto') || e.target.closest('button')) return;
+    if (e.target.closest('.overflow-auto') || e.target.closest('button') || e.target.closest('input')) return;
     startDrag(e.clientX, e.clientY);
   };
 
   const handleTouchStart = (e) => {
-    if (e.target.closest('.overflow-auto') || e.target.closest('button')) return;
+    if (e.target.closest('.overflow-auto') || e.target.closest('button') || e.target.closest('input')) return;
     startDrag(e.touches[0].clientX, e.touches[0].clientY);
   };
 
@@ -2481,7 +2722,6 @@ const DraggableWindow = ({ win, isActive, children, onFocus, onClose, onMaximize
     };
     const handleTouchMove = (e) => {
       if (!isDragging || win.isMaximized) return;
-      // Prevent scrolling body while dragging window
       if (e.cancelable) e.preventDefault(); 
       onMove(win.id, e.touches[0].clientX - offset.x, e.touches[0].clientY - offset.y);
     };
