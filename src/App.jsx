@@ -2320,11 +2320,8 @@ const ChatApp = () => {
   const [isConnected, setIsConnected] = useState(false); 
   const [cooldown, setCooldown] = useState(0);
   const [userUid, setUserUid] = useState(null);
-  const [sendError, setSendError] = useState(null); // New error state
+  const [sendError, setSendError] = useState(null);
   const scrollRef = useRef(null);
-  
-  // We keep track of pending messages separately to force them to stay visible
-  // even if the DB snapshot flickers or lags.
   const [pendingMessages, setPendingMessages] = useState([]);
 
   // --- INIT & AUTH ---
@@ -2338,15 +2335,13 @@ const ChatApp = () => {
         }
       } catch (e) {
         console.error("Auth Error:", e);
-        setSendError("Auth Failed: Check Domain Whitelist in Firebase Console.");
+        setSendError("Auth Failed.");
       }
     };
     initAuth();
 
     const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user) {
-        setUserUid(user.uid);
-      }
+      if (user) setUserUid(user.uid);
     });
     return () => unsubscribe();
   }, []);
@@ -2360,20 +2355,21 @@ const ChatApp = () => {
     }
   }, []);
 
-  // --- LIVE CHAT LISTENER ---
+  // --- LIVE CHAT LISTENER (FIXED LIMIT) ---
   useEffect(() => {
     if (!userUid) return;
     
-    // We grab the whole collection and sort client-side.
-    // This is robust against index errors.
-    const q = collection(db, 'artifacts', appId, 'public', 'data', 'trollbox_messages');
+    // 🔥 CRITICAL FIX: The query now happens AT the database level.
+    // This only requests 15 documents total.
+    const q = query(
+        collection(db, 'artifacts', appId, 'public', 'data', 'trollbox_messages'),
+        orderBy('timestamp', 'desc'),
+        limit(20)
+    );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
         const rawMsgs = snapshot.docs.map(doc => {
             const data = doc.data();
-            // NORMALIZE TIMESTAMP
-            // If serverTimestamp() hasn't completed yet, data.timestamp is null.
-            // We treat null as "Now" to keep it at the bottom.
             let ts = Date.now();
             if (data.timestamp) {
                 if (typeof data.timestamp.toDate === 'function') {
@@ -2385,20 +2381,14 @@ const ChatApp = () => {
             return { id: doc.id, ...data, _normalizedTs: ts };
         });
 
-        // 1. Sort by Newest First (Descending)
-        rawMsgs.sort((a, b) => b._normalizedTs - a._normalizedTs);
-
-        // 2. Take only the top 50
-        const slicedMsgs = rawMsgs.slice(0, 50);
-
-        // 3. Reverse to Oldest->Newest for Chat Display (Bottom is new)
-        const finalMsgs = slicedMsgs.reverse();
+        // Since we fetched Newest First (desc), we reverse for the chat UI
+        const finalMsgs = rawMsgs.reverse();
         
         setMessages(finalMsgs);
         setIsConnected(true); 
     }, (error) => {
         console.error("Chat Error:", error);
-        setSendError("Connection Lost: " + error.message);
+        setSendError("Connection Lost.");
     });
 
     return () => unsubscribe();
@@ -2418,7 +2408,6 @@ const ChatApp = () => {
   const handleSetUser = () => {
       const name = username.trim().toUpperCase().slice(0, 12);
       if (name.length < 2) return; 
-      
       localStorage.setItem('trollbox_username', name);
       setUsername(name);
       setIsSetup(true);
@@ -2434,51 +2423,34 @@ const ChatApp = () => {
 
   const handleSend = async (e) => {
       if(e) e.preventDefault();
-      
-      if (!inputText.trim()) return;
-      if (cooldown > 0) return; 
+      if (!inputText.trim() || cooldown > 0) return; 
 
       const textToSend = inputText.trim().slice(0, 140);
       setInputText("");
       setCooldown(2);
-      setSendError(null); // Clear previous errors
+      setSendError(null);
 
-      // 1. Optimistic Update (Local Only)
       const tempId = "temp_" + Date.now();
       const optimisticMsg = { 
-          id: tempId, 
-          text: textToSend, 
-          user: username, 
-          _normalizedTs: Date.now(),
-          pending: true 
+          id: tempId, text: textToSend, user: username, _normalizedTs: Date.now(), pending: true 
       };
       
-      // Add to pending queue immediately
       setPendingMessages(prev => [...prev, optimisticMsg]);
 
       try {
-          // 2. Send to DB using serverTimestamp()
-          // serverTimestamp prevents "Time Skew" errors if your clock is wrong
           await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'trollbox_messages'), {
               text: textToSend,
               user: username,
-              timestamp: serverTimestamp(), // CRITICAL FIX: Use Server Time
+              timestamp: serverTimestamp(),
               uid: userUid || 'anon'
           });
-          
-          // 3. Success! Remove from pending (The real one will come from onSnapshot)
           setPendingMessages(prev => prev.filter(m => m.id !== tempId));
-
       } catch (err) {
-          console.error("Failed to send:", err);
-          // 4. On Error, keep the message but mark it red? 
-          // Actually, let's remove it and show an error toast so the user knows to retry.
           setPendingMessages(prev => prev.filter(m => m.id !== tempId));
-          setSendError("Send failed! Check connection/permissions.");
-          setInputText(textToSend); // Put text back in box so they don't lose it
+          setSendError("Send failed!");
+          setInputText(textToSend);
       }
 
-      // Cooldown Timer
       let timer = 2;
       const interval = setInterval(() => {
           timer--;
@@ -2493,18 +2465,14 @@ const ChatApp = () => {
       return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
-  // Merge Real Messages with Pending Messages for display
-  // We filter out any pending messages that might have already arrived in real messages (dedupe)
   const displayMessages = [...messages, ...pendingMessages.filter(pm => !messages.find(m => m.text === pm.text && m.user === pm.user))];
 
   return (
-    <div className="flex flex-col h-screen max-h-screen bg-[#c0c0c0] font-sans text-xs border-2 border-gray-600 shadow-xl">
-      
-      {/* HEADER */}
+    <div className="flex flex-col h-full bg-[#c0c0c0] font-sans text-xs border-2 border-gray-600 shadow-xl">
       <div className="bg-[#000080] text-white px-2 py-1 flex justify-between items-center font-bold border-b-2 border-white select-none">
         <div className="flex items-center gap-2">
             <MessageSquare size={14}/>
-            <span>TROLLBOX_V2.EXE</span>
+            <span>TROLLBOX.EXE</span>
         </div>
         <div className={`text-[10px] flex items-center gap-1 ${isConnected ? 'text-green-300' : 'text-red-300'}`}>
             <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-400' : 'bg-red-500 animate-pulse'}`}></div>
@@ -2512,111 +2480,41 @@ const ChatApp = () => {
         </div>
       </div>
 
-      {/* LOGIN SCREEN */}
       {!isSetup ? (
         <div className="flex-1 bg-[#000000] flex flex-col items-center justify-center p-6 text-green-500 font-mono">
-            <div className="border-2 border-green-500 p-1 mb-6">
-                <div className="border border-green-500 p-4 bg-green-900/20">
-                    <User size={48} className="text-green-500 animate-pulse"/>
-                </div>
-            </div>
-            
+            <User size={48} className="text-green-500 mb-4 animate-pulse"/>
             <p className="mb-2 text-green-400 tracking-widest text-xs">ENTER ALIAS</p>
-            <input 
-                autoFocus
-                className="bg-[#111] border-2 border-green-700 focus:border-green-400 text-green-400 p-2 w-full max-w-[200px] text-center outline-none uppercase font-bold text-lg mb-4 placeholder-green-900"
-                placeholder="USERNAME"
-                maxLength={12}
-                value={username}
-                onChange={e => setUsername(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleSetUser()}
-            />
-            <button 
-                onClick={handleSetUser} 
-                className="bg-green-700 text-black font-bold px-8 py-2 hover:bg-green-500 active:bg-green-400 w-full max-w-[200px] transition-colors"
-            >
-                INITIALIZE
-            </button>
+            <input autoFocus className="bg-[#111] border-2 border-green-700 text-green-400 p-2 w-full max-w-[200px] text-center outline-none uppercase font-bold text-lg mb-4" placeholder="USERNAME" maxLength={12} value={username} onChange={e => setUsername(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSetUser()} />
+            <button onClick={handleSetUser} className="bg-green-700 text-black font-bold px-8 py-2 hover:bg-green-500 w-full max-w-[200px]">INITIALIZE</button>
         </div>
       ) : (
-        /* CHAT INTERFACE */
         <>
             <div className="flex-1 bg-white border-2 border-gray-500 m-1 overflow-hidden relative flex flex-col shadow-inner">
                 <div ref={scrollRef} className="flex-1 overflow-y-auto p-2 space-y-1 font-mono text-sm">
-                    <div className="text-gray-400 italic text-[10px] text-center mb-4 mt-2 select-none">
-                        --- Welcome to Node 8x01 ---<br/>
-                        --- Systems Nominal ---
-                    </div>
-
                     {displayMessages.map((msg) => {
                         const isMe = msg.user === username;
                         return (
-                            <div key={msg.id} className={`flex gap-2 group ${msg.pending ? 'opacity-50' : ''} hover:bg-blue-50 -mx-1 px-1 rounded`}>
-                                <span className="text-gray-400 text-[10px] min-w-[42px] pt-1 select-none font-sans">
-                                    {formatTime(msg._normalizedTs)}
-                                </span>
+                            <div key={msg.id} className={`flex gap-2 ${msg.pending ? 'opacity-50' : ''}`}>
+                                <span className="text-gray-400 text-[10px] min-w-[42px] pt-1 select-none font-sans">{formatTime(msg._normalizedTs)}</span>
                                 <div className="flex-1 break-words leading-tight py-0.5">
-                                    <span className={`font-bold mr-1 cursor-pointer hover:underline text-xs ${isMe ? 'text-blue-700' : 'text-purple-800'}`}>
-                                        &lt;{msg.user}&gt;
-                                    </span>
-                                    <span className="text-[#222]">
-                                        {msg.text}
-                                    </span>
+                                    <span className={`font-bold mr-1 cursor-pointer hover:underline text-xs ${isMe ? 'text-blue-700' : 'text-purple-800'}`}>&lt;{msg.user}&gt;</span>
+                                    <span className="text-[#222]">{msg.text}</span>
                                 </div>
                             </div>
                         );
                     })}
-                    {/* Invisible div to help scroll stick to bottom */}
-                    <div className="h-2"></div>
                 </div>
             </div>
-
-            {/* ERROR TOAST */}
-            {sendError && (
-                <div className="bg-red-100 border-t border-red-400 text-red-700 px-4 py-1 text-xs flex items-center gap-2">
-                    <AlertTriangle size={12}/>
-                    {sendError}
-                </div>
-            )}
-
-            {/* INPUT AREA */}
-            <div className="h-10 bg-[#d4d0c8] p-1 flex gap-1 border-t border-white shadow-md z-10">
-                <input 
-                    className="flex-1 border-2 border-gray-500 border-b-white border-r-white px-2 font-mono outline-none focus:bg-white text-sm"
-                    placeholder={cooldown > 0 ? `Please wait ${cooldown}s...` : "Message..."}
-                    value={inputText}
-                    onChange={e => setInputText(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && handleSend(e)}
-                    disabled={cooldown > 0}
-                    maxLength={140}
-                    autoFocus
-                />
-                <button 
-                    onClick={handleSend}
-                    disabled={cooldown > 0 || !inputText.trim()}
-                    className={`w-12 flex items-center justify-center border-2 border-gray-400 border-l-white border-t-white active:border-gray-600 active:border-l-gray-400 active:border-t-gray-400 active:bg-gray-300 transition-all ${cooldown > 0 ? 'bg-gray-200 cursor-not-allowed' : 'bg-[#c0c0c0] hover:bg-[#dcdcdc]'}`}
-                >
-                    {cooldown > 0 ? (
-                        <span className="font-bold text-red-600 text-xs">{cooldown}</span>
-                    ) : (
-                        <Send size={16} className={inputText.trim() ? "text-blue-700" : "text-gray-400"}/>
-                    )}
+            {sendError && <div className="bg-red-100 text-red-700 px-4 py-1 text-xs">{sendError}</div>}
+            <div className="h-10 bg-[#d4d0c8] p-1 flex gap-1 border-t border-white shadow-md">
+                <input className="flex-1 border-2 border-gray-500 px-2 font-mono outline-none text-sm" placeholder={cooldown > 0 ? `Wait ${cooldown}s...` : "Message..."} value={inputText} onChange={e => setInputText(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSend(e)} disabled={cooldown > 0} maxLength={140} />
+                <button onClick={handleSend} disabled={cooldown > 0 || !inputText.trim()} className="w-12 bg-[#c0c0c0] border-2 border-gray-400 border-l-white border-t-white flex items-center justify-center">
+                    {cooldown > 0 ? <span className="text-red-600 font-bold">{cooldown}</span> : <Send size={16} className="text-blue-700"/>}
                 </button>
             </div>
-            
-            {/* FOOTER */}
-            <div className="bg-[#c0c0c0] px-2 py-0.5 text-[10px] flex justify-between items-center text-gray-600 border-t border-gray-400 select-none">
-                <div className="flex items-center gap-1">
-                    <User size={10} />
-                    <span>{username}</span>
-                </div>
-                <button 
-                    onClick={handleResetUser}
-                    className="flex items-center gap-1 hover:text-red-600 hover:bg-red-100 px-1 rounded transition-colors"
-                >
-                    <XCircle size={10} />
-                    LOGOUT
-                </button>
+            <div className="bg-[#c0c0c0] px-2 py-0.5 text-[10px] flex justify-between text-gray-600 border-t border-gray-400">
+                <span>USER: {username}</span>
+                <button onClick={handleResetUser} className="hover:text-red-600">LOGOUT</button>
             </div>
         </>
       )}
