@@ -301,7 +301,7 @@ const Shippy = ({ hidden }) => {
   const [messages, setMessages] = useState([{ role: 'shippy', text: "I see you're online. Would you like to PUMP IT?" }]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const API_KEY = "sk-YOUR_OPENAI_API_KEY_HERE"; 
+  const API_KEY = "sk-ijklmnopqrstuvwxijklmnopqrstuvwxijklmnop"; 
   
   const SYSTEM_PROMPT = `You are Shippy, the chaotic AI assistant for the $IT memecoin. Rules: 1. Bullish. 2. Hate FUD. 3. End sentences with 'T'. 4. Short & funny. 5. 1 IT = 1 IT.`;
 
