@@ -18,7 +18,7 @@ import {
   Move, RotateCcw, RotateCw, Upload,
   Maximize2, LayoutTemplate, Monitor, Share, Sliders, ChevronLeft, Plus,
   // UPDATED: Added Chat Icons
-  Send, User, AlertCircle
+  Send, User, AlertCircle, XCircle
 } from 'lucide-react';
 
 
@@ -2274,86 +2274,109 @@ const MemesApp = () => {
 };
 
 
-// 7. TROLLBOX IT (CHAT APP - FIXED)
 const ChatApp = () => {
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState("");
   const [username, setUsername] = useState("");
   const [isSetup, setIsSetup] = useState(false);
-  const [isConnected, setIsConnected] = useState(false); // Track real connection
+  const [isConnected, setIsConnected] = useState(false); 
   const [cooldown, setCooldown] = useState(0);
+  const [userUid, setUserUid] = useState(null);
   const scrollRef = useRef(null);
 
   // --- INIT & AUTH ---
   useEffect(() => {
-    // 1. Ensure Auth
-    if (typeof auth !== 'undefined') {
-      const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
-          if (!user) signInAnonymously(auth).catch(e => console.error("Auth failed:", e));
-      });
-      return () => unsubscribeAuth();
-    }
+    const initAuth = async () => {
+      if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+        await signInWithCustomToken(auth, __initial_auth_token);
+      } else {
+        await signInAnonymously(auth);
+      }
+    };
+    initAuth();
+
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        setUserUid(user.uid);
+      }
+    });
+    return () => unsubscribe();
   }, []);
 
-  // --- CHECK LOCAL STORAGE ---
+  // --- LOAD USERNAME ---
   useEffect(() => {
-    const savedName = localStorage.getItem('chatUsername') || localStorage.getItem('stackItUsername');
+    const savedName = localStorage.getItem('trollbox_username');
     if (savedName) {
       setUsername(savedName);
       setIsSetup(true);
     }
   }, []);
 
-  // --- LIVE CHAT LISTENER ---
+  // --- LIVE CHAT LISTENER (FIXED) ---
   useEffect(() => {
-    if (typeof db === 'undefined') return;
+    if (!userUid) return;
     
-    let unsubscribe;
-    try {
-      const q = query(
-          collection(db, 'artifacts', appId, 'public', 'data', 'trollbox_messages'),
-          orderBy('timestamp', 'desc'),
-          limit(50)
-      );
+    // FIX: We remove 'orderBy' and 'limit' from the query to prevent
+    // index errors and race conditions. We sort in memory instead.
+    const q = collection(db, 'artifacts', appId, 'public', 'data', 'trollbox_messages');
 
-      unsubscribe = onSnapshot(q, (snapshot) => {
-          const msgs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-          setMessages(msgs.reverse());
-          setIsConnected(true); // We got data (even if empty), so we are connected
-      }, (error) => {
-          console.error("Chat Listener Error:", error);
-          setIsConnected(false);
-      });
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+        const rawMsgs = snapshot.docs.map(doc => {
+            const data = doc.data();
+            // NORMALIZE TIMESTAMP
+            let ts = Date.now();
+            if (data.timestamp) {
+                if (typeof data.timestamp.toDate === 'function') {
+                    ts = data.timestamp.toDate().getTime();
+                } else if (typeof data.timestamp === 'number') {
+                    ts = data.timestamp;
+                }
+            }
+            return { id: doc.id, ...data, _normalizedTs: ts };
+        });
 
-    } catch (error) {
-      console.error("Chat Setup Error:", error);
-    }
+        // 1. Sort by Newest First (Descending)
+        rawMsgs.sort((a, b) => b._normalizedTs - a._normalizedTs);
 
-    return () => { if(unsubscribe) unsubscribe(); };
-  }, []);
+        // 2. Take only the top 50
+        const slicedMsgs = rawMsgs.slice(0, 50);
+
+        // 3. Reverse to Oldest->Newest for Chat Display (Bottom is new)
+        const finalMsgs = slicedMsgs.reverse();
+        
+        setMessages(finalMsgs);
+        setIsConnected(true); 
+    }, (error) => {
+        console.error("Chat Error:", error);
+    });
+
+    return () => unsubscribe();
+  }, [userUid]);
 
   // --- AUTO SCROLL ---
   useEffect(() => {
     if (scrollRef.current) {
-        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+        // Smooth scroll for better UX
+        scrollRef.current.scrollTo({
+            top: scrollRef.current.scrollHeight,
+            behavior: 'smooth'
+        });
     }
-  }, [messages, isConnected]); // Scroll when connected too
+  }, [messages, isConnected]); 
 
   // --- ACTIONS ---
   const handleSetUser = () => {
       const name = username.trim().toUpperCase().slice(0, 12);
-      if (name.length < 2) return alert("NAME TOO SHORT");
+      if (name.length < 2) return; // Silent return for UX, button won't work anyway
       
-      localStorage.setItem('chatUsername', name);
-      localStorage.setItem('stackItUsername', name); 
+      localStorage.setItem('trollbox_username', name);
       setUsername(name);
       setIsSetup(true);
   };
 
   const handleResetUser = () => {
       if(confirm("Reset Identity?")) {
-          localStorage.removeItem('chatUsername');
-          localStorage.removeItem('stackItUsername');
+          localStorage.removeItem('trollbox_username');
           setIsSetup(false);
           setUsername("");
       }
@@ -2367,23 +2390,34 @@ const ChatApp = () => {
 
       const textToSend = inputText.trim().slice(0, 140);
       setInputText("");
-      setCooldown(3); 
+      setCooldown(2); // Reduced cooldown slightly
+
+      // Optimistic Update
+      const tempId = "temp_" + Date.now();
+      const optimisticMsg = { 
+          id: tempId, 
+          text: textToSend, 
+          user: username, 
+          _normalizedTs: Date.now(),
+          pending: true 
+      };
+      
+      // We append to local state immediately
+      setMessages(prev => [...prev, optimisticMsg]);
 
       try {
-          if (typeof db !== 'undefined') {
-            await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'trollbox_messages'), {
-                text: textToSend,
-                user: username,
-                timestamp: serverTimestamp(),
-                uid: auth?.currentUser?.uid || 'anon'
-            });
-          }
+          await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'trollbox_messages'), {
+              text: textToSend,
+              user: username,
+              timestamp: Date.now(),
+              uid: userUid || 'anon'
+          });
       } catch (err) {
           console.error("Failed to send:", err);
-          setMessages(prev => [...prev, { id: Date.now(), user: 'SYSTEM', text: 'FAILED TO SEND.', isSystem: true }]);
       }
 
-      let timer = 3;
+      // Cooldown Timer
+      let timer = 2;
       const interval = setInterval(() => {
           timer--;
           setCooldown(timer);
@@ -2393,102 +2427,122 @@ const ChatApp = () => {
 
   const formatTime = (ts) => {
       if (!ts) return "--:--";
-      // Firebase timestamp conversion
-      const date = ts.toDate ? ts.toDate() : new Date(); 
+      const date = new Date(ts);
       return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
   return (
-    <div className="flex flex-col h-full bg-[#c0c0c0] font-sans text-xs border-2 border-gray-600">
+    <div className="flex flex-col h-screen max-h-screen bg-[#c0c0c0] font-sans text-xs border-2 border-gray-600 shadow-xl">
       
       {/* HEADER */}
-      <div className="bg-[#000080] text-white px-2 py-1 flex justify-between items-center font-bold border-b-2 border-white">
+      <div className="bg-[#000080] text-white px-2 py-1 flex justify-between items-center font-bold border-b-2 border-white select-none">
         <div className="flex items-center gap-2">
             <MessageSquare size={14}/>
-            <span>TROLLBOX.EXE</span>
+            <span>TROLLBOX_V2.EXE</span>
         </div>
-        <div className={`text-[10px] ${isConnected ? 'text-green-300' : 'text-red-300 animate-pulse'}`}>
-            {isConnected ? (messages.length > 0 ? "LIVE" : "READY (EMPTY)") : "CONNECTING..."}
+        <div className={`text-[10px] flex items-center gap-1 ${isConnected ? 'text-green-300' : 'text-red-300'}`}>
+            <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-400' : 'bg-red-500 animate-pulse'}`}></div>
+            {isConnected ? "ONLINE" : "OFFLINE"}
         </div>
       </div>
 
       {/* LOGIN SCREEN */}
       {!isSetup ? (
         <div className="flex-1 bg-[#000000] flex flex-col items-center justify-center p-6 text-green-500 font-mono">
-            <User size={48} className="mb-4 text-green-500"/>
-            <p className="mb-2 text-white">IDENTIFY YOURSELF</p>
+            <div className="border-2 border-green-500 p-1 mb-6">
+                <div className="border border-green-500 p-4 bg-green-900/20">
+                    <User size={48} className="text-green-500 animate-pulse"/>
+                </div>
+            </div>
+            
+            <p className="mb-2 text-green-400 tracking-widest text-xs">ENTER ALIAS</p>
             <input 
                 autoFocus
-                className="bg-[#111] border-2 border-green-500 text-green-500 p-2 w-full text-center outline-none uppercase font-bold text-lg mb-4"
+                className="bg-[#111] border-2 border-green-700 focus:border-green-400 text-green-400 p-2 w-full max-w-[200px] text-center outline-none uppercase font-bold text-lg mb-4 placeholder-green-900"
                 placeholder="USERNAME"
                 maxLength={12}
                 value={username}
                 onChange={e => setUsername(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleSetUser()}
             />
-            <button onClick={handleSetUser} className="bg-green-700 text-black font-bold px-6 py-2 hover:bg-green-600 w-full">
-                CONNECT
+            <button 
+                onClick={handleSetUser} 
+                className="bg-green-700 text-black font-bold px-8 py-2 hover:bg-green-500 active:bg-green-400 w-full max-w-[200px] transition-colors"
+            >
+                INITIALIZE
             </button>
         </div>
       ) : (
         /* CHAT INTERFACE */
         <>
-            <div className="flex-1 bg-white border-2 border-gray-500 m-1 overflow-hidden relative flex flex-col">
+            <div className="flex-1 bg-white border-2 border-gray-500 m-1 overflow-hidden relative flex flex-col shadow-inner">
                 <div ref={scrollRef} className="flex-1 overflow-y-auto p-2 space-y-1 font-mono text-sm">
-                    <div className="text-gray-500 italic text-[10px] text-center mb-2">
-                        --- Connected to Node 8x01 ---<br/>
-                        --- Don't get rekt ---
+                    <div className="text-gray-400 italic text-[10px] text-center mb-4 mt-2 select-none">
+                        --- Welcome to Node 8x01 ---<br/>
+                        --- Systems Nominal ---
                     </div>
 
-                    {messages.length === 0 && isConnected && (
-                        <div className="text-center text-gray-400 mt-10">No messages yet. Start the pump!</div>
-                    )}
-
-                    {messages.map((msg, i) => {
+                    {messages.map((msg) => {
                         const isMe = msg.user === username;
-                        const isSystem = msg.isSystem;
-                        const key = msg.id || i; 
                         return (
-                            <div key={key} className={`flex gap-2 ${isSystem ? 'text-red-600 font-bold' : ''}`}>
-                                <span className="text-gray-400 text-[10px] min-w-[35px] pt-0.5 select-none">
-                                    [{formatTime(msg.timestamp)}]
+                            <div key={msg.id} className={`flex gap-2 group ${msg.pending ? 'opacity-50' : ''} hover:bg-blue-50 -mx-1 px-1 rounded`}>
+                                <span className="text-gray-400 text-[10px] min-w-[42px] pt-1 select-none font-sans">
+                                    {formatTime(msg._normalizedTs)}
                                 </span>
-                                <div className="flex-1 break-words">
-                                    <span className={`font-bold cursor-pointer hover:underline ${isMe ? 'text-blue-700' : 'text-purple-800'}`}>
+                                <div className="flex-1 break-words leading-tight py-0.5">
+                                    <span className={`font-bold mr-1 cursor-pointer hover:underline text-xs ${isMe ? 'text-blue-700' : 'text-purple-800'}`}>
                                         &lt;{msg.user}&gt;
                                     </span>
-                                    <span className="text-black ml-1">
+                                    <span className="text-[#222]">
                                         {msg.text}
                                     </span>
                                 </div>
                             </div>
                         );
                     })}
+                    {/* Invisible div to help scroll stick to bottom */}
+                    <div className="h-2"></div>
                 </div>
             </div>
 
-            <div className="h-10 bg-[#d4d0c8] p-1 flex gap-1 border-t border-white">
+            {/* INPUT AREA */}
+            <div className="h-10 bg-[#d4d0c8] p-1 flex gap-1 border-t border-white shadow-md z-10">
                 <input 
-                    className="flex-1 border-2 border-gray-500 border-b-white border-r-white px-2 font-mono outline-none focus:bg-white"
-                    placeholder={cooldown > 0 ? `COOLDOWN ${cooldown}s...` : "Say something..."}
+                    className="flex-1 border-2 border-gray-500 border-b-white border-r-white px-2 font-mono outline-none focus:bg-white text-sm"
+                    placeholder={cooldown > 0 ? `Please wait ${cooldown}s...` : "Message..."}
                     value={inputText}
                     onChange={e => setInputText(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && handleSend(e)}
                     disabled={cooldown > 0}
                     maxLength={140}
+                    autoFocus
                 />
                 <button 
                     onClick={handleSend}
-                    disabled={cooldown > 0}
-                    className={`w-10 flex items-center justify-center border-2 border-gray-400 border-l-white border-t-white active:border-gray-600 active:border-l-gray-400 active:border-t-gray-400 ${cooldown > 0 ? 'bg-gray-400' : 'bg-[#c0c0c0]'}`}
+                    disabled={cooldown > 0 || !inputText.trim()}
+                    className={`w-12 flex items-center justify-center border-2 border-gray-400 border-l-white border-t-white active:border-gray-600 active:border-l-gray-400 active:border-t-gray-400 active:bg-gray-300 transition-all ${cooldown > 0 ? 'bg-gray-200 cursor-not-allowed' : 'bg-[#c0c0c0] hover:bg-[#dcdcdc]'}`}
                 >
-                    {cooldown > 0 ? <span className="font-bold text-red-600">{cooldown}</span> : <Send size={16} className="text-blue-800"/>}
+                    {cooldown > 0 ? (
+                        <span className="font-bold text-red-600 text-xs">{cooldown}</span>
+                    ) : (
+                        <Send size={16} className={inputText.trim() ? "text-blue-700" : "text-gray-400"}/>
+                    )}
                 </button>
             </div>
             
-            <div className="bg-[#c0c0c0] px-2 py-0.5 text-[9px] flex justify-between text-gray-600 border-t border-gray-400">
-                <span>USER: {username}</span>
-                <span className="cursor-pointer hover:text-red-600 underline" onClick={handleResetUser}>RESET IDENTITY</span>
+            {/* FOOTER */}
+            <div className="bg-[#c0c0c0] px-2 py-0.5 text-[10px] flex justify-between items-center text-gray-600 border-t border-gray-400 select-none">
+                <div className="flex items-center gap-1">
+                    <User size={10} />
+                    <span>{username}</span>
+                </div>
+                <button 
+                    onClick={handleResetUser}
+                    className="flex items-center gap-1 hover:text-red-600 hover:bg-red-100 px-1 rounded transition-colors"
+                >
+                    <XCircle size={10} />
+                    LOGOUT
+                </button>
             </div>
         </>
       )}
