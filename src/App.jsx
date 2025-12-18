@@ -350,7 +350,7 @@ const Shippy = ({ hidden }) => {
     if (!API_KEY || API_KEY.length < 10 || API_KEY.includes("YOUR_OPENROUTER_API_KEY")) {
       setMessages(prev => [...prev, { 
         role: 'shippy', 
-        text: "SYSTEM OVERLOAD. TOO MANY PEOPLE WANT IT. TRY AGAIN IN A MINUTE T." 
+        text: "SYSTEM OVERLOAD. TOO MANY PEOPLE WANT IT. TRY AGAIN IN A MINUTE." 
       }]);
       setLoading(false);
       return;
@@ -387,14 +387,14 @@ const Shippy = ({ hidden }) => {
         throw new Error("API_REJECTED");
       }
 
-      const reply = data.choices[0]?.message?.content || "I've lost it. Try again T.";
+      const reply = data.choices[0]?.message?.content || "I've lost it. Try again.";
       setMessages(prev => [...prev, { role: 'shippy', text: reply }]);
     } catch (e) {
       console.error("AI Error Details:", e);
       // Custom lore-friendly error message
       setMessages(prev => [...prev, { 
         role: 'shippy', 
-        text: "SYSTEM OVERLOAD. TOO MANY PEOPLE WANT IT. TRY AGAIN IN A MINUTE T." 
+        text: "SYSTEM OVERLOAD. TOO MANY PEOPLE WANT IT. TRY AGAIN IN A MINUTE." 
       }]);
     } finally { 
       setLoading(false); 
