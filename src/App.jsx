@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
-// UPDATED: Added updateDoc, doc, setDoc, getDoc for the leaderboard logic
+
 import { getFirestore, collection, addDoc, getDocs, updateDoc, doc, setDoc, getDoc } from 'firebase/firestore';
-// UPDATED: Added signInWithCustomToken, onAuthStateChanged for user sessions
+
 import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
 
 import {
@@ -277,7 +277,7 @@ const StartMenu = ({ isOpen, onClose, onOpenApp }) => {
         <div>
              <div className="px-2 py-1 text-gray-500 font-bold text-[10px] uppercase">Programs</div>
              {[
-               { id: 'terminal', icon: Terminal, label: 'Terminal IT' },
+               { id: 'terminal', icon: Terminal, label: 'Terminal' },
                { id: 'paint', icon: Paintbrush, label: 'Paint IT' },
                { id: 'memes', icon: Folder, label: 'Memes' },
                { id: 'tunes', icon: Music, label: 'Tune IT' },
@@ -361,30 +361,309 @@ const Shippy = ({ hidden }) => {
   );
 };
 
+
+
+const ASCII_IT = [
+  "██╗████████╗",
+  "██║╚══██╔══╝",
+  "██║   ██║   ",
+  "██║   ██║   ",
+  "██║   ██║   ",
+  "╚═╝   ╚═╝   "
+];
+
+// --- UTILS ---
+const getSolPriceForever = async () => {
+  try {
+    const response = await fetch('https://api.binance.com/api/v3/ticker/price?symbol=SOLUSDT');
+    const data = await response.json();
+    return parseFloat(data.price).toFixed(2);
+  } catch (error) { return null; }
+};
+
+// 2. TERMINAL IT - HACKER CONSOLE (GOD MODE)
 const TerminalApp = ({ dexData }) => {
-  const [history, setHistory] = useState(["OS_IT v3.0", "Connected...", "Type 'help'."]);
+  const [history, setHistory] = useState([]);
   const [input, setInput] = useState("");
+  const [cmdHistory, setCmdHistory] = useState([]);
+  const [historyIdx, setHistoryIdx] = useState(-1);
+  const [isBooting, setIsBooting] = useState(true);
+  const [matrixMode, setMatrixMode] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  
   const bottomRef = useRef(null);
+  const inputRef = useRef(null);
+
+  // Use a safe version of dexData to prevent crashes if prop is missing
+  const safeDexData = dexData || { price: "N/A", mcap: "N/A", change: "0%" };
+
+  // --- BOOT SEQUENCE ---
+  useEffect(() => {
+    const bootSequence = [
+      { text: "BIOS DATE 01/01/2025 14:22:52 VER 4.2.0", delay: 100 },
+      { text: "CPU: NEC V20, SPEED: 4.77 MHz... OVERCLOCKED TO 5GHz", delay: 300 },
+      { text: "CHECKING MEMORY... 640TB OK", delay: 500 },
+      { text: "LOADING IT_OS KERNEL...", delay: 800 },
+      { text: "ESTABLISHING SECURE CONNECTION TO SOLANA...", delay: 1200 },
+      { text: "FIREBASE NODES: SYNCHRONIZED", delay: 1500 },
+      { text: "SYSTEM READY.", delay: 1800, color: "#00ff00" },
+      { text: "Type 'help' to begin.", delay: 2000, color: "#ffff00" },
+    ];
+
+    let timeouts = [];
+    bootSequence.forEach(({ text, delay, color }) => {
+      timeouts.push(setTimeout(() => {
+        setHistory(prev => [...prev, { text, color: color || (matrixMode ? "#00ff00" : "#33ff33") }]);
+      }, delay));
+    });
+
+    const finishBoot = setTimeout(() => setIsBooting(false), 2200);
+    return () => { timeouts.forEach(clearTimeout); clearTimeout(finishBoot); };
+  }, []);
+
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [history]);
-  const handleCommand = (e) => {
+  const focusInput = () => { if (!isBooting && !isProcessing) inputRef.current?.focus(); };
+
+  // --- COMMAND PROCESSOR ---
+  const processCommand = async (cmdString) => {
+    const rawArgs = cmdString.trim().split(" ");
+    const cmd = rawArgs[0].toLowerCase();
+    
+    // Add to visual history
+    const prompt = matrixMode ? `NEO@ZION:~$` : `root@it_os:~$`;
+    setHistory(prev => [...prev, { text: `${prompt} ${cmdString}`, color: "#aaa" }]);
+    
+    let response = [];
+
+    switch (cmd) {
+      case "help":
+        response = [
+          { text: "SYSTEM COMMANDS:", color: "#ffff00" },
+          { text: "  clear    :: Clear screen", color: "#ccc" },
+          { text: "  matrix   :: Toggle Matrix Mode", color: "#00ff00" },
+          { text: "", color: "#ccc" },
+          { text: "CRYPTO TOOLS:", color: "#ffff00" },
+          { text: "  price    :: IT Token Data", color: "#ccc" },
+          { text: "  sol      :: Live SOL Price", color: "#ccc" },
+          { text: "  top      :: Leaderboard #1", color: "#ccc" },
+          { text: "  me       :: My Stats", color: "#ccc" },
+          { text: "  hack     :: Simulate Bruteforce", color: "#ff00ff" },
+          { text: "  ca       :: Contract Address", color: "#ccc" },
+          { text: "  scan     :: Scan Mempool", color: "#ccc" },
+          { text: "  burn     :: Burn Protocol", color: "#ccc" },
+        ];
+        break;
+
+      case "price":
+        // Use safeDexData
+        const price = safeDexData.price;
+        const mcap = safeDexData.mcap;
+        response = [
+          { text: "--- MARKET FEED ---", color: "#00ffff" },
+          { text: `PRICE: ${price}`, color: "#00ff00" },
+          { text: `MCAP:  ${mcap}`, color: "#00ff00" },
+          { text: `SENTIMENT: EXTREME GREED`, color: "#ff00ff" }
+        ];
+        break;
+
+      case "ca":
+        response = [
+          { text: "--- CONTRACT ADDRESS ---", color: "#00ffff" },
+          { text: CA_ADDRESS, color: "#ffff00" },
+          { text: "(SECURE COPY PROTOCOL ACTIVE)", color: "#555" },
+        ];
+        break;
+
+      case "sol":
+        setHistory(prev => [...prev, { text: "PINGING ORACLE NODES...", color: "#555" }]);
+        setIsProcessing(true);
+        const sol = await getSolPriceForever();
+        setIsProcessing(false);
+        if (sol) response = [{ text: `SOL/USD: $${sol}`, color: "#00ff00", size: "large" }];
+        else response = [{ text: "ORACLE ERROR", color: "#ff0000" }];
+        break;
+
+      case "matrix":
+        setMatrixMode(!matrixMode);
+        response = [{ text: matrixMode ? "WAKING UP..." : "FOLLOW THE WHITE RABBIT.", color: "#00ff00" }];
+        break;
+
+      case "hack":
+        setIsProcessing(true);
+        const stages = [
+            "INITIALIZING BRUTE FORCE...",
+            "BYPASSING FIREWALL...",
+            "CRACKING HASHES...",
+            "ACCESS GRANTED."
+        ];
+        for (let i = 0; i < stages.length; i++) {
+            setHistory(prev => [...prev, { text: stages[i], color: "#ff00ff" }]);
+            await new Promise(r => setTimeout(r, 800));
+        }
+        setIsProcessing(false);
+        response = [
+            { text: "TARGET: MAINNET LIQUIDITY POOL", color: "#00ff00" },
+            { text: "STATUS: SAFLU (FUNDS ARE SAFU)", color: "#00ffff" }
+        ];
+        break;
+      
+      case "scan":
+        setHistory(prev => [...prev, { text: "SCANNING BLOCKCHAIN...", color: "#00ffff" }]);
+        setIsProcessing(true);
+        await new Promise(r => setTimeout(r, 800));
+        setHistory(prev => [...prev, { text: "FOUND 420 JEETS.", color: "#ff0000" }]);
+        await new Promise(r => setTimeout(r, 800));
+        setIsProcessing(false);
+        response = [{ text: "ACTION: LIQUIDATING POSITIONS... DONE.", color: "#00ff00" }];
+        break;
+
+      case "burn":
+        response = [
+          { text: "🔥🔥🔥 INITIATING BURN 🔥🔥🔥", color: "#ff4400" },
+          { text: "BURNING SUPPLY... 10%... 50%... 100%", color: "#ff8800" },
+          { text: "SUPPLY SHOCK IMMINENT.", color: "#ff0000" },
+        ];
+        break;
+
+      case "top":
+        setHistory(prev => [...prev, { text: "QUERYING DATABASE...", color: "#555" }]);
+        setIsProcessing(true);
+        try {
+            const q = collection(db, 'artifacts', appId, 'public', 'data', 'stackit_scores');
+            const snapshot = await getDocs(q);
+            const docs = snapshot.docs.map(d => d.data());
+            setIsProcessing(false);
+            if (docs.length > 0) {
+                const top = docs.sort((a, b) => Number(b.score) - Number(a.score))[0];
+                response = [
+                    { text: "👑 CURRENT CHAMPION 👑", color: "#ffff00" },
+                    { text: `NAME:  ${top.username}`, color: "#ffffff" },
+                    { text: `SCORE: ${top.score}`, color: "#00ff00" }
+                ];
+            } else {
+                response = [{ text: "LEADERBOARD EMPTY.", color: "#888" }];
+            }
+        } catch (e) {
+            setIsProcessing(false);
+            response = [{ text: "DB CONNECTION FAILED.", color: "#ff0000" }];
+        }
+        break;
+
+      case "me":
+        if (!auth.currentUser) { response = [{ text: "NOT LOGGED IN. PLAY 'STACK IT' FIRST.", color: "#ff0000" }]; break; }
+        setHistory(prev => [...prev, { text: `FETCHING DATA FOR ${auth.currentUser.uid}...`, color: "#555" }]);
+        setIsProcessing(true);
+        try {
+            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'stackit_scores', auth.currentUser.uid);
+            const docSnap = await getDoc(docRef);
+            setIsProcessing(false);
+            if (docSnap.exists()) {
+                const d = docSnap.data();
+                response = [
+                    { text: `USER: ${d.username}`, color: "#00ffff" },
+                    { text: `HIGH SCORE: ${d.score}`, color: "#00ff00" }
+                ];
+            } else {
+                response = [{ text: "NO RECORD FOUND.", color: "#ffff00" }];
+            }
+        } catch(e) { 
+            setIsProcessing(false);
+            response = [{ text: "ERROR.", color: "#ff0000" }]; 
+        }
+        break;
+        
+      case "clear":
+        setHistory([]);
+        return;
+        
+      default:
+        // THE "IT" DETECTOR
+        if (cmdString.toLowerCase().includes("it")) {
+            response = [
+                { text: ">> SIGNAL DETECTED <<", color: "#00ff00" },
+                { text: `IDENTIFIED PATTERN: "${cmdString.toUpperCase()}"`, color: "#ffff00" },
+                ...ASCII_IT.map(line => ({ text: line, color: "#00ff00" }))
+            ];
+        } else {
+            response = [{ text: `command not found: ${cmd}`, color: "#ff0000" }];
+        }
+    }
+
+    setHistory(prev => [...prev, ...response]);
+  };
+
+  const handleKeyDown = (e) => {
+    if (isBooting || isProcessing) { e.preventDefault(); return; }
     if (e.key === 'Enter') {
-      const cmd = input.trim().toLowerCase();
-      const newLines = [`C:\\ADMIN> ${input}`];
-      if (cmd === 'help') newLines.push("COMMANDS: PRICE, CA, SEND IT, CLEAR");
-      else if (cmd === 'price') newLines.push(`PRICE: ${dexData.price}`, `MCAP: ${dexData.mcap}`);
-      else if (cmd === 'ca') newLines.push(`CA: ${CA_ADDRESS}`);
-      else if (cmd === 'send it') newLines.push("INITIATING LAUNCH...", "SENT.");
-      else if (cmd === 'clear') { setHistory([]); setInput(""); return; }
-      else newLines.push("Bad command");
-      setHistory(prev => [...prev, ...newLines]);
+      if (!input.trim()) return;
+      setCmdHistory(prev => [...prev, input]);
+      setHistoryIdx(-1);
+      processCommand(input);
       setInput("");
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (cmdHistory.length > 0) {
+        const idx = historyIdx === -1 ? cmdHistory.length - 1 : Math.max(0, historyIdx - 1);
+        setHistoryIdx(idx);
+        setInput(cmdHistory[idx]);
+      }
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (historyIdx !== -1) {
+        const idx = historyIdx + 1;
+        if (idx >= cmdHistory.length) {
+            setHistoryIdx(-1);
+            setInput("");
+        } else {
+            setHistoryIdx(idx);
+            setInput(cmdHistory[idx]);
+        }
+      }
     }
   };
+
   return (
-    <div className="bg-black text-green-500 font-mono text-sm h-full p-2 overflow-y-auto" onClick={() => document.getElementById('term')?.focus()}>
-      {history.map((l, i) => <div key={i}>{l}</div>)}
-      <div className="flex"><span>&gt;</span><input id="term" className="bg-transparent border-none outline-none text-green-500 flex-1 ml-2" value={input} onChange={e => setInput(e.target.value)} onKeyDown={handleCommand} autoFocus /></div>
-      <div ref={bottomRef} />
+    <div 
+      className={`font-mono text-sm h-full flex flex-col cursor-text relative overflow-hidden transition-colors duration-500 ${matrixMode ? 'bg-black text-[#00ff00]' : 'bg-[#0c0c0c] text-[#33ff33]'}`}
+      onClick={focusInput}
+      style={{ textShadow: matrixMode ? "0 0 5px #00ff00" : "0 0 4px rgba(51, 255, 51, 0.5)" }}
+    >
+      {/* STATUS BAR */}
+      <div className={`flex justify-between px-2 py-1 text-xs border-b ${matrixMode ? 'bg-green-900 border-green-500 text-black' : 'bg-[#1a1a1a] border-[#333] text-gray-500'}`}>
+        <span>MEM: {matrixMode ? "INF" : "640K"}</span>
+        <span>NET: {safeDexData.price !== "N/A" ? "ONLINE" : "OFFLINE"}</span>
+        <span>SECURE_SHELL</span>
+      </div>
+
+      {/* MAIN TERMINAL AREA */}
+      <div className="flex-1 overflow-y-auto p-4 z-10 custom-scrollbar">
+        {history.map((line, i) => (
+          <div key={i} className={`mb-1 break-words ${line.size === 'large' ? 'text-2xl font-bold my-2' : ''}`} style={{ color: matrixMode ? '#00ff00' : line.color }}>
+            {line.text}
+          </div>
+        ))}
+        
+        {!isBooting && !isProcessing && (
+          <div className="flex items-center">
+            <span className="mr-2 shrink-0">{matrixMode ? `NEO@ZION:~$` : `root@it_os:~$`}</span>
+            <input 
+              ref={inputRef}
+              className={`bg-transparent border-none outline-none flex-1 font-mono ${matrixMode ? 'text-[#00ff00]' : 'text-[#33ff33]'}`}
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              autoFocus
+              autoComplete="off"
+            />
+            {/* Blinking Cursor Block */}
+            <div className={`w-2 h-4 ${matrixMode ? 'bg-[#00ff00]' : 'bg-[#33ff33]'} animate-pulse ml-0.5`}></div>
+          </div>
+        )}
+        <div ref={bottomRef} />
+      </div>
+      
+      {/* CRT SCANLINE EFFECT */}
+      <div className="absolute inset-0 pointer-events-none z-50 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[length:100%_4px,3px_100%] opacity-20"></div>
     </div>
   );
 };
@@ -2001,7 +2280,7 @@ export default function UltimateOS() {
 
   const openApp = (type) => {
     const id = generateId();
-    const titles = { paint: 'Paint IT', terminal: 'Terminal IT', tunes: 'Tune IT', rugsweeper: 'Play IT', notepad: 'Write IT', memes: 'Memes' };
+    const titles = { paint: 'Paint IT', terminal: 'Terminal', tunes: 'Tune IT', rugsweeper: 'Play IT', notepad: 'Write IT', memes: 'Memes' };
     
     // RESPONSIVE SIZING FOR MOBILE
     const isMobile = window.innerWidth < 768;
@@ -2103,7 +2382,7 @@ export default function UltimateOS() {
 
       {/* Desktop Icons - SWITCHED TO onClick for Single Tap (Mobile/Desktop friendly) */}
       <div className="absolute top-0 left-0 p-4 z-0 flex flex-col gap-4 flex-wrap max-h-full">
-        <DesktopIcon icon={Terminal} label="Terminal IT" onClick={() => openApp('terminal')} />
+        <DesktopIcon icon={Terminal} label="Terminal" onClick={() => openApp('terminal')} />
         <DesktopIcon icon={Paintbrush} label="Paint IT" onClick={() => openApp('paint')} />
         <DesktopIcon icon={Music} label="Tune IT" onClick={() => openApp('tunes')} />
         <DesktopIcon icon={Gamepad2} label="Play IT" onClick={() => openApp('rugsweeper')} />
