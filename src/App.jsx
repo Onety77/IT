@@ -328,7 +328,7 @@ const Shippy = ({ hidden }) => {
     // Check for missing key
     if (!API_KEY || API_KEY.includes("YOUR_GOOGLE_API_KEY")) {
       setTimeout(() => {
-        const replies = ["I NEED A BRAIN (API KEY) TO THINK T.", "SYSTEM ERROR: NO GAS T."];
+        const replies = ["OFFLINE, SEND IT IN THE MEANTIME."];
         setMessages(prev => [...prev, { role: 'shippy', text: replies[Math.floor(Math.random() * replies.length)] }]);
         setLoading(false);
       }, 500);
@@ -363,12 +363,12 @@ const Shippy = ({ hidden }) => {
       }
 
       // Extract text from Gemini response
-      const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || "BUFFERING T...";
+      const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || "TOO MANY PEOPLE WANT IT. TRY AGAIN IN A MINUTE.";
       setMessages(prev => [...prev, { role: 'shippy', text: reply }]);
       
     } catch (e) {
       console.error(e);
-      const errorReplies = ["MY BRAIN IS BUFFERING T.", "TOO MUCH PUMP TO PROCESS T.", "CONNECTION RUGGED T."];
+      const errorReplies = ["SYSTEM OVERLOAD. TOO MANY PEOPLE WANT IT. TRY AGAIN IN 1 MINUTE.", "OFFLINE, SEND IT IN THE MEANTIME."];
       setMessages(prev => [...prev, { role: 'shippy', text: errorReplies[Math.floor(Math.random() * errorReplies.length)] }]);
     } finally { 
       setLoading(false); 
