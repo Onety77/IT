@@ -321,7 +321,10 @@ const Shippy = ({ hidden }) => {
   const scrollRef = useRef(null);
   
   
-  const API_KEY = (typeof process !== 'undefined' && process.env ? process.env.VITE_OR_PROVIDER_ID : "") || ""; 
+  const API_KEY = 
+  (typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_OR_PROVIDER_ID : "") || 
+  (typeof process !== 'undefined' && process.env ? process.env.VITE_OR_PROVIDER_ID : "") || 
+  "";
   
   const SYSTEM_PROMPT = `
     You are Shippy, the witty, sassy "Ghost in the Machine" of $IT OS.
@@ -2698,7 +2701,10 @@ const MemeMindApp = () => {
 
   
   
-  const API_KEY = (typeof process !== 'undefined' && process.env ? process.env.VITE_OR_PROVIDER_ID : "") || ""; 
+  const API_KEY = 
+  (typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_OR_PROVIDER_ID : "") || 
+  (typeof process !== 'undefined' && process.env ? process.env.VITE_OR_PROVIDER_ID : "") || 
+  "";
 
   const generateIdea = async () => {
     setLoading(true);
