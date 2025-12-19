@@ -125,7 +125,7 @@ const TUNES_PLAYLIST = [
   { file: "WAGMI_ANTHEM.mp3", title: "WAGMI ANTHEM", duration: "3:56", artist: "Community" }
 ];
 
-const CA_ADDRESS = "So11111111111111111111111111111111111111112"; 
+const CA_ADDRESS = "So11111111111111111111111111111111111111112";
 
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
@@ -3361,7 +3361,7 @@ export default function UltimateOS() {
 const DesktopIcon = ({ icon: Icon, label, onClick }) => (
   <div onClick={onClick} className="flex flex-col items-center gap-1 w-20 cursor-pointer p-1 border border-transparent hover:border-white/20 hover:bg-white/10 rounded active:opacity-70 group active:bg-white/20">
     <Icon size={32} className="text-white drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)]" strokeWidth={1.5} />
-    <span className="text-white text-xs text-center font-bold drop-shadow-[0_1px_2px_rgba(0,0,0,1)] bg-teal-800/80 px-1 rounded">{label}</span>
+    <span className="text-white text-xs text-center font-bold drop-shadow-[0_1px_2px_rgba(0,0,0,1)] bg-[#035a23] px-1 rounded">{label}</span>
   </div>
 );
 
