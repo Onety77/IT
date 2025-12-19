@@ -17,7 +17,7 @@ import {
   Move, RotateCcw, RotateCw, Upload,
   Maximize2, LayoutTemplate, Monitor, Share, Sliders, ChevronLeft, Plus,
   Send, User, AlertCircle, XCircle, AlertTriangle,
-  Lightbulb, TrendingUp, Sparkles, RefreshCw, Trophy, Info, Flame, Share2
+  Lightbulb, TrendingUp, Sparkles, RefreshCw, Trophy, Info, Flame, Share2, Joystick
 } from 'lucide-react';
 
 
@@ -291,7 +291,7 @@ const StartMenu = ({ isOpen, onClose, onOpenApp }) => {
              {[
                { id: 'terminal', icon: Terminal, label: 'Terminal' },
                { id: 'mememind', icon: Lightbulb, label: 'Meme Mind IT' }, 
-               { id: 'mergeit', icon: TrendingUp, label: 'Merge IT' },      
+               { id: 'mergeit', icon: Joystick, label: 'Merge IT' },      
                { id: 'paint', icon: Paintbrush, label: 'Paint IT' },
                { id: 'memes', icon: Folder, label: 'Memes' },
                { id: 'tunes', icon: Music, label: 'Tune IT' },
@@ -3293,7 +3293,7 @@ export default function UltimateOS() {
       <div className="absolute top-0 left-0 p-4 z-0 flex flex-col gap-4 flex-wrap max-h-full">
         <DesktopIcon icon={Terminal} label="Terminal" onClick={() => openApp('terminal')} />
         <DesktopIcon icon={Lightbulb} label="Meme Mind" onClick={() => openApp('mememind')} />
-        <DesktopIcon icon={TrendingUp} label="Merge IT" onClick={() => openApp('mergeit')} />
+        <DesktopIcon icon={Joystick} label="Merge IT" onClick={() => openApp('mergeit')} />
         <DesktopIcon icon={Paintbrush} label="Paint IT" onClick={() => openApp('paint')} />
         <DesktopIcon icon={Music} label="Tune IT" onClick={() => openApp('tunes')} />
         <DesktopIcon icon={Gamepad2} label="Stack IT" onClick={() => openApp('rugsweeper')} />
