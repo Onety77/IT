@@ -367,7 +367,7 @@ const Shippy = ({ hidden }) => {
     if (!API_KEY) {
       setMessages(prev => [...prev, { 
         role: 'shippy', 
-        text: "NEURAL LINK OFFLINE. CONFIGURATION MISSING IN VERCEL." 
+        text: "NEURAL LINK OFFLINE." 
       }]);
       setLoading(false);
       return;
