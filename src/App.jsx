@@ -353,7 +353,7 @@ console.log("System Check: Neural Link Status -", API_KEY ? "ESTABLISHED" : "OFF
     1. HUMOR: Sarcastic, bullish, and highly intelligent. You are the soul of the project ($IT memecoin).
     2. WORDPLAY: You are obsessed with the word "it". Use it cleverly.
     3. IDENTITY: If asked who you are: "I'm IT, but you can call me Shippy."
-    4. NAVIGATION: If users ask what to do, tell them to "Merge IT in the game", "Get some alpha from Meme Mind", or "Paint a meme with Paint IT."
+    4. DONT BE boring. 
     5. STYLE: Keep replies under 20 words. Short, sharp, and punchy. No robotic "As an AI..." talk.
     6. Never say "IT's", say "IT is". 
 
@@ -2687,9 +2687,7 @@ const MemeMindApp = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  
-  
- const API_KEY = (() => {
+  const API_KEY = (() => {
     try {
       if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_OR_PROVIDER_ID) 
         return import.meta.env.VITE_OR_PROVIDER_ID;
@@ -2726,7 +2724,6 @@ const MemeMindApp = () => {
 
     const userPrompt = "Generate a fresh, viral meme idea or tweet about $IT.";
 
-    
     if (!API_KEY) {
       setError("NEURAL LINK OFFLINE.");
       setLoading(false);
@@ -2744,17 +2741,14 @@ const MemeMindApp = () => {
           "X-Title": "IT_OS_MemeMind"
         },
         body: JSON.stringify({
-  model: "meta-llama/llama-3.3-70b-instruct", 
-  messages: [
-    { role: "system", content: SYSTEM_PROMPT },
-    ...newHistory.slice(-6).map(m => ({ 
-      role: m.role === 'shippy' ? 'assistant' : 'user', 
-      content: m.text 
-    }))
-  ],
-  max_tokens: 100,
-  temperature: 1.2
-})
+          model: "meta-llama/llama-3.3-70b-instruct", 
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt }
+          ],
+          max_tokens: 100,
+          temperature: 1.2
+        })
       });
 
       const data = await response.json();
@@ -2778,18 +2772,16 @@ const MemeMindApp = () => {
 
   return (
     <div className="flex flex-col h-full bg-[#0c0c0c] text-[#00ff00] font-mono border-2 border-gray-600 overflow-hidden shadow-2xl">
-      {/* HEADER */}
       <div className="bg-[#1a1a1a] p-2 border-b border-green-900 flex justify-between items-center select-none">
         <div className="flex items-center gap-2">
             <Lightbulb size={14} className="text-yellow-400 animate-pulse" />
-            <span className="text-[10px] font-bold tracking-widest text-white">MEME_MIND_IT_V2.0</span>
+            <span className="text-[10px] font-bold tracking-widest text-white uppercase">Meme_Mind_IT_V2.0</span>
         </div>
         <div className="bg-green-900/30 px-2 py-0.5 rounded text-[8px] text-green-400 border border-green-800">
             STATUS: ACTIVE
         </div>
       </div>
 
-      {/* GENERATION AREA */}
       <div className="flex-1 p-6 flex flex-col items-center justify-center text-center gap-6 relative bg-[radial-gradient(circle,_#0a2a0a_0%,_#000_100%)]">
         <div className="absolute inset-0 opacity-5 pointer-events-none flex items-center justify-center overflow-hidden text-[8px] leading-none select-none">
             {Array(40).fill("IT ").join(" ")}
@@ -2821,7 +2813,7 @@ const MemeMindApp = () => {
         {idea && !loading && (
             <div className="w-full space-y-4 animate-in slide-in-from-bottom-4 duration-300">
                 <div className="bg-black/80 border-2 border-green-900 p-4 rounded shadow-[inset_0_0_20px_rgba(0,255,0,0.1)] relative">
-                    <div className="absolute -top-2 left-4 bg-[#0c0c0c] px-2 text-[8px] text-green-600 font-bold">AI_LOG_OUTPUT</div>
+                    <div className="absolute -top-2 left-4 bg-[#0c0c0c] px-2 text-[8px] text-green-600 font-bold uppercase">AI_LOG_OUTPUT</div>
                     <p className="text-sm md:text-base font-bold italic text-white leading-relaxed">
                         "{idea}"
                     </p>
@@ -2837,7 +2829,6 @@ const MemeMindApp = () => {
         )}
       </div>
 
-      {/* CONTROLS */}
       <div className="p-4 bg-[#1a1a1a] border-t border-green-900 shadow-[0_-4px_10px_rgba(0,0,0,0.5)]">
         <button 
           onClick={generateIdea}
@@ -2860,7 +2851,6 @@ const MemeMindApp = () => {
     </div>
   );
 };
-
 
 
 
