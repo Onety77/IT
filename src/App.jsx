@@ -2724,7 +2724,7 @@ const MemeMindApp = () => {
 
     
     if (!API_KEY) {
-      setError("NEURAL LINK OFFLINE. CONFIGURATION MISSING IN VERCEL.");
+      setError("NEURAL LINK OFFLINE.");
       setLoading(false);
       return;
     }
