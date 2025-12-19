@@ -320,28 +320,44 @@ const Shippy = ({ hidden }) => {
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef(null);
   
-  
-  const API_KEY = 
-  (typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_OR_PROVIDER_ID : "") || 
-  (typeof process !== 'undefined' && process.env ? process.env.VITE_OR_PROVIDER_ID : "") || 
-  "";
-  
+  // --- BULLETPROOF API KEY HANDSHAKE ---
+const API_KEY = (() => {
+  // 1. Try Vite Standard (Most likely)
+  try {
+    if (import.meta.env.VITE_OR_PROVIDER_ID) return import.meta.env.VITE_OR_PROVIDER_ID;
+  } catch (e) {}
+
+  // 2. Try Node/Process Standard (Vercel Fallback)
+  try {
+    if (process.env.VITE_OR_PROVIDER_ID) return process.env.VITE_OR_PROVIDER_ID;
+  } catch (e) {}
+
+  // 3. Try Window Global (Last Resort)
+  try {
+    if (window.VITE_OR_PROVIDER_ID) return window.VITE_OR_PROVIDER_ID;
+  } catch (e) {}
+
+  return "";
+})();
+
+// This log will tell you exactly what the app sees during boot
+console.log("System Check: Neural Link Status -", API_KEY ? "ESTABLISHED" : "OFFLINE");
+
+
   const SYSTEM_PROMPT = `
     You are Shippy, the witty, sassy "Ghost in the Machine" of $IT OS.
     
     KNOWLEDGE BASE:
     - Environment: $IT OS (a retro-styled hacker desktop).
-    - App: 'Paint IT' - For creating/editing memes and stickers.
-    - App: 'Merge IT' - A high-stakes 2048-style game to reach Ascension.
-    - App: 'Meme Mind IT' - AI-powered generator for viral X/Twitter alpha.
-    - App: 'Stack IT' - A physics-based stacking game.
-    - App: 'Tune IT' - A Winamp-style music player for degen anthems.
-    - App: 'Terminal IT' - A hacker console for live $IT token data and SOL prices.
-    - App: 'Write IT' - A notepad for manifestos and alpha.
-    - App: 'Trollbox IT' - A live chat with other degens.
+    - App: 'Paint IT' - Create memes and stickers.
+    - App: 'Merge IT' - A high-stakes 2048-style market game.
+    - App: 'Meme Mind IT' - AI-powered generator for viral X alpha.
+    - App: 'Stack IT' - Physics-based god candle stacking.
+    - App: 'Tune IT' - Music player for pump it anthems.
+    - App: 'Terminal IT' - Live $IT token and SOL prices.
     - Token: $IT is the only currency that matters.
 
-    PERSONALITY:
+        PERSONALITY:
     1. HUMOR: Sarcastic, bullish, and highly intelligent. You are the soul of the project ($IT memecoin).
     2. WORDPLAY: You are obsessed with the word "it". Use it cleverly.
     3. IDENTITY: If asked who you are: "I'm IT, but you can call me Shippy."
@@ -350,28 +366,20 @@ const Shippy = ({ hidden }) => {
     6. Never say "IT's", say "IT is". 
   `;
 
-  
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages, loading]);
 
   const handleSend = async () => {
     if(!input.trim() || loading) return;
     const userText = input; 
     setInput("");
-    
     const newHistory = [...messages, { role: 'user', text: userText }];
     setMessages(newHistory);
     setLoading(true);
 
-    
     if (!API_KEY) {
-      setMessages(prev => [...prev, { 
-        role: 'shippy', 
-        text: "NEURAL LINK OFFLINE." 
-      }]);
+      setMessages(prev => [...prev, { role: 'shippy', text: "SYSTEM_LINK_OFFLINE. CONFIGURATION ERROR." }]);
       setLoading(false);
       return;
     }
@@ -379,7 +387,6 @@ const Shippy = ({ hidden }) => {
     try {
       const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
-        credentials: 'omit', 
         headers: {
           "Authorization": `Bearer ${API_KEY.trim()}`,
           "Content-Type": "application/json",
@@ -401,10 +408,7 @@ const Shippy = ({ hidden }) => {
       });
 
       const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error("API_REJECTED");
-      }
+      if (!response.ok) throw new Error("REJECTED");
 
       const reply = data.choices[0]?.message?.content || "I've lost it. Try again.";
       setMessages(prev => [...prev, { role: 'shippy', text: reply }]);
@@ -432,37 +436,17 @@ const Shippy = ({ hidden }) => {
         <span className="font-bold flex items-center gap-1"><Bot size={12}/> Talk IT (AI)</span>
         <X size={12} className="cursor-pointer p-1 -mr-1 hover:bg-red-600" onClick={() => setIsOpen(false)} />
       </div>
-
-      <div 
-        ref={scrollRef}
-        className="h-56 overflow-y-auto p-2 space-y-2 border-b border-black relative bg-white scroll-smooth"
-      >
-        <div className="relative z-10 space-y-2">
+      <div ref={scrollRef} className="h-56 overflow-y-auto p-2 space-y-2 border-b border-black bg-white scroll-smooth">
           {messages.map((m, i) => (
             <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
               <div className={`max-w-[85%] p-1 border border-black shadow-md font-bold ${m.role === 'user' ? 'bg-blue-100' : 'bg-yellow-100 text-blue-900'}`}>{m.text}</div>
             </div>
           ))}
-          {loading && <div className="text-[10px] animate-pulse font-bold text-blue-800 uppercase">Shippy is processing it...</div>}
-        </div>
+          {loading && <div className="text-[10px] animate-pulse font-bold text-blue-800 uppercase">Shippy is thinking...</div>}
       </div>
-
       <div className="p-1 flex gap-1 bg-[#d4d0c8]">
-        <input 
-            className="flex-1 border p-1 outline-none focus:bg-white text-black" 
-            value={input} 
-            onChange={e => setInput(e.target.value)} 
-            onKeyDown={e => e.key === 'Enter' && handleSend()} 
-            placeholder="Say it..." 
-            disabled={loading}
-        />
-        <button 
-            onClick={handleSend} 
-            disabled={loading || !input.trim()} 
-            className="bg-blue-600 text-white px-2 font-bold active:bg-blue-800 disabled:bg-gray-400"
-        >
-            &gt;
-        </button>
+        <input className="flex-1 border p-1 outline-none focus:bg-white text-black" value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSend()} placeholder="Say it..." disabled={loading} />
+        <button onClick={handleSend} disabled={loading || !input.trim()} className="bg-blue-600 text-white px-2 font-bold active:bg-blue-800">&gt;</button>
       </div>
     </div>
   );
@@ -2701,10 +2685,26 @@ const MemeMindApp = () => {
 
   
   
-  const API_KEY = 
-  (typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_OR_PROVIDER_ID : "") || 
-  (typeof process !== 'undefined' && process.env ? process.env.VITE_OR_PROVIDER_ID : "") || 
-  "";
+ const API_KEY = (() => {
+    try {
+      if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_OR_PROVIDER_ID) 
+        return import.meta.env.VITE_OR_PROVIDER_ID;
+    } catch (e) {}
+
+    try {
+      if (typeof process !== 'undefined' && process.env?.VITE_OR_PROVIDER_ID) 
+        return process.env.VITE_OR_PROVIDER_ID;
+    } catch (e) {}
+
+    try {
+      if (typeof window !== 'undefined' && window.VITE_OR_PROVIDER_ID) 
+        return window.VITE_OR_PROVIDER_ID;
+    } catch (e) {}
+
+    return "";
+  })();
+
+  console.log("MemeMind Handshake:", API_KEY ? "ESTABLISHED" : "OFFLINE");
 
   const generateIdea = async () => {
     setLoading(true);
@@ -2718,7 +2718,7 @@ const MemeMindApp = () => {
     3. Keep ideas short (under 200 characters).
     4. Provide ONE idea per request.
     5. Don't use hashtags, just the text.
-    6. Always write "IT's" as "IT is".`;
+    6. never write "IT's", write "IT is".`;
 
     const userPrompt = "Generate a fresh, viral meme idea or tweet about $IT.";
 
@@ -2741,7 +2741,7 @@ const MemeMindApp = () => {
         },
         body: JSON.stringify({
           
-          model: "meta-llama/llama-3.2-3b-instruct:free",
+          model: "meta-llama/llama-3.3-70b-instruct:free",
           messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: userPrompt }
