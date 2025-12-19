@@ -457,6 +457,7 @@ const Shippy = ({ hidden }) => {
   );
 };
 
+// --- ASCII ART ASSETS ---
 const ASCII_IT = [
   "██╗████████╗",
   "██║╚══██╔══╝",
@@ -466,13 +467,30 @@ const ASCII_IT = [
   "╚═╝   ╚═╝   "
 ];
 
+const ASCII_PEPE = [
+  "⠀⠀⠀⠀⠀⠀⠀⣠⡀⠀⠀⠀⠀⠀⠀⠀⠀⢰⠤⠤⣄⣀⡀⠀⠀⠀⠀⠀⠀⠀",
+  "⠀⠀⠀⠀⠀⢀⣾⣟⠳⢦⡀⠀⠀⠀⠀⠀⠀⢸⠀⠀⠀⠀⠉⠉⠉⠉⠉⠒⣲⡄",
+  "⠀⠀⠀⠀⠀⣿⣿⣿⡇⡇⣙⠂⠀⠀⢀⢤⢤⢼⡟⣉⡝⢳⡄⠀⠀⠀⠸⣿⣿⡇",
+  "⠀⠀⠀⠀⠀⠘⢿⣿⠳⠚⠛⠲⣄⠀⠁⣡⠂⠉⠳⠉⢀⡆⠃⠀⠀⣀⣀⣈⣻⣇",
+  "⠀⠀⠀⠀⠀⠀⠀⢻⣝⡲⠤⠤⡈⠃⠀⠇⠳⠤⠤⠤⠼⣛⡃⠀⢸⣿⣿⣿⣿⡇",
+  "⠀⠀⠀⠀⠀⠀⠀⣾⡿⠳⠤⠤⠃⢀⡀⠀⠀⠀⠈⠉⠉⠁⠀⠀⠈⠉⠉⠉⠁⠀",
+];
+
 // --- UTILS ---
+// 🔥 FIXED: Using DexScreener for SOL price to avoid Binance CORS issues
 const getSolPriceForever = async () => {
   try {
-    const response = await fetch('https://api.binance.com/api/v3/ticker/price?symbol=SOLUSDT');
+    const solMint = "So11111111111111111111111111111111111111112";
+    const response = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${solMint}`);
     const data = await response.json();
-    return parseFloat(data.price).toFixed(2);
-  } catch (error) { return null; }
+    if (data.pairs && data.pairs[0]) {
+      return parseFloat(data.pairs[0].priceUsd).toFixed(2);
+    }
+    return null;
+  } catch (error) { 
+    console.error("SOL Price fetch error:", error);
+    return null; 
+  }
 };
 
 // 2. TERMINAL IT - HACKER CONSOLE (GOD MODE)
@@ -488,7 +506,6 @@ const TerminalApp = ({ dexData }) => {
   const bottomRef = useRef(null);
   const inputRef = useRef(null);
 
-  // Use a safe version of dexData to prevent crashes if prop is missing
   const safeDexData = dexData || { price: "N/A", mcap: "N/A", change: "0%" };
 
   // --- BOOT SEQUENCE ---
@@ -515,8 +532,15 @@ const TerminalApp = ({ dexData }) => {
     return () => { timeouts.forEach(clearTimeout); clearTimeout(finishBoot); };
   }, []);
 
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [history]);
-  const focusInput = () => { if (!isBooting && !isProcessing) inputRef.current?.focus(); };
+  useEffect(() => { 
+    if (bottomRef.current) {
+      bottomRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [history]);
+
+  const focusInput = () => { 
+    if (!isBooting && !isProcessing) inputRef.current?.focus(); 
+  };
 
   // --- COMMAND PROCESSOR ---
   const processCommand = async (cmdString) => {
@@ -548,14 +572,15 @@ const TerminalApp = ({ dexData }) => {
         ];
         break;
 
+      case "pepe":
+        response = ASCII_PEPE.map(line => ({ text: line, color: "#00ff00" }));
+        break;
+
       case "price":
-        // Use safeDexData
-        const price = safeDexData.price;
-        const mcap = safeDexData.mcap;
         response = [
           { text: "--- MARKET FEED ---", color: "#00ffff" },
-          { text: `PRICE: ${price}`, color: "#00ff00" },
-          { text: `MCAP:  ${mcap}`, color: "#00ff00" },
+          { text: `PRICE: ${safeDexData.price}`, color: "#00ff00" },
+          { text: `MCAP:  ${safeDexData.mcap}`, color: "#00ff00" },
           { text: `SENTIMENT: EXTREME GREED`, color: "#ff00ff" }
         ];
         break;
@@ -569,12 +594,12 @@ const TerminalApp = ({ dexData }) => {
         break;
 
       case "sol":
-        setHistory(prev => [...prev, { text: "PINGING ORACLE NODES...", color: "#555" }]);
+        setHistory(prev => [...prev, { text: "PINGING DEXSCREENER ORACLES...", color: "#555" }]);
         setIsProcessing(true);
         const sol = await getSolPriceForever();
         setIsProcessing(false);
         if (sol) response = [{ text: `SOL/USD: $${sol}`, color: "#00ff00", size: "large" }];
-        else response = [{ text: "ORACLE ERROR", color: "#ff0000" }];
+        else response = [{ text: "ORACLE ERROR: SYSTEM UNABLE TO RESOLVE PRICE", color: "#ff0000" }];
         break;
 
       case "matrix":
@@ -671,7 +696,7 @@ const TerminalApp = ({ dexData }) => {
         return;
         
       default:
-        // THE "IT" DETECTOR
+        // THE "IT" DETECTOR (Easter Egg)
         if (cmdString.toLowerCase().includes("it")) {
             response = [
                 { text: ">> SIGNAL DETECTED <<", color: "#00ff00" },
