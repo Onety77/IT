@@ -1,6 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { initializeApp } from 'firebase/app';
-// UPDATED: Added all necessary Firestore functions for Chat and Leaderboard
 import { 
   getFirestore, collection, addDoc, getDocs, updateDoc, doc, setDoc, getDoc, 
   onSnapshot, query, orderBy, limit, serverTimestamp, deleteDoc 
@@ -17,8 +16,8 @@ import {
   Menu, LogOut, ChevronRight,
   Move, RotateCcw, RotateCw, Upload,
   Maximize2, LayoutTemplate, Monitor, Share, Sliders, ChevronLeft, Plus,
-  // UPDATED: Added Chat Icons
-  Send, User, AlertCircle, XCircle, AlertTriangle
+  Send, User, AlertCircle, XCircle, AlertTriangle,
+  Lightbulb, TrendingUp, Sparkles, RefreshCw, Trophy, Info, Flame, Share2
 } from 'lucide-react';
 
 
@@ -99,6 +98,16 @@ const ASSETS = {
     meme_38: "memes/33.jpg",
     meme_39: "memes/34.jpg",
     meme_40: "memes/35.jpg",
+    meme_41: "memes/40.jpg",
+    meme_42: "memes/41.jpg",
+    meme_43: "memes/42.jpg",
+    meme_44: "memes/43.jpg",
+    meme_45: "memes/44.jpg",
+    meme_46: "memes/45.jpg",
+    meme_47: "memes/46.jpg",
+    meme_48: "memes/47.jpg",
+    meme_49: "memes/48.jpg",
+    meme_50: "memes/49.jpg",
   }
 };
 
@@ -281,12 +290,13 @@ const StartMenu = ({ isOpen, onClose, onOpenApp }) => {
              <div className="px-2 py-1 text-gray-500 font-bold text-[10px] uppercase">Programs</div>
              {[
                { id: 'terminal', icon: Terminal, label: 'Terminal' },
+               { id: 'mememind', icon: Lightbulb, label: 'Meme Mind IT' }, // INTEGRATED
+               { id: 'mergeit', icon: TrendingUp, label: 'Merge IT' },      // INTEGRATED
                { id: 'paint', icon: Paintbrush, label: 'Paint IT' },
                { id: 'memes', icon: Folder, label: 'Memes' },
                { id: 'tunes', icon: Music, label: 'Tune IT' },
                { id: 'rugsweeper', icon: Gamepad2, label: 'Stack IT' },
                { id: 'notepad', icon: FileText, label: 'Write IT' },
-               // UPDATED: Added Trollbox
                { id: 'trollbox', icon: MessageSquare, label: 'Trollbox IT' },
              ].map(app => (
                  <div key={app.id} className="hover:bg-[#000080] hover:text-white cursor-pointer px-2 py-2 flex items-center gap-2 active:bg-[#000080] active:text-white" onClick={() => { onOpenApp(app.id); onClose(); }}>
@@ -298,7 +308,6 @@ const StartMenu = ({ isOpen, onClose, onOpenApp }) => {
     </div>
   );
 };
-
 
 
 
@@ -2683,6 +2692,472 @@ const NotepadApp = () => {
 
 
 
+//mememind app
+const MemeMindApp = () => {
+  const [idea, setIdea] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  // 🔑 YOUR OPENROUTER KEY
+  const API_KEY = "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"; 
+
+  const generateIdea = async () => {
+    setLoading(true);
+    setError(null);
+
+    const systemPrompt = `You are the $IT Meme Architect. 
+    Your goal is to generate short, viral, and catchy meme ideas or tweet drafts for the $IT memecoin on Solana.
+    RULES:
+    1. Focus on the word "IT".
+    2. Be funny, slightly toxic (degen-style), and high-energy.
+    3. Keep ideas short (under 200 characters).
+    4. Provide ONE idea per request.
+    5. Don't use hashtags, just the text.`;
+
+    const userPrompt = "Generate a fresh, viral meme idea or tweet about $IT.";
+
+    try {
+      const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        credentials: 'omit',
+        headers: {
+          "Authorization": `Bearer ${API_KEY.trim()}`,
+          "Content-Type": "application/json",
+          "HTTP-Referer": window.location.origin,
+          "X-Title": "IT_OS_MemeMind"
+        },
+        body: JSON.stringify({
+          model: "meta-llama/llama-3.3-70b-instruct:free",
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt }
+          ],
+          max_tokens: 100,
+          temperature: 1.3 
+        })
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error?.message || "API REJECTED");
+
+      const result = data.choices[0]?.message?.content || "SYSTEM ERROR: ALPHA NOT FOUND.";
+      setIdea(result.replace(/"/g, '')); 
+    } catch (e) {
+      console.error(e);
+      setError("SYSTEM OVERLOAD. TOO MANY DEGENS WANT IT. TRY AGAIN IN A MINUTE T.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const shareToX = () => {
+    if (!idea) return;
+    const text = encodeURIComponent(`${idea}\n\n$IT #ITOS #SENDIT`);
+    window.open(`https://twitter.com/intent/tweet?text=${text}`, '_blank');
+  };
+
+  return (
+    <div className="flex flex-col h-full bg-[#0c0c0c] text-[#00ff00] font-mono border-2 border-gray-600 overflow-hidden shadow-2xl">
+      {/* HEADER */}
+      <div className="bg-[#1a1a1a] p-2 border-b border-green-900 flex justify-between items-center select-none">
+        <div className="flex items-center gap-2">
+            <Lightbulb size={14} className="text-yellow-400 animate-pulse" />
+            <span className="text-[10px] font-bold tracking-widest text-white">MEME_MIND_IT_V2.0</span>
+        </div>
+        <div className="bg-green-900/30 px-2 py-0.5 rounded text-[8px] text-green-400 border border-green-800">
+            AI_STATUS: ACTIVE
+        </div>
+      </div>
+
+      {/* GENERATION AREA */}
+      <div className="flex-1 p-6 flex flex-col items-center justify-center text-center gap-6 relative bg-[radial-gradient(circle,_#0a2a0a_0%,_#000_100%)]">
+        <div className="absolute inset-0 opacity-5 pointer-events-none flex items-center justify-center overflow-hidden text-[8px] leading-none select-none">
+            {Array(40).fill("IT ").join(" ")}
+        </div>
+
+        {!idea && !loading && !error && (
+            <div className="flex flex-col items-center gap-4">
+                <div className="w-16 h-16 border-2 border-green-500 rounded-full flex items-center justify-center bg-green-950/20 shadow-[0_0_15px_rgba(0,255,0,0.2)]">
+                    <Sparkles size={32} className="text-green-400" />
+                </div>
+                <p className="text-[10px] text-green-700 max-w-[200px] uppercase font-bold tracking-tighter">Click the button below to extract viral alpha from the neural network.</p>
+            </div>
+        )}
+
+        {loading && (
+            <div className="flex flex-col items-center gap-2">
+                <RefreshCw size={32} className="animate-spin text-green-400" />
+                <p className="text-[10px] tracking-widest animate-pulse font-bold">DECRYPTING MEMETIC ASSETS...</p>
+            </div>
+        )}
+
+        {error && (
+            <div className="bg-red-900/20 border-2 border-red-500 p-4 rounded text-red-400 text-[10px] flex flex-col items-center gap-2">
+                <X size={20} />
+                <p className="font-bold">{error}</p>
+            </div>
+        )}
+
+        {idea && !loading && (
+            <div className="w-full space-y-4 animate-in slide-in-from-bottom-4 duration-300">
+                <div className="bg-black/80 border-2 border-green-900 p-4 rounded shadow-[inset_0_0_20px_rgba(0,255,0,0.1)] relative">
+                    <div className="absolute -top-2 left-4 bg-[#0c0c0c] px-2 text-[8px] text-green-600 font-bold">AI_LOG_OUTPUT</div>
+                    <p className="text-sm md:text-base font-bold italic text-white leading-relaxed">
+                        "{idea}"
+                    </p>
+                </div>
+                
+                <button 
+                    onClick={shareToX}
+                    className="w-full bg-[#1da1f2] hover:bg-[#1a91da] text-white py-2 border-2 border-white/20 rounded flex items-center justify-center gap-2 font-black text-[10px] transition-all active:scale-95 uppercase shadow-lg"
+                >
+                    <Share2 size={14} /> SHARE IT ON X
+                </button>
+            </div>
+        )}
+      </div>
+
+      {/* CONTROLS */}
+      <div className="p-4 bg-[#1a1a1a] border-t border-green-900 shadow-[0_-4px_10px_rgba(0,0,0,0.5)]">
+        <button 
+          onClick={generateIdea}
+          disabled={loading}
+          className={`
+            w-full py-4 border-2 font-black tracking-tighter transition-all flex items-center justify-center gap-2 uppercase
+            ${loading 
+              ? 'bg-black border-green-900 text-green-900 cursor-not-allowed' 
+              : 'bg-green-600 border-green-400 text-black hover:bg-green-400 active:translate-y-1 shadow-[4px_4px_0px_#052c05]'}
+          `}
+        >
+          <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
+          {idea ? "GIVE ME ANOTHER ONE" : "GENERATE ALPHA"}
+        </button>
+      </div>
+
+      <div className="bg-black p-1 text-[7px] text-green-900 text-center uppercase tracking-widest border-t border-green-950">
+        IT_OS NEURAL LINK ESTABLISHED // LLAMA_3.2_ENGINE
+      </div>
+    </div>
+  );
+};
+
+
+// merge it app
+
+const TILE_DATA = {
+  2:    { label: 'PEANUTS', color: '#1a1a1a', text: '#555', scale: 'scale-90' },
+  4:    { label: 'DUST', color: '#2a2a2a', text: '#888', scale: 'scale-95' },
+  8:    { label: 'FISH', color: '#003311', text: '#00ff66', scale: 'scale-100' },
+  16:   { label: 'DOLPHIN', color: '#001133', text: '#0066ff', scale: 'scale-100' },
+  32:   { label: 'SHARK', color: '#330033', text: '#ff00ff', scale: 'scale-105' },
+  64:   { label: 'WHALE', color: '#330000', text: '#ff4444', scale: 'scale-105' },
+  128:  { label: 'KRAKEN', color: '#004444', text: '#00ffff', scale: 'scale-110' },
+  256:  { label: 'PUMP', color: '#118811', text: '#fff', scale: 'scale-110' },
+  512:  { label: 'MOON', color: '#888800', text: '#fff', scale: 'scale-110' },
+  1024: { label: 'MARS', color: '#cc4400', text: '#fff', scale: 'scale-115' },
+  2048: { label: 'GOD CANDLE', color: '#00ff00', text: '#000', special: true, scale: 'scale-125' },
+  4096: { label: 'ASCENSION', color: '#ffffff', text: '#000', special: true, scale: 'scale-150' },
+};
+
+const MergeItApp = () => {
+  const [grid, setGrid] = useState(Array(16).fill(null));
+  const [score, setScore] = useState(0);
+  const [best, setBest] = useState(0);
+  const [gameOver, setGameOver] = useState(false);
+  const [marketStatus, setMarketStatus] = useState("STABLE"); // STABLE, VOLATILE, BULLISH
+  
+  const audioCtx = useRef(null);
+  const touchStart = useRef(null);
+
+  // --- AUDIO FEEDBACK ---
+  const playNote = (freq, type = 'sine', duration = 0.1) => {
+    try {
+        if (!audioCtx.current) audioCtx.current = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.current.state === 'suspended') audioCtx.current.resume();
+        
+        const osc = audioCtx.current.createOscillator();
+        const gain = audioCtx.current.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, audioCtx.current.currentTime);
+        gain.gain.setValueAtTime(0.05, audioCtx.current.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.current.currentTime + duration);
+        osc.connect(gain);
+        gain.connect(audioCtx.current.destination);
+        osc.start();
+        osc.stop(audioCtx.current.currentTime + duration);
+    } catch(e) {}
+  };
+
+  // --- GAME ENGINE ---
+  const initGame = useCallback(() => {
+    let newGrid = Array(16).fill(null);
+    newGrid = addRandomTile(addRandomTile(newGrid));
+    setGrid(newGrid);
+    setScore(0);
+    setGameOver(false);
+    setMarketStatus("STABLE");
+  }, []);
+
+  useEffect(() => {
+    const savedBest = localStorage.getItem('mergeItBest');
+    if (savedBest) setBest(parseInt(savedBest));
+    initGame();
+  }, [initGame]);
+
+  const addRandomTile = (currentGrid) => {
+    const emptyIndices = currentGrid.map((v, i) => v === null ? i : null).filter(v => v !== null);
+    if (emptyIndices.length === 0) return currentGrid;
+    const randomIndex = emptyIndices[Math.floor(Math.random() * emptyIndices.length)];
+    const newGrid = [...currentGrid];
+    const threshold = marketStatus === "BULLISH_PUMP" ? 0.6 : 0.9;
+    newGrid[randomIndex] = Math.random() < threshold ? 2 : 4;
+    return newGrid;
+  };
+
+  const move = (direction) => {
+    if (gameOver) return;
+    let newGrid = [...grid];
+    let moved = false;
+    let currentScore = score;
+    let mergedThisTurn = false;
+
+    const getIndex = (row, col) => row * 4 + col;
+
+    const processLine = (line) => {
+      let filtered = line.filter(v => v !== null);
+      for (let i = 0; i < filtered.length - 1; i++) {
+        if (filtered[i] === filtered[i + 1]) {
+          filtered[i] *= 2;
+          currentScore += filtered[i];
+          filtered.splice(i + 1, 1);
+          moved = true;
+          mergedThisTurn = true;
+        }
+      }
+      while (filtered.length < 4) filtered.push(null);
+      return filtered;
+    };
+
+    if (direction === 'UP' || direction === 'DOWN') {
+      for (let col = 0; col < 4; col++) {
+        let line = [0, 1, 2, 3].map(row => newGrid[getIndex(row, col)]);
+        if (direction === 'DOWN') line.reverse();
+        let processed = processLine(line);
+        if (direction === 'DOWN') processed.reverse();
+        processed.forEach((val, row) => {
+          if (newGrid[getIndex(row, col)] !== val) moved = true;
+          newGrid[getIndex(row, col)] = val;
+        });
+      }
+    } else {
+      for (let row = 0; row < 4; row++) {
+        let line = [0, 1, 2, 3].map(col => newGrid[getIndex(row, col)]);
+        if (direction === 'RIGHT') line.reverse();
+        let processed = processLine(line);
+        if (direction === 'RIGHT') processed.reverse();
+        processed.forEach((val, col) => {
+          if (newGrid[getIndex(row, col)] !== val) moved = true;
+          newGrid[getIndex(row, col)] = val;
+        });
+      }
+    }
+
+    if (moved) {
+      if (mergedThisTurn) playNote(440 + (currentScore % 500), 'square', 0.1);
+      else playNote(150, 'sine', 0.05);
+
+      const withRandom = addRandomTile(newGrid);
+      setGrid(withRandom);
+      setScore(currentScore);
+
+      if (currentScore > best) {
+        setBest(currentScore);
+        localStorage.setItem('mergeItBest', currentScore);
+      }
+
+      // Check Volatility: Every 500-ish points
+      if (currentScore > 0 && currentScore % 500 < 30 && marketStatus === "STABLE") {
+          triggerVolatility(withRandom);
+      } else if (currentScore % 500 > 150) {
+          setMarketStatus("STABLE");
+      }
+
+      checkGameOver(withRandom);
+    }
+  };
+
+  const triggerVolatility = (currentGrid) => {
+      const isRug = Math.random() > 0.6; // 40% chance of Rug
+      setMarketStatus(isRug ? "BEARISH_RUG" : "BULLISH_PUMP");
+      playNote(isRug ? 80 : 600, 'sawtooth', 0.4);
+      
+      const filled = currentGrid.map((v, i) => v !== null ? i : null).filter(v => v !== null);
+      if (filled.length > 0) {
+          const target = filled[Math.floor(Math.random() * filled.length)];
+          const newGrid = [...currentGrid];
+          if (isRug) newGrid[target] = null; 
+          else newGrid[target] *= 2; 
+          setGrid(newGrid);
+      }
+  };
+
+  const checkGameOver = (currentGrid) => {
+    if (currentGrid.includes(null)) return;
+    for (let i = 0; i < 16; i++) {
+      const row = Math.floor(i / 4), col = i % 4;
+      if (col < 3 && currentGrid[i] === currentGrid[i + 1]) return;
+      if (row < 3 && currentGrid[i] === currentGrid[i + 4]) return;
+    }
+    setGameOver(true);
+    playNote(60, 'sawtooth', 0.8);
+  };
+
+  // --- CONTROLS: KEYBOARD & SWIPE ---
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+          e.preventDefault();
+          if (e.key === 'ArrowUp') move('UP');
+          if (e.key === 'ArrowDown') move('DOWN');
+          if (e.key === 'ArrowLeft') move('LEFT');
+          if (e.key === 'ArrowRight') move('RIGHT');
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [grid, gameOver, marketStatus]);
+
+  const handleTouchStart = (e) => {
+      touchStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  };
+
+  const handleTouchEnd = (e) => {
+      if (!touchStart.current) return;
+      const dx = e.changedTouches[0].clientX - touchStart.current.x;
+      const dy = e.changedTouches[0].clientY - touchStart.current.y;
+      if (Math.max(Math.abs(dx), Math.abs(dy)) > 30) {
+          if (Math.abs(dx) > Math.abs(dy)) move(dx > 0 ? 'RIGHT' : 'LEFT');
+          else move(dy > 0 ? 'DOWN' : 'UP');
+      }
+      touchStart.current = null;
+  };
+
+  return (
+    <div className="flex flex-col h-full bg-[#050505] text-white font-mono select-none overflow-hidden touch-none"
+         onTouchStart={handleTouchStart}
+         onTouchEnd={handleTouchEnd}>
+      
+      {/* 1. FIXED HEADER: VOLATILITY NOTIFICATION BAR */}
+      <div className={`h-6 flex items-center justify-center transition-colors duration-500 text-[9px] font-black uppercase tracking-widest
+        ${marketStatus === "STABLE" ? 'bg-black text-gray-700' : 
+          marketStatus === "BEARISH_RUG" ? 'bg-red-900 text-white animate-pulse' : 'bg-green-800 text-white animate-bounce'}
+      `}>
+        {marketStatus === "STABLE" ? (
+            <span className="flex items-center gap-1 opacity-50"><Info size={10}/> MARKET_STATUS: NOMINAL</span>
+        ) : (
+            <span className="flex items-center gap-2">
+                <AlertTriangle size={12}/> 
+                {marketStatus === "BEARISH_RUG" ? "CRITICAL: LIQUIDITY RUGGED!" : "ALERT: WHALE PUMP IN PROGRESS!"}
+            </span>
+        )}
+      </div>
+
+      {/* 2. SUB-HEADER: STATS */}
+      <div className="bg-[#111] p-3 border-b border-gray-800 flex justify-between items-center shadow-xl">
+        <div className="flex flex-col">
+            <span className="text-[10px] font-black text-green-500 tracking-tighter">MERGE_IT.SYS</span>
+            <div className="flex gap-2 mt-1">
+                <div className="bg-black border border-gray-800 px-2 py-1 rounded min-w-[70px]">
+                    <p className="text-[7px] text-gray-500 font-bold leading-none mb-1 uppercase">Current IT</p>
+                    <p className="text-sm font-black text-green-400">+{score}</p>
+                </div>
+                <div className="bg-black border border-gray-800 px-2 py-1 rounded min-w-[70px]">
+                    <p className="text-[7px] text-gray-500 font-bold leading-none mb-1 uppercase">High IT</p>
+                    <p className="text-sm font-black text-yellow-500">{best}</p>
+                </div>
+            </div>
+        </div>
+        <button onClick={initGame} className="w-10 h-10 bg-gray-900 rounded border border-gray-700 flex items-center justify-center hover:bg-green-900 transition-colors">
+            <RefreshCw size={18} className="text-gray-400" />
+        </button>
+      </div>
+
+      {/* 3. MAIN GAME GRID */}
+      <div className="flex-1 flex items-center justify-center p-4 relative bg-[radial-gradient(circle,_#111_0%,_#000_100%)]">
+        <div className="grid grid-cols-4 gap-2 bg-[#0a0a0a] p-3 rounded-xl border-2 border-gray-800 shadow-[0_0_50px_rgba(0,0,0,1)] relative">
+            {grid.map((val, i) => {
+                const data = val ? TILE_DATA[val] || { label: val, color: '#333', text: '#fff', scale: '' } : null;
+                return (
+                    <div key={i} className={`
+                        w-14 h-14 md:w-16 md:h-16 rounded flex flex-col items-center justify-center transition-all duration-200 relative
+                        ${!val ? 'bg-[#080808] border border-[#111]' : 'shadow-lg'}
+                        ${data?.scale || ''}
+                        ${data?.special ? 'shadow-[0_0_20px_#00ff00] z-10' : ''}
+                    `}
+                    style={val ? { backgroundColor: data.color } : {}}
+                    >
+                        {val && (
+                            <>
+                                <span className={`text-[8px] font-black leading-none text-center px-1 uppercase tracking-tighter`} style={{ color: data.text }}>
+                                    {data.label}
+                                </span>
+                                <span className="text-[10px] md:text-xs mt-1 font-bold" style={{ color: data.text }}>
+                                    {val}
+                                </span>
+                                {data?.special && <Zap size={10} className="absolute top-1 right-1 text-white animate-pulse" />}
+                            </>
+                        )}
+                    </div>
+                )
+            })}
+        </div>
+
+        {/* GAME OVER MODAL */}
+        {gameOver && (
+            <div className="absolute inset-0 bg-black/95 backdrop-blur-sm flex flex-col items-center justify-center z-50 animate-in fade-in duration-700 p-8 text-center">
+                <Skull size={48} className="text-red-600 mb-4 animate-bounce" />
+                <p className="text-red-500 font-black text-2xl mb-1 tracking-tighter">POSITION CLOSED</p>
+                <p className="text-gray-500 text-[10px] mb-8 uppercase tracking-widest">You were liquidated by the volatility.<br/>Final score: {score}</p>
+                <button onClick={initGame} className="w-full bg-green-600 text-black font-black py-4 rounded border-b-4 border-green-900 active:border-0 hover:bg-green-400 transition-all text-sm uppercase">
+                    Try Again
+                </button>
+            </div>
+        )}
+      </div>
+
+      {/* 4. FOOTER: CONTROLS HINT */}
+      <div className="p-3 bg-[#0a0a0a] border-t border-gray-900 flex justify-center items-center">
+         <span className="text-[8px] text-gray-500 font-bold tracking-widest uppercase">
+             {window.innerWidth < 768 ? "Swipe IT to Merge IT" : "Use Arrows to Merge IT"}
+         </span>
+      </div>
+
+      {/* FOOTER TICKER */}
+      <div className="bg-black p-1.5 flex gap-4 overflow-hidden border-t border-green-950 whitespace-nowrap">
+        <div className="flex gap-10 animate-marquee text-[8px] font-bold text-green-900 tracking-[0.3em] uppercase">
+            <span>*** 1 IT = 1 IT ***</span>
+            <span>MERGE THE VOID</span>
+            <span>GOD CANDLE IMMINENT</span>
+            <span>NO PAPER HANDS ALLOWED</span>
+            <span>*** 1 IT = 1 IT ***</span>
+            <span>MERGE THE VOID</span>
+            <span>GOD CANDLE IMMINENT</span>
+            <span>NO PAPER HANDS ALLOWED</span>
+        </div>
+      </div>
+
+      <style>{`
+        @keyframes marquee { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+        .animate-marquee { animation: marquee 15s linear infinite; }
+      `}</style>
+    </div>
+  );
+};
+
+
+
+
+// --- MAIN OS MANAGER ---
 // --- MAIN OS MANAGER ---
 export default function UltimateOS() {
   const [windows, setWindows] = useState([]);
@@ -2698,7 +3173,7 @@ export default function UltimateOS() {
 
   const openApp = (type) => {
     const id = generateId();
-    // UPDATED: Added Trollbox
+    // UPDATED: Added Meme Mind and Merge IT to titles
     const titles = { 
         paint: 'Paint IT', 
         terminal: 'Terminal IT', 
@@ -2706,17 +3181,19 @@ export default function UltimateOS() {
         rugsweeper: 'Stack IT', 
         notepad: 'Write IT', 
         memes: 'Memes',
-        trollbox: 'Trollbox IT' 
+        trollbox: 'Trollbox IT',
+        mememind: 'Meme Mind IT',
+        mergeit: 'Merge IT'
     };
     
     // RESPONSIVE SIZING
     const isMobile = window.innerWidth < 768;
-    // Special sizing for Phone-style apps
-    const isPhoneApp = type === 'rugsweeper' || type === 'trollbox';
+    // UPDATED: Added mememind and mergeit to isPhoneApp logic for proper vertical sizing
+    const isPhoneApp = type === 'rugsweeper' || type === 'trollbox' || type === 'mememind' || type === 'mergeit';
     const isWideApp = type === 'paint' || type === 'memes';
     
     const defaultW = isWideApp ? 640 : (isPhoneApp ? 340 : 500);
-    const defaultH = isWideApp ? 480 : (isPhoneApp ? 600 : 400);
+    const defaultH = isWideApp ? 480 : (isPhoneApp ? 580 : 400);
 
     const newWin = { 
       id, type, title: titles[type] || 'App', 
@@ -2807,11 +3284,12 @@ export default function UltimateOS() {
       {/* Desktop Icons */}
       <div className="absolute top-0 left-0 p-4 z-0 flex flex-col gap-4 flex-wrap max-h-full">
         <DesktopIcon icon={Terminal} label="Terminal" onClick={() => openApp('terminal')} />
+        <DesktopIcon icon={Lightbulb} label="Meme Mind" onClick={() => openApp('mememind')} />
+        <DesktopIcon icon={TrendingUp} label="Merge IT" onClick={() => openApp('mergeit')} />
         <DesktopIcon icon={Paintbrush} label="Paint IT" onClick={() => openApp('paint')} />
         <DesktopIcon icon={Music} label="Tune IT" onClick={() => openApp('tunes')} />
         <DesktopIcon icon={Gamepad2} label="Stack IT" onClick={() => openApp('rugsweeper')} />
         <DesktopIcon icon={FileText} label="Write IT" onClick={() => openApp('notepad')} />
-        {/* UPDATED: Trollbox Icon */}
         <DesktopIcon icon={MessageSquare} label="Trollbox" onClick={() => openApp('trollbox')} />
         <DesktopIcon icon={Folder} label="Memes" onClick={() => openApp('memes')} />
       </div>
@@ -2833,10 +3311,12 @@ export default function UltimateOS() {
           {win.type === 'terminal' && <TerminalApp dexData={dexData} />}
           {win.type === 'tunes' && <AmpTunesApp />}
           {win.type === 'rugsweeper' && <RugSweeperApp />}
-          {/* UPDATED: Notepad and ChatApp Renderers */}
           {win.type === 'notepad' && <NotepadApp />}
           {win.type === 'trollbox' && <ChatApp />}
           {win.type === 'memes' && <MemesApp />}
+          {/* UPDATED: Added new App Renderers */}
+          {win.type === 'mememind' && <MemeMindApp />}
+          {win.type === 'mergeit' && <MergeItApp />}
         </DraggableWindow>
       ))}
 
