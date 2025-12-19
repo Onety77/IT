@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 
 
-// --- FIREBASE CONFIGURATION ---
+
 const firebaseConfig = {
   apiKey: "AIzaSyB_gNokFnucM2nNAhhkRRnPsPNBAShYlMs",
   authDomain: "it-token.firebaseapp.com",
@@ -31,23 +31,23 @@ const firebaseConfig = {
   appId: "1:804328953904:web:e760545b579bf2527075f5"
 };
 
-// Initialize Firebase Services
+
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
 
-// This defines the folder name in your database. 
-// We hardcode it so it stays consistent for everyone.
+
+
 const appId = 'it-token-os';
 
 
-// --- ASSET CONFIGURATION ---
+
 const ASSETS = {
   wallpaper: "wall.jpg", 
   logo: "logo.png",
   
-  // STICKERS: Used ONLY in "Paint IT" (Stamps)
+  
   stickers: {
     main: "main.jpg",
     pumpit: "pumpit.jpg",
@@ -56,7 +56,7 @@ const ASSETS = {
     hodlit: "hodlit.jpg",
   },
 
-  // MEMES: Used ONLY in "Memes" Folder (Gallery)
+  
   memes: {
     main: "main.jpg",
     pumpit: "pumpit.jpg",
@@ -111,13 +111,13 @@ const ASSETS = {
   }
 };
 
-// --- SOCIAL LINKS & CA ---
+
 const SOCIALS = {
   twitter: "https://x.com/ITonSol",
   community: "https://x.com/ITonSol",
 };
 
-// --- MUSIC CONFIGURATION ---
+
 const TUNES_PLAYLIST = [
   { file: "PUMP_IT_UP.mp3", title: "PUMP IT UP", duration: "3:45", artist: "Unknown Degen" },
   { file: "GREEN_CANDLES.mp3", title: "GREEN CANDLES", duration: "4:01", artist: "Satoshi" },
@@ -127,7 +127,7 @@ const TUNES_PLAYLIST = [
 
 const CA_ADDRESS = "So11111111111111111111111111111111111111112"; 
 
-// --- UTILITIES ---
+
 const generateId = () => Math.random().toString(36).substr(2, 9);
 const copyToClipboard = (text) => {
   if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -142,9 +142,9 @@ const copyToClipboard = (text) => {
   }
 };
 
-// --- HOOKS ---
 
-// 1. Live Price Data
+
+
 const useDexData = (ca) => {
   const [data, setData] = useState({ price: "LOADING...", mcap: "LOADING...", change: "0" });
   useEffect(() => {
@@ -169,7 +169,7 @@ const useDexData = (ca) => {
   return data;
 };
 
-// 2. Wallet Connection
+
 const useWallet = () => {
   const [wallet, setWallet] = useState(null);
   const [connecting, setConnecting] = useState(false);
@@ -187,7 +187,7 @@ const useWallet = () => {
   return { wallet, connect, connecting };
 };
 
-// --- UI COMPONENTS ---
+
 
 const Button = ({ children, onClick, className = "", active = false, disabled = false, title = "", ...props }) => (
   <button
@@ -235,7 +235,7 @@ const WindowFrame = ({ title, icon: Icon, children, onClose, onMinimize, onMaxim
   </div>
 );
 
-// --- START MENU COMPONENT ---
+
 const StartMenu = ({ isOpen, onClose, onOpenApp }) => {
   const [caCopied, setCaCopied] = useState(false);
 
@@ -290,8 +290,8 @@ const StartMenu = ({ isOpen, onClose, onOpenApp }) => {
              <div className="px-2 py-1 text-gray-500 font-bold text-[10px] uppercase">Programs</div>
              {[
                { id: 'terminal', icon: Terminal, label: 'Terminal' },
-               { id: 'mememind', icon: Lightbulb, label: 'Meme Mind IT' }, // INTEGRATED
-               { id: 'mergeit', icon: TrendingUp, label: 'Merge IT' },      // INTEGRATED
+               { id: 'mememind', icon: Lightbulb, label: 'Meme Mind IT' }, 
+               { id: 'mergeit', icon: TrendingUp, label: 'Merge IT' },      
                { id: 'paint', icon: Paintbrush, label: 'Paint IT' },
                { id: 'memes', icon: Folder, label: 'Memes' },
                { id: 'tunes', icon: Music, label: 'Tune IT' },
@@ -311,7 +311,7 @@ const StartMenu = ({ isOpen, onClose, onOpenApp }) => {
 
 
 
-// --- APPS (Same content, optimized containers) ---
+
 
 const Shippy = ({ hidden }) => {
   const [isOpen, setIsOpen] = useState(false); 
@@ -320,7 +320,7 @@ const Shippy = ({ hidden }) => {
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef(null);
   
-  // ✅ SECURE: Updated access method for environment variables to ensure compatibility
+  
   const API_KEY = (typeof process !== 'undefined' && process.env ? process.env.VITE_OR_PROVIDER_ID : "") || ""; 
   
   const SYSTEM_PROMPT = `
@@ -347,7 +347,7 @@ const Shippy = ({ hidden }) => {
     6. Never say "IT's", say "IT is". 
   `;
 
-  // --- AUTO SCROLL LOGIC ---
+  
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -363,7 +363,7 @@ const Shippy = ({ hidden }) => {
     setMessages(newHistory);
     setLoading(true);
 
-    // Check if the Environment Variable is missing
+    
     if (!API_KEY) {
       setMessages(prev => [...prev, { 
         role: 'shippy', 
@@ -465,7 +465,7 @@ const Shippy = ({ hidden }) => {
   );
 };
 
-// --- ASCII ART ASSETS ---
+
 const ASCII_IT = [
   "██╗████████╗",
   "██║╚══██╔══╝",
@@ -484,8 +484,8 @@ const ASCII_PEPE = [
   "⠀⠀⠀⠀⠀⠀⠀⣾⡿⠳⠤⠤⠃⢀⡀⠀⠀⠀⠈⠉⠉⠁⠀⠀⠈⠉⠉⠉⠁⠀",
 ];
 
-// --- UTILS ---
-// 🔥 FIXED: Using DexScreener for SOL price to avoid Binance CORS issues
+
+
 const getSolPriceForever = async () => {
   try {
     const solMint = "So11111111111111111111111111111111111111112";
@@ -501,7 +501,7 @@ const getSolPriceForever = async () => {
   }
 };
 
-// 2. TERMINAL IT - HACKER CONSOLE (GOD MODE)
+
 const TerminalApp = ({ dexData }) => {
   const [history, setHistory] = useState([]);
   const [input, setInput] = useState("");
@@ -516,7 +516,7 @@ const TerminalApp = ({ dexData }) => {
 
   const safeDexData = dexData || { price: "N/A", mcap: "N/A", change: "0%" };
 
-  // --- BOOT SEQUENCE ---
+  
   useEffect(() => {
     const bootSequence = [
       { text: "BIOS DATE 01/01/2025 14:22:52 VER 4.2.0", delay: 100 },
@@ -550,12 +550,12 @@ const TerminalApp = ({ dexData }) => {
     if (!isBooting && !isProcessing) inputRef.current?.focus(); 
   };
 
-  // --- COMMAND PROCESSOR ---
+  
   const processCommand = async (cmdString) => {
     const rawArgs = cmdString.trim().split(" ");
     const cmd = rawArgs[0].toLowerCase();
     
-    // Add to visual history
+    
     const prompt = matrixMode ? `NEO@ZION:~$` : `root@it_os:~$`;
     setHistory(prev => [...prev, { text: `${prompt} ${cmdString}`, color: "#aaa" }]);
     
@@ -704,7 +704,7 @@ const TerminalApp = ({ dexData }) => {
         return;
         
       default:
-        // THE "IT" DETECTOR (Easter Egg)
+        
         if (cmdString.toLowerCase().includes("it")) {
             response = [
                 { text: ">> SIGNAL DETECTED <<", color: "#00ff00" },
@@ -795,7 +795,7 @@ const TerminalApp = ({ dexData }) => {
   );
 };
 
-// --- PAINT APP HELPERS ---
+
 const FONTS = [
   { name: 'Impact', val: 'Impact, sans-serif' },
   { name: 'Arial', val: 'Arial, sans-serif' },
@@ -820,44 +820,44 @@ const InsetPanel = ({ children, className="" }) => (
     </div>
 );
 
-// 3. PAINT IT (ULTIMATE RESPONSIVE)
+
 const PaintApp = () => {
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
   const fileInputRef = useRef(null);
 
-  // --- CORE STATE ---
+  
   const [elements, setElements] = useState([]); 
   const [history, setHistory] = useState([[]]);
   const [historyStep, setHistoryStep] = useState(0);
   const [canvasSize, setCanvasSize] = useState(CANVAS_PRESETS[0]);
   
-  // --- VIEWPORT STATE (ZOOM/PAN) ---
+  
   const [view, setView] = useState({ scale: 1, x: 0, y: 0 });
   
-  // --- UI STATE ---
+  
   const [showStickers, setShowStickers] = useState(true);
   const [showProps, setShowProps] = useState(false);
 
-  // --- TOOLS STATE ---
+  
   const [tool, setTool] = useState('move'); 
   const [selectedId, setSelectedId] = useState(null);
   const [isResizing, setIsResizing] = useState(false);
   
-  // --- STYLE STATE ---
+  
   const [toolColor, setToolColor] = useState('#000000');
   const [brushSize, setBrushSize] = useState(5);
   
-  // --- EFFECTS STATE ---
+  
   const [globalEffect, setGlobalEffect] = useState('none');
 
-  // --- INTERACTION REFS ---
+  
   const [isDragging, setIsDragging] = useState(false);
   const dragStartRef = useRef({ x: 0, y: 0 });
   const currentPathRef = useRef([]);
   const gestureRef = useRef({ startDist: 0, startScale: 1, startX: 0, startY: 0, startViewX: 0, startViewY: 0 });
 
-  // Auto-hide panels on mount if screen is small
+  
   useEffect(() => {
       if (window.innerWidth < 600) {
           setShowStickers(false);
@@ -865,7 +865,7 @@ const PaintApp = () => {
       }
   }, []);
 
-  // --- KEYBOARD SHORTCUTS ---
+  
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return; 
@@ -877,13 +877,13 @@ const PaintApp = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [selectedId, elements, historyStep]);
 
-  // --- RENDER ENGINE ---
+  
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     
-    // Clear & Fill
+    
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -914,7 +914,7 @@ const PaintApp = () => {
         ctx.font = `900 ${el.size}px ${el.font}`;
         ctx.textAlign = 'left';
         ctx.textBaseline = 'top';
-        // Dynamic Stroke
+        
         if (el.strokeWidth > 0) {
             ctx.strokeStyle = el.strokeColor || '#000000';
             ctx.lineWidth = el.strokeWidth; 
@@ -938,7 +938,7 @@ const PaintApp = () => {
           }
           ctx.strokeRect(bx-5, by-5, bw+10, bh+10);
           ctx.fillStyle = '#000080';
-          ctx.fillRect(bx + bw, by + bh, 15, 15); // Big handle for touch
+          ctx.fillRect(bx + bw, by + bh, 15, 15); 
           ctx.restore();
       }
       ctx.restore();
@@ -957,7 +957,7 @@ const PaintApp = () => {
     ctx.restore();
   }, [elements, tool, selectedId, globalEffect, isDragging, toolColor, brushSize]);
 
-  // --- LOGIC ---
+  
   const saveHistory = (newEls) => {
     const newHist = history.slice(0, historyStep + 1);
     if (newHist.length > 20) newHist.shift();
@@ -1004,7 +1004,7 @@ const PaintApp = () => {
       saveHistory(newElements);
   };
 
-  // --- TOUCH / MOUSE HANDLING ---
+  
   const getCanvasCoords = (clientX, clientY) => {
       const rect = canvasRef.current.getBoundingClientRect();
       const scaleX = canvasRef.current.width / rect.width;
@@ -1059,7 +1059,7 @@ const PaintApp = () => {
               setElements(newEls);
               setSelectedId(hit.id);
               setIsDragging(true);
-              // Do NOT open props on selection (User requested)
+              
           } else {
               setSelectedId(null);
           }
@@ -1110,10 +1110,10 @@ const PaintApp = () => {
       setIsResizing(false);
   };
 
-  // --- NATIVE TOUCH HANDLERS (ZOOM/PAN + DELEGATION) ---
+  
   const handleTouchStart = (e) => {
       if (e.touches.length === 2) {
-          e.preventDefault(); // Prevent Browser Zoom
+          e.preventDefault(); 
           const dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
           const cx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
           const cy = (e.touches[0].clientY + e.touches[1].clientY) / 2;
@@ -1124,7 +1124,7 @@ const PaintApp = () => {
   };
 
   const handleTouchMove = (e) => {
-      e.preventDefault(); // Important for no-scroll
+      e.preventDefault(); 
       if (e.touches.length === 2) {
           const dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
           const cx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
@@ -1142,22 +1142,22 @@ const PaintApp = () => {
       handleEnd();
   };
 
-  // --- MOUSE HANDLERS (DELEGATION) ---
+  
   const handleMouseDown = (e) => handleStart(e.clientX, e.clientY);
   const handleMouseMove = (e) => handleMove(e.clientX, e.clientY);
   const handleMouseUp = () => handleEnd();
 
-  // --- ASSET HELPERS ---
+  
   const addText = () => {
       const newEl = { 
           id: generateId(), type: 'text', x: 50, y: 50, 
           text: 'EDIT IT', color: toolColor, size: 50, font: FONTS[0].val,
-          strokeColor: '#000000', strokeWidth: 2 // Default Stroke
+          strokeColor: '#000000', strokeWidth: 2 
       };
       saveHistory([...elements, newEl]);
       setSelectedId(newEl.id);
       setTool('move');
-      setShowProps(true); // Open props for new item
+      setShowProps(true); 
   };
 
   const addSticker = (key) => {
@@ -1361,7 +1361,7 @@ const AmpTunesApp = () => {
   const canvasRef = useRef(null);
   const requestRef = useRef(null);
 
-  // --- STATE ---
+  
   const [playing, setPlaying] = useState(false);
   const [trackIndex, setTrackIndex] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
@@ -1370,7 +1370,7 @@ const AmpTunesApp = () => {
   const [shuffle, setShuffle] = useState(false);
   const [loop, setLoop] = useState(false);
 
-  // --- UTILS ---
+  
   const formatTime = (s) => {
     if (!s || isNaN(s)) return "00:00";
     const min = Math.floor(s / 60);
@@ -1378,7 +1378,7 @@ const AmpTunesApp = () => {
     return `${min < 10 ? '0' : ''}${min}:${sec < 10 ? '0' : ''}${sec}`;
   };
 
-  // --- STYLE INJECTION (MARQUEE) ---
+  
   useEffect(() => {
     if (!document.getElementById('marquee-style')) {
         const style = document.createElement('style');
@@ -1396,7 +1396,7 @@ const AmpTunesApp = () => {
     }
   }, []);
 
-  // --- AUDIO ENGINE ---
+  
   useEffect(() => {
     audioRef.current = new Audio();
     audioRef.current.volume = volume;
@@ -1426,17 +1426,17 @@ const AmpTunesApp = () => {
       }
       if (requestRef.current) cancelAnimationFrame(requestRef.current);
     };
-  }, [loop]); // Re-bind if loop state changes
+  }, [loop]); 
 
-  // Track Change Effect
+  
   useEffect(() => {
     if (!audioRef.current) return;
-    // Ensure TUNES_PLAYLIST exists in scope (from main file)
+    
     const track = typeof TUNES_PLAYLIST !== 'undefined' ? TUNES_PLAYLIST[trackIndex] : null;
     if (!track) return;
 
-    // LOGIC FIX: Try 'file' prop first, then 'src', fallback to 'title'
-    // You need to update TUNES_PLAYLIST to include { file: "path/to/song.mp3" }
+    
+    
     audioRef.current.src = track.file || track.src || track.title; 
     
     audioRef.current.load();
@@ -1451,19 +1451,19 @@ const AmpTunesApp = () => {
     }
   }, [trackIndex]);
 
-  // Volume Effect
+  
   useEffect(() => {
       if(audioRef.current) audioRef.current.volume = volume;
   }, [volume]);
 
-  // Play/Pause Effect
+  
   useEffect(() => {
       if (!audioRef.current) return;
       if (playing) audioRef.current.play().catch(e => console.log("Playback error:", e));
       else audioRef.current.pause();
   }, [playing]);
 
-  // --- CONTROLS ---
+  
   const togglePlay = () => setPlaying(!playing);
   
   const nextTrack = () => {
@@ -1486,7 +1486,7 @@ const AmpTunesApp = () => {
       setCurrentTime(time);
   };
 
-  // --- VISUALIZER LOOP ---
+  
   const drawVisualizer = () => {
       const canvas = canvasRef.current;
       if (!canvas) return;
@@ -1497,34 +1497,34 @@ const AmpTunesApp = () => {
       ctx.fillStyle = '#000000';
       ctx.fillRect(0, 0, w, h);
 
-      // Draw Grid
+      
       ctx.strokeStyle = 'rgba(0, 50, 0, 0.5)';
       ctx.lineWidth = 1;
       for(let i=0; i<w; i+=4) { ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,h); ctx.stroke(); }
       for(let i=0; i<h; i+=4) { ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(w,i); ctx.stroke(); }
 
       if (playing) {
-          // Simulated Spectrum Analyzer
+          
           const bars = 20;
           const barW = w / bars;
-          ctx.fillStyle = '#00ff00'; // Matrix Green
+          ctx.fillStyle = '#00ff00'; 
           
           for(let i=0; i<bars; i++) {
-              // Generate fake frequency data based on time + index
+              
               const noise = Math.random() * 0.5 + 0.5;
               const height = Math.sin(Date.now()/200 + i) * h * 0.5 * noise;
               const barH = Math.abs(height);
               
-              // Draw Bar
+              
               ctx.fillRect(i * barW + 1, h - barH, barW - 2, barH);
               
-              // Draw "Peak" (falling dot)
+              
               ctx.fillStyle = '#ccffcc';
               ctx.fillRect(i * barW + 1, h - barH - 4, barW - 2, 2);
               ctx.fillStyle = '#00ff00';
           }
       } else {
-          // Idle State: Flat Line
+          
           ctx.strokeStyle = '#00ff00';
           ctx.beginPath();
           ctx.moveTo(0, h/2);
@@ -1645,18 +1645,18 @@ const AmpTunesApp = () => {
   );
 };
 
-// 5. PLAY IT (STACK IT - TO THE MOON)
+
 const RugSweeperApp = () => {
   const canvasRef = useRef(null);
   const requestRef = useRef();
   const audioCtxRef = useRef(null);
 
-  // --- STATE ---
-  const [gameState, setGameState] = useState('MENU'); // MENU, PLAYING, GAME_OVER, SUBMIT_SCORE, LEADERBOARD, NEW_HIGHSCORE
+  
+  const [gameState, setGameState] = useState('MENU'); 
   const [score, setScore] = useState(0);
   const [highScore, setHighScore] = useState(0);
   
-  // Username state (for input) and Saved Name state (for logic)
+  
   const [usernameInput, setUsernameInput] = useState('');
   const [savedName, setSavedName] = useState(null);
   
@@ -1666,7 +1666,7 @@ const RugSweeperApp = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [user, setUser] = useState(null);
 
-  // --- ENGINE REFS ---
+  
   const game = useRef({
     state: 'MENU',
     stack: [],
@@ -1682,7 +1682,7 @@ const RugSweeperApp = () => {
     score: 0
   });
 
-  // --- CONSTANTS ---
+  
   const GAME_WIDTH = 320;
   const GAME_HEIGHT = 550;
   const BLOCK_HEIGHT = 35;
@@ -1700,7 +1700,7 @@ const RugSweeperApp = () => {
   ];
   const [currentBiome, setCurrentBiome] = useState(BIOMES[0]);
 
-  // --- INIT & AUTH ---
+  
   useEffect(() => {
     const initAuth = async () => {
       if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
@@ -1712,11 +1712,11 @@ const RugSweeperApp = () => {
     initAuth();
     const unsubscribe = onAuthStateChanged(auth, setUser);
 
-    // Load Local High Score
+    
     const localHighScore = localStorage.getItem('stackItHighScore');
     if (localHighScore) setHighScore(parseInt(localHighScore, 10));
 
-    // Load Local Username
+    
     const localName = localStorage.getItem('stackItUsername');
     if (localName) {
       setSavedName(localName);
@@ -1729,7 +1729,7 @@ const RugSweeperApp = () => {
     };
   }, []);
 
-  // --- SPACEBAR SUPPORT ---
+  
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.code === 'Space') {
@@ -1737,7 +1737,7 @@ const RugSweeperApp = () => {
         if (['MENU', 'GAME_OVER'].includes(game.current.state)) {
           startGame();
         } else if (game.current.state === 'NEW_HIGHSCORE') {
-           // If we have a saved name, spacebar can trigger retry
+           
            if (savedName) handleReturningSubmit('RETRY');
         } else if (game.current.state === 'PLAYING') {
           placeBlock();
@@ -1746,9 +1746,9 @@ const RugSweeperApp = () => {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [savedName]); // Re-bind if savedName changes
+  }, [savedName]); 
 
-  // --- FIREBASE LOGIC ---
+  
 
   const fetchLeaderboard = async () => {
     if (!user) return;
@@ -1759,8 +1759,8 @@ const RugSweeperApp = () => {
       const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
       const sorted = data.sort((a, b) => Number(b.score) - Number(a.score));
 
-      // Calculate Rank using the saved name
-      const currentName = localStorage.getItem('stackItUsername'); // Force read latest
+      
+      const currentName = localStorage.getItem('stackItUsername'); 
       if (currentName) {
         const rank = sorted.findIndex(x => x.username === currentName) + 1;
         setPlayerRank(rank > 0 ? rank : null);
@@ -1782,7 +1782,7 @@ const RugSweeperApp = () => {
       const scoresRef = collection(db, 'artifacts', appId, 'public', 'data', 'stackit_scores');
       const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'stackit_scores', uid);
 
-      // 1. Check for duplicates ONLY if this is a brand new name (no local storage)
+      
       const isReturningUser = !!localStorage.getItem('stackItUsername');
 
       if (!isReturningUser) {
@@ -1797,29 +1797,29 @@ const RugSweeperApp = () => {
           return false;
         }
         
-        // Success! Lock it in local storage forever
+        
         localStorage.setItem('stackItUsername', upperName);
-        setSavedName(upperName); // Update state to trigger UI change next time
+        setSavedName(upperName); 
       }
 
-      // 2. Upsert Score
+      
       const snap = await getDoc(docRef);
 
       if (!snap.exists()) {
-        // Create New
+        
         await setDoc(docRef, {
           username: upperName,
           score: scoreToSave,
           timestamp: Date.now()
         });
       } else {
-        // Update Existing
+        
         const existingScore = Number(snap.data().score || 0);
         if (scoreToSave > existingScore) {
           await updateDoc(docRef, {
             score: scoreToSave,
             timestamp: Date.now(),
-            username: upperName // Ensure consistency
+            username: upperName 
           });
         }
       }
@@ -1831,9 +1831,9 @@ const RugSweeperApp = () => {
     }
   };
 
-  // --- HANDLERS FOR ATH SCREEN ---
+  
 
-  // PATH A.1: First time user submits name
+  
   const handleFirstTimeSubmit = async () => {
     if (!usernameInput.trim()) {
       alert("ENTER NAME TO SAVE SCORE");
@@ -1844,20 +1844,20 @@ const RugSweeperApp = () => {
     setIsSubmitting(false);
 
     if (success) {
-      // After first submit, go to leaderboard to show them their glory
+      
       await fetchLeaderboard();
       setGameState('LEADERBOARD');
       game.current.state = 'LEADERBOARD';
     }
   };
 
-  // PATH A.2: Returning user (Auto-saved name) clicks Retry or Rank
+  
   const handleReturningSubmit = async (action) => {
     const name = savedName || localStorage.getItem('stackItUsername');
-    if (!name) return; // Should not happen in this view
+    if (!name) return; 
 
     setIsSubmitting(true);
-    // Force save the score
+    
     await saveScoreToDb(name, game.current.score);
     setIsSubmitting(false);
 
@@ -1870,7 +1870,7 @@ const RugSweeperApp = () => {
     }
   };
 
-  // --- AUDIO & GAMEPLAY ---
+  
   const initAudio = () => {
     if (!audioCtxRef.current) {
       try { audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)(); }
@@ -1947,7 +1947,7 @@ const RugSweeperApp = () => {
     if(e) { e.stopPropagation(); e.preventDefault(); }
     initAudio();
 
-    // RESET GAME REF
+    
     game.current = {
         state: 'PLAYING',
         stack: [],
@@ -1995,7 +1995,7 @@ const RugSweeperApp = () => {
     const absDist = Math.abs(dist);
     const tolerance = 10;
 
-    // MISS
+    
     if (absDist > curr.w) {
       createParticles(curr.x, curr.y, curr.w, curr.h, '#ff0000', 20);
       g.shake = 20;
@@ -2008,14 +2008,14 @@ const RugSweeperApp = () => {
     let isPerfect = false;
     let scoreAdd = 1;
 
-    // HIT
+    
     if (absDist <= tolerance) {
       newX = prev.x;
       newW = prev.w;
       isPerfect = true;
       g.combo++;
       g.perfectCount++;
-      if (g.combo >= 3) scoreAdd = 2; // COMBO BONUS
+      if (g.combo >= 3) scoreAdd = 2; 
 
       if (g.combo >= 3 && newW < BASE_WIDTH) {
         newW = Math.min(BASE_WIDTH, newW + 20);
@@ -2045,7 +2045,7 @@ const RugSweeperApp = () => {
     g.score += scoreAdd;
     setScore(g.score);
 
-    // Update Local High Score immediately for UI
+    
     if (g.score > highScore) {
         setHighScore(g.score);
         localStorage.setItem('stackItHighScore', g.score);
@@ -2061,12 +2061,12 @@ const RugSweeperApp = () => {
     playSound('fail');
     const finalScore = game.current.score;
 
-    // Logic Split: ATH vs Regular Game Over
-    // We check local HighScore (which we just updated in placeBlock)
+    
+    
     const storedHS = parseInt(localStorage.getItem('stackItHighScore') || '0', 10);
     
-    // If the game score matches the stored high score, it's a new record (or tied)
-    // We treat it as ATH if score > 0
+    
+    
     if (finalScore > 0 && finalScore >= storedHS) {
         setGameState('NEW_HIGHSCORE');
         game.current.state = 'NEW_HIGHSCORE';
@@ -2083,7 +2083,7 @@ const RugSweeperApp = () => {
     const g = game.current;
     g.time += 0.05;
 
-    // PHYSICS
+    
     if (g.state === 'PLAYING' && g.current) {
       g.current.x += g.current.speed * g.current.dir;
       if (g.current.x > GAME_WIDTH + 50) g.current.dir = -1;
@@ -2104,7 +2104,7 @@ const RugSweeperApp = () => {
     g.particles.forEach(p => { p.x += p.vx; p.y += p.vy; p.life -= 0.03; });
     g.particles = g.particles.filter(p => p.life > 0);
 
-    // DRAW
+    
     const gradient = ctx.createLinearGradient(0, 0, 0, GAME_HEIGHT);
     gradient.addColorStop(0, currentBiome.bgStart);
     gradient.addColorStop(1, currentBiome.bgEnd);
@@ -2241,7 +2241,7 @@ const RugSweeperApp = () => {
             <div className="text-6xl font-black text-white mb-6">{score}</div>
 
             {savedName ? (
-                // --- SCENARIO 2: RETURNING USER (HAS SAVED NAME) ---
+                
                 <div className="flex flex-col items-center w-full">
                     <div className="mb-6 flex flex-col items-center">
                         <p className="text-xs text-blue-300 font-bold mb-1">CONTINUE AS</p>
@@ -2269,7 +2269,7 @@ const RugSweeperApp = () => {
                     <p className="text-[10px] text-blue-300 mt-4 max-w-[200px]">CLICKING RETRY OR RANK SAVES YOUR SCORE ON-CHAIN</p>
                 </div>
             ) : (
-                // --- SCENARIO 1: FIRST TIME USER (NO SAVED NAME) ---
+                
                 <div className="flex flex-col items-center w-full">
                     <p className="text-xs text-blue-200 mb-2 font-bold">ENTER DEGEN NAME:</p>
                     <input
@@ -2310,7 +2310,7 @@ const RugSweeperApp = () => {
                         </thead>
                         <tbody>
                             {leaderboard.map((entry, i) => {
-                                // Logic: Highlight ONLY if this specific entry matches our saved name
+                                
                                 const isCurrentUser = savedName && entry.username === savedName;
                                 return (
                                     <tr key={i} className="border-b border-gray-800 text-gray-300">
@@ -2405,7 +2405,7 @@ const ChatApp = () => {
   const scrollRef = useRef(null);
   const [pendingMessages, setPendingMessages] = useState([]);
 
-  // --- INIT & AUTH ---
+  
   useEffect(() => {
     const initAuth = async () => {
       try {
@@ -2427,7 +2427,7 @@ const ChatApp = () => {
     return () => unsubscribe();
   }, []);
 
-  // --- LOAD USERNAME ---
+  
   useEffect(() => {
     const savedName = localStorage.getItem('trollbox_username');
     if (savedName) {
@@ -2436,12 +2436,12 @@ const ChatApp = () => {
     }
   }, []);
 
-  // --- LIVE CHAT LISTENER (FIXED LIMIT) ---
+  
   useEffect(() => {
     if (!userUid) return;
     
-    // 🔥 CRITICAL FIX: The query now happens AT the database level.
-    // This only requests 15 documents total.
+    
+    
     const q = query(
         collection(db, 'artifacts', appId, 'public', 'data', 'trollbox_messages'),
         orderBy('timestamp', 'desc'),
@@ -2462,7 +2462,7 @@ const ChatApp = () => {
             return { id: doc.id, ...data, _normalizedTs: ts };
         });
 
-        // Since we fetched Newest First (desc), we reverse for the chat UI
+        
         const finalMsgs = rawMsgs.reverse();
         
         setMessages(finalMsgs);
@@ -2475,7 +2475,7 @@ const ChatApp = () => {
     return () => unsubscribe();
   }, [userUid]);
 
-  // --- AUTO SCROLL ---
+  
   useEffect(() => {
     if (scrollRef.current) {
         scrollRef.current.scrollTo({
@@ -2485,7 +2485,7 @@ const ChatApp = () => {
     }
   }, [messages, pendingMessages, isConnected]); 
 
-  // --- ACTIONS ---
+  
   const handleSetUser = () => {
       const name = username.trim().toUpperCase().slice(0, 12);
       if (name.length < 2) return; 
@@ -2604,18 +2604,18 @@ const ChatApp = () => {
 };
 
 
-//notepad app
+
 const NotepadApp = () => {
   const [content, setContent] = useState("");
   const [status, setStatus] = useState("READY");
   
-  // Load from local storage on boot
+  
   useEffect(() => {
     const saved = localStorage.getItem('write_it_content');
     if (saved) setContent(saved);
   }, []);
 
-  // Auto-save logic
+  
   const handleChange = (e) => {
     const text = e.target.value;
     setContent(text);
@@ -2634,7 +2634,7 @@ const NotepadApp = () => {
 
   const publishIt = () => {
     if (!content.trim()) return;
-    const text = encodeURIComponent(content.slice(0, 280)); // Twitter limit check roughly
+    const text = encodeURIComponent(content.slice(0, 280)); 
     window.open(`https://twitter.com/intent/tweet?text=${text}`, '_blank');
     setStatus("PUBLISHED");
   };
@@ -2690,14 +2690,14 @@ const NotepadApp = () => {
 };
 
 
-//mememind app
+
 const MemeMindApp = () => {
   const [idea, setIdea] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // ✅ SECURE: Key is now pulled from Vercel Environment Variables
-  // Uses the same obfuscated name to keep Vercel's security scanners happy
+  
+  
   const API_KEY = (typeof process !== 'undefined' && process.env ? process.env.VITE_OR_PROVIDER_ID : "") || ""; 
 
   const generateIdea = async () => {
@@ -2716,7 +2716,7 @@ const MemeMindApp = () => {
 
     const userPrompt = "Generate a fresh, viral meme idea or tweet about $IT.";
 
-    // Check if the Environment Variable is missing
+    
     if (!API_KEY) {
       setError("NEURAL LINK OFFLINE. CONFIGURATION MISSING IN VERCEL.");
       setLoading(false);
@@ -2734,7 +2734,7 @@ const MemeMindApp = () => {
           "X-Title": "IT_OS_MemeMind"
         },
         body: JSON.stringify({
-          // Using llama-3.2-3b-instruct:free for higher availability
+          
           model: "meta-llama/llama-3.2-3b-instruct:free",
           messages: [
             { role: "system", content: systemPrompt },
@@ -2843,14 +2843,14 @@ const MemeMindApp = () => {
       </div>
 
       <div className="bg-black p-1 text-[7px] text-green-900 text-center uppercase tracking-widest border-t border-green-950">
-        IT_OS NEURAL LINK ESTABLISHED // LLAMA_3.2_ENGINE
+        IT_OS NEURAL LINK ESTABLISHED 
       </div>
     </div>
   );
 };
 
 
-// merge it app
+
 
 const TILE_DATA = {
   2:    { label: 'PEANUTS', color: '#1a1a1a', text: '#555', scale: 'scale-90' },
@@ -2872,12 +2872,12 @@ const MergeItApp = () => {
   const [score, setScore] = useState(0);
   const [best, setBest] = useState(0);
   const [gameOver, setGameOver] = useState(false);
-  const [marketStatus, setMarketStatus] = useState("STABLE"); // STABLE, VOLATILE, BULLISH
+  const [marketStatus, setMarketStatus] = useState("STABLE"); 
   
   const audioCtx = useRef(null);
   const touchStart = useRef(null);
 
-  // --- AUDIO FEEDBACK ---
+  
   const playNote = (freq, type = 'sine', duration = 0.1) => {
     try {
         if (!audioCtx.current) audioCtx.current = new (window.AudioContext || window.webkitAudioContext)();
@@ -2896,7 +2896,7 @@ const MergeItApp = () => {
     } catch(e) {}
   };
 
-  // --- GAME ENGINE ---
+  
   const initGame = useCallback(() => {
     let newGrid = Array(16).fill(null);
     newGrid = addRandomTile(addRandomTile(newGrid));
@@ -2983,7 +2983,7 @@ const MergeItApp = () => {
         localStorage.setItem('mergeItBest', currentScore);
       }
 
-      // Check Volatility: Every 500-ish points
+      
       if (currentScore > 0 && currentScore % 500 < 30 && marketStatus === "STABLE") {
           triggerVolatility(withRandom);
       } else if (currentScore % 500 > 150) {
@@ -2995,7 +2995,7 @@ const MergeItApp = () => {
   };
 
   const triggerVolatility = (currentGrid) => {
-      const isRug = Math.random() > 0.6; // 40% chance of Rug
+      const isRug = Math.random() > 0.6; 
       setMarketStatus(isRug ? "BEARISH_RUG" : "BULLISH_PUMP");
       playNote(isRug ? 80 : 600, 'sawtooth', 0.4);
       
@@ -3020,7 +3020,7 @@ const MergeItApp = () => {
     playNote(60, 'sawtooth', 0.8);
   };
 
-  // --- CONTROLS: KEYBOARD & SWIPE ---
+  
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
@@ -3165,8 +3165,8 @@ const MergeItApp = () => {
 
 
 
-// --- MAIN OS MANAGER ---
-// --- MAIN OS MANAGER ---
+
+
 export default function UltimateOS() {
   const [windows, setWindows] = useState([]);
   const [maxZ, setMaxZ] = useState(10);
@@ -3181,7 +3181,7 @@ export default function UltimateOS() {
 
   const openApp = (type) => {
     const id = generateId();
-    // UPDATED: Added Meme Mind and Merge IT to titles
+    
     const titles = { 
         paint: 'Paint IT', 
         terminal: 'Terminal IT', 
@@ -3194,9 +3194,9 @@ export default function UltimateOS() {
         mergeit: 'Merge IT'
     };
     
-    // RESPONSIVE SIZING
+    
     const isMobile = window.innerWidth < 768;
-    // UPDATED: Added mememind and mergeit to isPhoneApp logic for proper vertical sizing
+    
     const isPhoneApp = type === 'rugsweeper' || type === 'trollbox' || type === 'mememind' || type === 'mergeit';
     const isWideApp = type === 'paint' || type === 'memes';
     
@@ -3357,7 +3357,7 @@ export default function UltimateOS() {
   );
 }
 
-// Helpers
+
 const DesktopIcon = ({ icon: Icon, label, onClick }) => (
   <div onClick={onClick} className="flex flex-col items-center gap-1 w-20 cursor-pointer p-1 border border-transparent hover:border-white/20 hover:bg-white/10 rounded active:opacity-70 group active:bg-white/20">
     <Icon size={32} className="text-white drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)]" strokeWidth={1.5} />
@@ -3372,7 +3372,7 @@ const DraggableWindow = ({ win, isActive, children, onFocus, onClose, onMaximize
   const startDrag = (clientX, clientY) => {
     if (win.isMaximized) return;
     onFocus();
-    // Locate the container (parent of the header)
+    
     const element = document.getElementById(`win-${win.id}`);
     if(!element) return;
     const rect = element.getBoundingClientRect();
