@@ -757,7 +757,7 @@ const TerminalApp = ({ dexData }) => {
     >
       {/* STATUS BAR */}
       <div className={`flex justify-between px-2 py-1 text-xs border-b ${matrixMode ? 'bg-green-900 border-green-500 text-black' : 'bg-[#1a1a1a] border-[#333] text-gray-500'}`}>
-        <span>MEM: {matrixMode ? "INF" : "640K"}</span>
+        <span>MM: {matrixMode ? "INF" : "NEO640"}</span>
         <span>NET: {safeDexData.price !== "N/A" ? "ONLINE" : "OFFLINE"}</span>
         <span>SECURE_SHELL</span>
       </div>
@@ -2773,7 +2773,7 @@ const MemeMindApp = () => {
             <span className="text-[10px] font-bold tracking-widest text-white">MEME_MIND_IT_V2.0</span>
         </div>
         <div className="bg-green-900/30 px-2 py-0.5 rounded text-[8px] text-green-400 border border-green-800">
-            AI_STATUS: ACTIVE
+            STATUS: ACTIVE
         </div>
       </div>
 
