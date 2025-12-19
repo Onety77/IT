@@ -309,11 +309,12 @@ const Shippy = ({ hidden }) => {
   const [messages, setMessages] = useState([{ role: 'shippy', text: "I see you're online. Would you like to PUMP IT?" }]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const scrollRef = useRef(null);
   
   // 🔑 PASTE YOUR OPENROUTER API KEY HERE (It should start with sk-or-...)
-  const API_KEY = "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"; 
+  const API_KEY = "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"; 
   
-   const SYSTEM_PROMPT = `
+    const SYSTEM_PROMPT = `
     You are Shippy, the witty, sassy "Ghost in the Machine" of $IT OS.
     
     KNOWLEDGE BASE:
@@ -336,12 +337,19 @@ const Shippy = ({ hidden }) => {
   `;
 
 
+  // --- AUTO SCROLL LOGIC ---
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [messages, loading]);
+
   const handleSend = async () => {
     if(!input.trim() || loading) return;
     const userText = input; 
     setInput("");
     
-    // Create history for API (alternating roles)
+    // Add user message to UI
     const newHistory = [...messages, { role: 'user', text: userText }];
     setMessages(newHistory);
     setLoading(true);
@@ -359,12 +367,12 @@ const Shippy = ({ hidden }) => {
     try {
       const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
-        // 'omit' ensures the browser doesn't try to use cookies, which fixes the "cookie auth" error
         credentials: 'omit', 
         headers: {
           "Authorization": `Bearer ${API_KEY.trim()}`,
           "Content-Type": "application/json",
-          "HTTP-Referer": "https://it-token-os.vercel.app", 
+          // Dynamic Referer to prevent domain mismatch issues
+          "HTTP-Referer": window.location.origin, 
           "X-Title": "IT_OS_AI"
         },
         body: JSON.stringify({
@@ -377,7 +385,7 @@ const Shippy = ({ hidden }) => {
             }))
           ],
           max_tokens: 60,
-          temperature: 1.1
+          temperature: 1.2
         })
       });
 
@@ -391,7 +399,6 @@ const Shippy = ({ hidden }) => {
       setMessages(prev => [...prev, { role: 'shippy', text: reply }]);
     } catch (e) {
       console.error("AI Error Details:", e);
-      // Custom lore-friendly error message
       setMessages(prev => [...prev, { 
         role: 'shippy', 
         text: "SYSTEM OVERLOAD. TOO MANY PEOPLE WANT IT. TRY AGAIN IN A MINUTE." 
@@ -404,27 +411,47 @@ const Shippy = ({ hidden }) => {
   if (!isOpen) return (
     <div className="fixed bottom-12 right-4 z-[9999] cursor-pointer flex flex-col items-center group" onClick={() => setIsOpen(true)} style={{ display: hidden ? 'none' : 'flex' }}>
        <div className="bg-white border-2 border-black px-2 py-1 mb-1 relative text-xs font-bold font-mono shadow-[4px_4px_0px_rgba(0,0,0,0.5)] group-hover:scale-105 transition-transform">Talk IT</div>
-       <img src={ASSETS.logo} alt="IT Bot" className="w-14 h-14 object-contain drop-shadow-[0_4px_4px_rgba(0,0,0,0.5)]" />
+       <img src={typeof ASSETS !== 'undefined' ? ASSETS.logo : ""} alt="IT Bot" className="w-14 h-14 object-contain drop-shadow-[0_4px_4px_rgba(0,0,0,0.5)]" />
     </div>
   );
 
   return (
     <div className="fixed bottom-12 right-4 w-72 max-w-[90vw] bg-[#ffffcc] border-2 border-black z-[9999] shadow-xl flex flex-col font-mono text-xs" style={{ display: hidden ? 'none' : 'flex' }}>
-      <div className="bg-blue-800 text-white p-1 flex justify-between items-center"><span className="font-bold flex items-center gap-1"><Bot size={12}/> Talk IT (AI)</span><X size={12} className="cursor-pointer p-1 -mr-1" onClick={() => setIsOpen(false)} /></div>
-      <div className="h-56 overflow-y-auto p-2 space-y-2 border-b border-black relative" style={{ backgroundImage: `url(${ASSETS.stickers.sendit})`, backgroundSize: 'cover', backgroundPosition: 'center' }}>
-        <div className="absolute inset-0 bg-white/50 pointer-events-none"></div>
+      <div className="bg-blue-800 text-white p-1 flex justify-between items-center select-none">
+        <span className="font-bold flex items-center gap-1"><Bot size={12}/> Talk IT (AI)</span>
+        <X size={12} className="cursor-pointer p-1 -mr-1 hover:bg-red-600" onClick={() => setIsOpen(false)} />
+      </div>
+
+      <div 
+        ref={scrollRef}
+        className="h-56 overflow-y-auto p-2 space-y-2 border-b border-black relative bg-white scroll-smooth"
+      >
         <div className="relative z-10 space-y-2">
           {messages.map((m, i) => (
             <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-              <div className={`max-w-[85%] p-1 border border-black shadow-md font-bold ${m.role === 'user' ? 'bg-blue-100' : 'bg-yellow-100'}`}>{m.text}</div>
+              <div className={`max-w-[85%] p-1 border border-black shadow-md font-bold ${m.role === 'user' ? 'bg-blue-100' : 'bg-yellow-100 text-blue-900'}`}>{m.text}</div>
             </div>
           ))}
           {loading && <div className="text-[10px] animate-pulse font-bold text-blue-800">Shippy is thinking it...</div>}
         </div>
       </div>
+
       <div className="p-1 flex gap-1 bg-[#d4d0c8]">
-        <input className="flex-1 border p-1" value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSend()} placeholder="Say it..." disabled={loading}/>
-        <button onClick={handleSend} disabled={loading || !input.trim()} className="bg-blue-600 text-white px-2 font-bold active:bg-blue-800 disabled:bg-gray-400">&gt;</button>
+        <input 
+            className="flex-1 border p-1 outline-none focus:bg-white" 
+            value={input} 
+            onChange={e => setInput(e.target.value)} 
+            onKeyDown={e => e.key === 'Enter' && handleSend()} 
+            placeholder="Say it..." 
+            disabled={loading}
+        />
+        <button 
+            onClick={handleSend} 
+            disabled={loading || !input.trim()} 
+            className="bg-blue-600 text-white px-2 font-bold active:bg-blue-800 disabled:bg-gray-400"
+        >
+            &gt;
+        </button>
       </div>
     </div>
   );
