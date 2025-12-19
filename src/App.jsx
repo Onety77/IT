@@ -393,18 +393,19 @@ console.log("System Check: Neural Link Status -", API_KEY ? "ESTABLISHED" : "OFF
           "HTTP-Referer": window.location.origin, 
           "X-Title": "IT_OS_AI"
         },
+        
         body: JSON.stringify({
-          model: "meta-llama/llama-3.3-70b-instruct:free",
-          messages: [
-            { role: "system", content: SYSTEM_PROMPT },
-            ...newHistory.slice(-6).map(m => ({ 
-              role: m.role === 'shippy' ? 'assistant' : 'user', 
-              content: m.text 
-            }))
-          ],
-          max_tokens: 60,
-          temperature: 1.2
-        })
+  model: "meta-llama/llama-3.3-70b-instruct", 
+  messages: [
+    { role: "system", content: SYSTEM_PROMPT },
+    ...newHistory.slice(-6).map(m => ({ 
+      role: m.role === 'shippy' ? 'assistant' : 'user', 
+      content: m.text 
+    }))
+  ],
+  max_tokens: 80,
+  temperature: 1.2
+})
       });
 
       const data = await response.json();
@@ -2740,15 +2741,17 @@ const MemeMindApp = () => {
           "X-Title": "IT_OS_MemeMind"
         },
         body: JSON.stringify({
-          
-          model: "meta-llama/llama-3.3-70b-instruct:free",
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt }
-          ],
-          max_tokens: 100,
-          temperature: 1.3 
-        })
+  model: "meta-llama/llama-3.3-70b-instruct", 
+  messages: [
+    { role: "system", content: SYSTEM_PROMPT },
+    ...newHistory.slice(-6).map(m => ({ 
+      role: m.role === 'shippy' ? 'assistant' : 'user', 
+      content: m.text 
+    }))
+  ],
+  max_tokens: 100,
+  temperature: 1.2
+})
       });
 
       const data = await response.json();
