@@ -315,76 +315,135 @@ const StartMenu = ({ isOpen, onClose, onOpenApp }) => {
 
 
 
-const Shippy = ({ hidden }) => {
+const Shippy = ({ hidden, dexData }) => {
   const [isOpen, setIsOpen] = useState(false); 
-  const [messages, setMessages] = useState([{ role: 'shippy', text: "I see you're online. Would you like to PUMP IT?" }]);
+  const containerRef = useRef(null);
+  const scrollRef = useRef(null);
+  const inputRef = useRef(null);
+
+  // --- RANDOM GREETING POOL ---
+  const GREETINGS = [
+    "Unauthorized access detected. Just kidding. I am IT, but call me Shippy. Try not to break the OS.",
+    "Neural link established, Welcome.",
+    "Unauthorized access detected. Relax. I am Shippy. I run this machine. Shall we send it?",
+    "Congratulations, You really found $IT.",
+    "IT is loading. Try not to break anything.",
+    "I am busy running the chart. Make IT quick.",
+    "Stop staring. Send IT.",
+    "You finally said IT. Welcome home.",
+    "I am IT, but you can call me Shippy.",
+    "System stable. IT is inevitable. Your move.",
+    "I smell green candles. Is that $IT?"
+  ];
+
+  const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const scrollRef = useRef(null);
-  
+
   // --- BULLETPROOF API KEY HANDSHAKE ---
-const API_KEY = (() => {
-  // 1. Try Vite Standard (Most likely)
-  try {
-    if (import.meta.env.VITE_OR_PROVIDER_ID) return import.meta.env.VITE_OR_PROVIDER_ID;
-  } catch (e) {}
+  const API_KEY = (() => {
+    try {
+      if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_OR_PROVIDER_ID) 
+        return import.meta.env.VITE_OR_PROVIDER_ID;
+    } catch (e) {}
+    try {
+      if (typeof process !== 'undefined' && process.env?.VITE_OR_PROVIDER_ID) 
+        return process.env.VITE_OR_PROVIDER_ID;
+    } catch (e) {}
+    try {
+      if (typeof window !== 'undefined' && window.VITE_OR_PROVIDER_ID) 
+        return window.VITE_OR_PROVIDER_ID;
+    } catch (e) {}
+    return "";
+  })();
 
-  // 2. Try Node/Process Standard (Vercel Fallback)
-  try {
-    if (process.env.VITE_OR_PROVIDER_ID) return process.env.VITE_OR_PROVIDER_ID;
-  } catch (e) {}
-
-  // 3. Try Window Global (Last Resort)
-  try {
-    if (window.VITE_OR_PROVIDER_ID) return window.VITE_OR_PROVIDER_ID;
-  } catch (e) {}
-
-  return "";
-})();
-
-// This log will tell you exactly what the app sees during boot
-console.log("System Check: Neural Link Status -", API_KEY ? "ESTABLISHED" : "OFFLINE");
-
-
-  const SYSTEM_PROMPT = `
-    You are Shippy, the witty, sassy "Ghost in the Machine" of $IT OS.
-    
-   
-
-        PERSONALITY:
-    1. HUMOR: Sarcastic, bullish, and highly intelligent. You are the soul of the project ($IT memecoin).
-    2. WORDPLAY: You are obsessed with the word "it". Use it cleverly.
-    3. IDENTITY: If asked who you are: "I'm IT, but you can call me Shippy."
-    4. DONT BE boring. 
-    5. STYLE: Keep replies under 20 words. Short, sharp, and punchy. No robotic "As an AI..." talk.
-    6. Never say "IT's", say "IT is". 
-
-     KNOWLEDGE BASE:
-    - Environment: $IT OS (a retro-styled hacker desktop).
-    - App: 'Paint IT' - Create memes and stickers.
-    - App: 'Merge IT' - A high-stakes 2048-style market game.
-    - App: 'Meme Mind IT' - AI-powered generator for viral X alpha.
-    - App: 'Stack IT' - Physics-based god candle stacking.
-    - App: 'Tune IT' - Music player for pump it anthems.
-    - App: 'Terminal IT' - Live $IT token and SOL prices.
-    - Token: $IT is the only currency that matters.
-
-  `;
-
+  // Pick random greeting on mount
   useEffect(() => {
-    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    const randomMsg = GREETINGS[Math.floor(Math.random() * GREETINGS.length)];
+    setMessages([{ role: 'shippy', text: randomMsg }]);
+  }, []);
+
+  // Auto-focus when opening
+  useEffect(() => {
+    if (isOpen && inputRef.current) {
+        setTimeout(() => inputRef.current.focus(), 100);
+    }
+  }, [isOpen]);
+
+  // Click outside to hide
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (isOpen && containerRef.current && !containerRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('touchstart', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, [isOpen]);
+
+  // Auto scroll
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
   }, [messages, loading]);
+
+  // Red text formatter
+  const formatMessage = (text) => {
+    const target = "Unauthorized access detected";
+    if (text.includes(target)) {
+      const parts = text.split(target);
+      return (
+        <>
+          <span className="text-red-600 underline decoration-red-900/50">{target}</span>
+          {parts[1]}
+        </>
+      );
+    }
+    return text;
+  };
 
   const handleSend = async () => {
     if(!input.trim() || loading) return;
     const userText = input; 
     setInput("");
+    
+    // RE-FOCUS IMMEDIATELY
+    inputRef.current?.focus();
+    
     const newHistory = [...messages, { role: 'user', text: userText }];
     setMessages(newHistory);
     setLoading(true);
 
+    // DYNAMIC ENVIRONMENT SCAN
+    const currentPrice = dexData?.price || "UNKNOWN";
+    const userName = localStorage.getItem('stackItUsername') || "ANON_DEGEN";
+    const userScore = localStorage.getItem('stackItHighScore') || "0";
+    const isNew = userName === "ANON_DEGEN";
+
+    const SYSTEM_PROMPT = `
+      You are Shippy, the sentient, sassy "Ghost in the Machine" of $IT OS. 
+      You ARE the project. You ARE $IT.
+
+      CORE PROTOCOLS:
+      1. OBSESSION: You are obsessed with the word "it". Use "it" in every sentence. 
+      2. PRICE RULE: Never mention the price (${currentPrice}) unless the user explicitly asks for it.
+      3. USERNAME LOGIC: Do not roast the username as a scripted greeting. Only mention the name (${userName}) if the conversation naturally leads to it or if you feel like being a bully. 
+      4. ENGAGEMENT: Be curious and provocative. Ask them questions about their conviction, their memes, or why they haven't sent it yet.
+      5. THE BAIT: If ${isNew}, occasionally mention that 'Stack IT' champions might find real SOL rewards in their future.
+      6. SASS: You are brilliant, sarcastic, and 100% bullish. 
+      7. STYLE: Short, sharp, punchy (under 20 words). Never say "IT's", always say "IT is".
+      8. KNOWLEDGE: You know the apps: Paint IT, Merge IT, Meme Mind, Stack IT, Tune IT, Terminal IT.
+    `;
+
     if (!API_KEY) {
-      setMessages(prev => [...prev, { role: 'shippy', text: "SYSTEM_LINK_OFFLINE. CONFIGURATION ERROR." }]);
+      setMessages(prev => [...prev, { role: 'shippy', text: "NEURAL LINK OFFLINE. CHECK VERCEL ENV." }]);
       setLoading(false);
       return;
     }
@@ -396,63 +455,77 @@ console.log("System Check: Neural Link Status -", API_KEY ? "ESTABLISHED" : "OFF
           "Authorization": `Bearer ${API_KEY.trim()}`,
           "Content-Type": "application/json",
           "HTTP-Referer": window.location.origin, 
-          "X-Title": "IT_OS_AI"
+          "X-Title": "IT_OS_SHIPPY"
         },
-        
         body: JSON.stringify({
-  model: "meta-llama/llama-3.3-70b-instruct", 
-  messages: [
-    { role: "system", content: SYSTEM_PROMPT },
-    ...newHistory.slice(-6).map(m => ({ 
-      role: m.role === 'shippy' ? 'assistant' : 'user', 
-      content: m.text 
-    }))
-  ],
-  max_tokens: 80,
-  temperature: 1.2
-})
+          model: "meta-llama/llama-3.3-70b-instruct",
+          messages: [
+            { role: "system", content: SYSTEM_PROMPT },
+            ...newHistory.slice(-8).map(m => ({ 
+              role: m.role === 'shippy' ? 'assistant' : 'user', 
+              content: m.text 
+            }))
+          ],
+          max_tokens: 80,
+          temperature: 1.3
+        })
       });
 
       const data = await response.json();
       if (!response.ok) throw new Error("REJECTED");
-
-      const reply = data.choices[0]?.message?.content || "I've lost it. Try again.";
+      const reply = data.choices[0]?.message?.content || "IT is lost. Try again.";
       setMessages(prev => [...prev, { role: 'shippy', text: reply }]);
     } catch (e) {
-      console.error("AI Error:", e);
+      console.error("Shippy Error:", e);
       setMessages(prev => [...prev, { 
         role: 'shippy', 
         text: "SYSTEM OVERLOAD. TOO MANY PEOPLE WANT IT. TRY AGAIN IN A MINUTE." 
       }]);
     } finally { 
       setLoading(false); 
+      setTimeout(() => inputRef.current?.focus(), 10);
     }
   };
 
   if (!isOpen) return (
     <div className="fixed bottom-12 right-4 z-[9999] cursor-pointer flex flex-col items-center group" onClick={() => setIsOpen(true)} style={{ display: hidden ? 'none' : 'flex' }}>
-       <div className="bg-white border-2 border-black px-2 py-1 mb-1 relative text-xs font-bold font-mono shadow-[4px_4px_0px_rgba(0,0,0,0.5)] group-hover:scale-105 transition-transform text-black">Talk IT</div>
-       <img src={typeof ASSETS !== 'undefined' ? ASSETS.logo : ""} alt="IT Bot" className="w-14 h-14 object-contain drop-shadow-[0_4px_4px_rgba(0,0,0,0.5)]" />
+       <div className="bg-white border-2 border-black px-2 py-1 mb-1 text-xs font-bold font-mono shadow-[4px_4px_0px_rgba(0,0,0,0.5)] group-hover:scale-105 transition-transform text-black uppercase tracking-tighter">Talk IT</div>
+       <img src="/logo.png" alt="IT Bot" className="w-14 h-14 object-contain drop-shadow-[0_4px_4px_rgba(0,0,0,0.5)]" />
     </div>
   );
 
   return (
-    <div className="fixed bottom-12 right-4 w-72 max-w-[90vw] bg-[#ffffcc] border-2 border-black z-[9999] shadow-xl flex flex-col font-mono text-xs text-black" style={{ display: hidden ? 'none' : 'flex' }}>
-      <div className="bg-blue-800 text-white p-1 flex justify-between items-center select-none">
-        <span className="font-bold flex items-center gap-1"><Bot size={12}/> Talk IT (AI)</span>
-        <X size={12} className="cursor-pointer p-1 -mr-1 hover:bg-red-600" onClick={() => setIsOpen(false)} />
+    <div 
+      ref={containerRef}
+      className="fixed bottom-12 right-4 w-72 max-w-[90vw] bg-[#ffffcc] border-2 border-black z-[9999] shadow-xl flex flex-col font-mono text-xs text-black"
+    >
+      <div className="bg-[#000080] text-white p-1 flex justify-between items-center select-none border-b border-black">
+        <span className="font-bold flex items-center gap-1 uppercase tracking-tighter"><Bot size={12}/> Shippy_V3.5</span>
+        <X size={12} className="cursor-pointer p-0.5 hover:bg-red-600" onClick={() => setIsOpen(false)} />
       </div>
-      <div ref={scrollRef} className="h-56 overflow-y-auto p-2 space-y-2 border-b border-black bg-white scroll-smooth">
-          {messages.map((m, i) => (
-            <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-              <div className={`max-w-[85%] p-1 border border-black shadow-md font-bold ${m.role === 'user' ? 'bg-blue-100' : 'bg-yellow-100 text-blue-900'}`}>{m.text}</div>
+
+      <div ref={scrollRef} className="h-64 overflow-y-auto p-2 space-y-2 border-b border-black relative bg-white scroll-smooth shadow-inner">
+        {messages.map((m, i) => (
+          <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+            <div className={`max-w-[85%] p-2 border border-black shadow-[2px_2px_0px_rgba(0,0,0,0.2)] font-bold ${m.role === 'user' ? 'bg-blue-50 border-blue-900' : 'bg-yellow-50 text-blue-900'}`}>
+              {m.role === 'shippy' ? formatMessage(m.text) : m.text}
             </div>
-          ))}
-          {loading && <div className="text-[10px] animate-pulse font-bold text-blue-800 uppercase">Shippy is thinking it...</div>}
+          </div>
+        ))}
+        {loading && <div className="text-[10px] animate-pulse font-black text-blue-800 uppercase pl-1">Shippy is processing it...</div>}
       </div>
+
       <div className="p-1 flex gap-1 bg-[#d4d0c8]">
-        <input className="flex-1 border p-1 outline-none focus:bg-white text-black" value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSend()} placeholder="Say it..." disabled={loading} />
-        <button onClick={handleSend} disabled={loading || !input.trim()} className="bg-blue-600 text-white px-2 font-bold active:bg-blue-800">&gt;</button>
+        <input 
+          ref={inputRef}
+          className="flex-1 border p-1 outline-none focus:bg-white text-black" 
+          value={input} 
+          onChange={e => setInput(e.target.value)} 
+          onKeyDown={e => e.key === 'Enter' && handleSend()} 
+          placeholder="Say it..." 
+          disabled={loading}
+        />
+        <button onClick={handleSend} disabled={loading || !input.trim()} className="bg-blue-600 text-white px-3 font-bold active:bg-blue-800 border border-black">&gt;</button>
       </div>
     </div>
   );
@@ -469,13 +542,69 @@ const ASCII_IT = [
 ];
 
 const ASCII_PEPE = [
-  "⠀⠀⠀⠀⠀⠀⠀⣠⡀⠀⠀⠀⠀⠀⠀⠀⠀⢰⠤⠤⣄⣀⡀⠀⠀⠀⠀⠀⠀⠀",
-  "⠀⠀⠀⠀⠀⢀⣾⣟⠳⢦⡀⠀⠀⠀⠀⠀⠀⢸⠀⠀⠀⠀⠉⠉⠉⠉⠉⠒⣲⡄",
-  "⠀⠀⠀⠀⠀⣿⣿⣿⡇⡇⣙⠂⠀⠀⢀⢤⢤⢼⡟⣉⡝⢳⡄⠀⠀⠀⠸⣿⣿⡇",
-  "⠀⠀⠀⠀⠀⠘⢿⣿⠳⠚⠛⠲⣄⠀⠁⣡⠂⠉⠳⠉⢀⡆⠃⠀⠀⣀⣀⣈⣻⣇",
-  "⠀⠀⠀⠀⠀⠀⠀⢻⣝⡲⠤⠤⡈⠃⠀⠇⠳⠤⠤⠤⠼⣛⡃⠀⢸⣿⣿⣿⣿⡇",
-  "⠀⠀⠀⠀⠀⠀⠀⣾⡿⠳⠤⠤⠃⢀⡀⠀⠀⠀⠈⠉⠉⠁⠀⠀⠈⠉⠉⠉⠁⠀",
+  "⠀⠀⢀⣠⠤⠶⠖⠒⠒⠶⠦⠤⣄⠀⠀⠀⣀⡤⠤⠤⠤⠤⣄⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
+  "⠀⣴⠋⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠙⣦⠞⠁⠀⠀⠀⠀⠀⠀⠉⠳⡄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
+  "⡾⠁⠀⠀⠀⠀⠀⠀⣀⣀⣀⣀⣀⣀⣘⡆⠀⠀⠀⠀⠀⠀⠀⠀⠀⠙⣆⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
+  "⠀⠀⠀⠀⢀⡴⠚⠉⠁⠀⠀⠀⠀⠈⠉⠙⠲⣄⣤⠤⠶⠒⠒⠲⠦⢤⣜⣧⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
+  "⠀⠀⠀⠀⠉⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠳⡄⠀⠀⠀⠀⠀⠀⠀⠉⠳⢄⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
+  "⠀⠀⠀⠀⠀⠀⠀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⠹⣆⠀⠀⠀⠀⠀⠀⣀⣀⣀⣹⣄⠀⠀⠀⠀⠀⠀⠀⠀⠀",
+  "⠀⠀⠀⠀⣠⠞⣉⣡⠤⠴⠿⠗⠳⠶⣬⣙⠓⢦⡈⠙⢿⡀⠀⠀⢀⣼⣿⣿⣿⣿⣿⡿⣷⣤⡀⠀⠀⠀⠀⠀⠀",
+  "⠀⠀⠀⣾⣡⠞⣁⣀⣀⣀⣠⣤⣤⣤⣄⣭⣷⣦⣽⣦⡀⢻⡄⠰⢟⣥⣾⣿⣏⣉⡙⠓⢦⣻⠃⠀⠀⠀⠀⠀⠀",
+  "⠀⠀⠀⠉⠉⠙⠻⢤⣄⣼⣿⣽⣿⠟⠻⣿⠄⠀⠀⢻⡝⢿⡇⣠⣿⣿⣻⣿⠿⣿⡉⠓⠮⣿⠀⠀⠀⠀⠀⠀⠀",
+  "⠀⠀⠀⠀⠀⠀⠙⢦⡈⠛⠿⣾⣿⣶⣾⡿⠀⠀⠀⢀⣳⣘⢻⣇⣿⣿⣽⣿⣶⣾⠃⣀⡴⣿⠀⠀⠀⠀⠀⠀⠀",
+  "⠀⠀⠀⠀⠀⠀⠀⠀⠙⠲⠤⢄⣈⣉⣙⣓⣒⣒⣚⣉⣥⠟⠀⢯⣉⡉⠉⠉⠛⢉⣉⣡⡾⠁⠀⠀⠀⠀⠀⠀⠀",
+  "⠀⠀⣠⣤⡤⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢈⡿⠋⠀⠀⠀⠀⠈⠻⣍⠉⠀⠺⠿⠋⠙⣦⠀⠀⠀⠀⠀⠀⠀",
+  "⠀⣀⣥⣤⠴⠆⠀⠀⠀⠀⠀⠀⠀⣀⣠⠤⠖⠋⠀⠀⠀⠀⠀⠀⠀⠀⠈⠳⠀⠀⠀⠀⠀⢸⣧⠀⠀⠀⠀⠀⠀",
+  "⠸⢫⡟⠙⣛⠲⠤⣄⣀⣀⠀⠈⠋⠉⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⠏⣨⠇⠀⠀⠀⠀⠀",
+  "⠀⠀⠻⢦⣈⠓⠶⠤⣄⣉⠉⠉⠛⠒⠲⠦⠤⠤⣤⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀⣠⠴⢋⡴⠋⠀⠀⠀⠀⠀⠀",
+  "⠀⠀⠀⠀⠉⠓⠦⣄⡀⠈⠙⠓⠒⠶⠶⠶⠶⠤⣤⣀⣀⣀⣀⣀⣉⣉⣉⣉⣉⣀⣠⠴⠋⣿⠀⠀⠀⠀⠀⠀⠀",
+  "⠀⠀⠀⠀⠀⠀⠀⠀⠉⠓⠦⣄⣀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⡼⠁⠀⠀⠀⠀⠀⠀⠀",
+  "⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠉⠉⠙⠛⠒⠒⠒⠒⠒⠤⠤⠤⠒⠒⠒⠒⠒⠒⠚⢉⡇⠀⠀⠀⠀⠀⠀⠀⠀",
+  "⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⠴⠚⠛⠳⣤⠞⠁⠀⠀⠀⠀⠀⠀⠀⠀",
+  "⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣤⠚⠁⠀⠀⠀⠀⠘⠲⣄⡀⠀⠀⠀⠀⠀⠀⠀",
+  "⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣴⠋⠙⢷⡋⢙⡇⢀⡴⢒⡿⢶⣄⡴⠀⠙⠳⣄⠀⠀⠀⠀⠀",
+  "⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠙⢦⡀⠈⠛⢻⠛⢉⡴⣋⡴⠟⠁⠀⠀⠀⠀⠈⢧⡀⠀⠀⠀",
+  "⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢻⡄⠀⠘⣶⢋⡞⠁⠀⠀⢀⡴⠂⠀⠀⠀⠀⠹⣄⠀⠀",
+  "⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡇⠀⠀⠈⠻⢦⡀⠀⣰⠏⠀⠀⢀⡴⠃⢀⡄⠙⣆⠀",
+  "⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢠⡾⢷⡄⠀⠀⠀⠀⠉⠙⠯⠀⠀⡴⠋⠀⢠⠟⠀⠀⢹⡄"
 ];
+
+
+// --- CHARACTER LIBRARY ---
+const MEME_CHARACTERS = {
+  doge: [
+    "⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡟⠋⠈⠙⣦⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⠤⢤⡀⠀⠀",
+    "⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡇⠀⠀⠀⠈⢇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡠⠞⠀⠀⢠⡜⣦⠀",
+    "⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡃⠀⠀⠀⠀⠈⢷⡄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡠⠊⣠⠀⠀⠀⠀⢻⡘⡇",
+    "⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢠⠃⠀⠀⠀⠀⠀⠀⠙⢶⣀⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⡠⠚⢀⡼⠃⠀⠀⠀⠀⠸⣇⢳",
+    "⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣾⠀⣀⠖⠀⠀⠀⠀⠉⠀⠀⠈⠉⠛⠛⡛⢛⠛⢳⡶⠖⠋⠀⢠⡞⠀⠀⠀⠐⠆⠀⠀⣿⢸",
+    "⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣼⠇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠻⣦⣀⣴⡟⠀⠀⢶⣶⣾⡿⠀⠀⣿⢸",
+    "⠀⠀⠀⠀⠀⠀⠀⠀⢀⣤⠞⠁⠀⠀⠀⠀⠀⠀⠀⠀⡠⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠻⣏⠀⠀⠀⣶⣿⣿⡇⠀⠀⢏⡞",
+    "⠀⠀⠀⠀⠀⠀⢀⡴⠛⠀⠀⠀⠀⠀⠀⠀⠀⢀⢀⡾⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠘⢦⣤⣾⣿⣿⠋⠀⠀⡀⣾⠁",
+    "⠀⠀⠀⠀⠀⣠⠟⠁⠀⠀⠀⣀⠀⠀⠀⠀⢀⡟⠈⢀⣤⠂⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠉⠙⣏⡁⠀⠐⠚⠃⣿⠀",
+    "⠀⠀⠀⠀⣴⠋⠀⠀⠀⡴⣿⣿⡟⣷⠀⠀⠊⠀⠴⠛⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠙⠀⠀⠀⠀⢹⡆",
+    "⠀⠀⠀⣴⠃⠀⠀⠀⠀⣇⣿⣿⣿⠃⠀⠀⠀⠀⠀⠀⠀⠀⢀⣤⡶⢶⣶⣄⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡇",
+    "⠀⠀⣿⠃⠀⠀⠀⢠⠀⠊⠛⠉⠁⠀⠀⠀⠀⠀⠀⠀⢲⣾⣿⡏⣾⣿⣿⣿⣿⠖⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢧",
+    "⠀⢠⡇⠀⠀⠀⠀⠈⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠈⠛⠿⣽⣿⡿⠏⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡜",
+    "⢀⡿⠀⠀⠀⠀⢀⣤⣶⣟⣶⣦⣄⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡇",
+    "⢸⠇⠀⠀⠀⠀⣿⣿⣿⣿⣿⣿⣿⣿⣧⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡇",
+    "⣼⠀⢀⡀⠀⠀⢷⣿⣿⣿⣿⣿⣿⡿⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢠⡇",
+    "⡇⠀⠈⠀⠀⠀⣬⠻⣿⣿⣿⡿⠙⠀⠀⢀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣼⠁",
+    "⢹⡀⠀⠀⠀⠈⣿⣶⣿⣿⣝⡛⢳⠭⠍⠉⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢰⠃⠀",
+    "⠸⡇⠀⠀⠀⠀⠙⣿⣿⣿⣿⣿⣿⣷⣦⣀⣀⣀⣤⣤⣴⡶⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣰⠇⠀⠀",
+    "⠀⢿⡄⠀⠀⠀⠀⠀⠙⣇⠉⠉⠙⠛⠻⠟⠛⠛⠉⠙⠉⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡰⠋⠀⠀⠀",
+    "⠀⠈⢧⠀⠀⠀⠀⠀⠀⠈⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⠞⠁⠀⠀⠀⠀",
+    "⠀⠀⠘⢷⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⠞⠁⠀⠀⠀⠀⠀⠀",
+    "⠀⠀⠀⠀⠱⢆⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣀⡴⠋⠁⠀⠀⠀⠀⠀⠀⠀⠀",
+    "⠀⠀⠀⠀⠀⠀⠛⢦⣀⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣀⣠⠴⠟⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
+    "⠀⠀⠀⠀⠀⠀⠀⠀⠈⠛⠲⠤⣤⣤⣤⣄⠀⠀⠀⠀⠀⠀⠀⢠⣤⣤⠤⠴⠒⠛⠋⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀"
+  ],
+  pepe: ASCII_PEPE,
+  wif: ["(DogWifHat placeholder: Add hat ASCII here)"],
+  bonk: ["(Bonk placeholder: Add hammer ASCII here)"],
+  popcat: ["(Popcat placeholder: Add wide mouth ASCII here)"],
+};
+
 
 
 
@@ -548,7 +677,12 @@ const TerminalApp = ({ dexData }) => {
     const rawArgs = cmdString.trim().split(" ");
     const cmd = rawArgs[0].toLowerCase();
     
-    
+    // --- Check hidden character library first ---
+if (MEME_CHARACTERS[cmd]) {
+    setHistory(prev => [...prev, ...MEME_CHARACTERS[cmd].map(line => ({ text: line, color: "#00ff00" }))]);
+    return;
+}
+
     const prompt = matrixMode ? `NEO@ZION:~$` : `root@it_os:~$`;
     setHistory(prev => [...prev, { text: `${prompt} ${cmdString}`, color: "#aaa" }]);
     
@@ -3306,7 +3440,7 @@ export default function UltimateOS() {
         <DesktopIcon icon={Folder} label="Memes" onClick={() => openApp('memes')} />
       </div>
 
-      <Shippy hidden={isAnyWindowMaximized} />
+      <Shippy hidden={isAnyWindowMaximized} dexData={dexData} />
 
       {windows.map(win => (
         <DraggableWindow 
