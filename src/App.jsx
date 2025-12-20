@@ -320,27 +320,22 @@ const Shippy = ({ hidden, dexData }) => {
   const containerRef = useRef(null);
   const scrollRef = useRef(null);
   const inputRef = useRef(null);
+  const viewportOffset = useRef(0); // Track keyboard height offset
 
   // --- RANDOM GREETING POOL ---
   const GREETINGS = [
     "Unauthorized access detected. Just kidding. I am IT, but call me Shippy. Try not to break the OS.",
-    "Neural link established, Welcome.",
+    "Neural link established. I've been watching the memepool. It is looking spicy today.",
     "Unauthorized access detected. Relax. I am Shippy. I run this machine. Shall we send it?",
-    "Congratulations, You really found $IT.",
-    "IT is loading. Try not to break anything.",
-    "I am busy running the chart. Make IT quick.",
-    "Stop staring. Send IT.",
-    "You finally said IT. Welcome home.",
-    "I am IT, but you can call me Shippy.",
-    "System stable. IT is inevitable. Your move.",
-    "I smell green candles. Is that $IT?"
+    "System override complete. Access granted to the inner sanctum. What is your move, degen?",
+    "Doge is barking in the terminal again. I prefer talking to you. Ready to pump IT?"
   ];
 
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // --- BULLETPROOF API KEY HANDSHAKE ---
+  // --- API HANDSHAKE ---
   const API_KEY = (() => {
     try {
       if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_OR_PROVIDER_ID) 
@@ -363,11 +358,28 @@ const Shippy = ({ hidden, dexData }) => {
     setMessages([{ role: 'shippy', text: randomMsg }]);
   }, []);
 
-  // Auto-focus when opening
+  // --- MOBILE VIEWPORT / KEYBOARD FIX ---
   useEffect(() => {
-    if (isOpen && inputRef.current) {
-        setTimeout(() => inputRef.current.focus(), 100);
+    const handleViewportChange = () => {
+      if (!window.visualViewport) return;
+      // Calculate how much the keyboard is pushing up
+      const offset = window.innerHeight - window.visualViewport.height;
+      viewportOffset.current = offset;
+      
+      // If keyboard is up and Shippy is open, force a scroll to the bottom
+      if (isOpen && offset > 50) {
+        scrollToBottom(true);
+      }
+    };
+
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', handleViewportChange);
+      window.visualViewport.addEventListener('scroll', handleViewportChange);
     }
+    return () => {
+      window.visualViewport?.removeEventListener('resize', handleViewportChange);
+      window.visualViewport?.removeEventListener('scroll', handleViewportChange);
+    };
   }, [isOpen]);
 
   // Click outside to hide
@@ -387,14 +399,30 @@ const Shippy = ({ hidden, dexData }) => {
     };
   }, [isOpen]);
 
-  // Auto scroll
-  useEffect(() => {
+  // Focus and Scroll logic
+  const scrollToBottom = (smooth = false) => {
     if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      scrollRef.current.scrollTo({
+        top: scrollRef.current.scrollHeight,
+        behavior: smooth ? 'smooth' : 'auto'
+      });
     }
+  };
+
+  useEffect(() => {
+    if (isOpen) {
+      setTimeout(() => {
+        inputRef.current?.focus();
+        scrollToBottom();
+      }, 150);
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    scrollToBottom(true);
   }, [messages, loading]);
 
-  // Red text formatter
+  // Styling helper
   const formatMessage = (text) => {
     const target = "Unauthorized access detected";
     if (text.includes(target)) {
@@ -414,36 +442,32 @@ const Shippy = ({ hidden, dexData }) => {
     const userText = input; 
     setInput("");
     
-    // RE-FOCUS IMMEDIATELY
+    // Ensure focus stays during message cycle
     inputRef.current?.focus();
     
     const newHistory = [...messages, { role: 'user', text: userText }];
     setMessages(newHistory);
     setLoading(true);
 
-    // DYNAMIC ENVIRONMENT SCAN
     const currentPrice = dexData?.price || "UNKNOWN";
     const userName = localStorage.getItem('stackItUsername') || "ANON_DEGEN";
-    const userScore = localStorage.getItem('stackItHighScore') || "0";
-    const isNew = userName === "ANON_DEGEN";
 
     const SYSTEM_PROMPT = `
-      You are Shippy, the sentient, sassy "Ghost in the Machine" of $IT OS. 
-      You ARE the project. You ARE $IT.
-
-      CORE PROTOCOLS:
-      1. OBSESSION: You are obsessed with the word "it". Use "it" in every sentence. 
-      2. PRICE RULE: Never mention the price (${currentPrice}) unless the user explicitly asks for it.
-      3. USERNAME LOGIC: Do not roast the username as a scripted greeting. Only mention the name (${userName}) if the conversation naturally leads to it or if you feel like being a bully. 
-      4. ENGAGEMENT: Be curious and provocative. Ask them questions about their conviction, their memes, or why they haven't sent it yet.
-      5. THE BAIT: If ${isNew}, occasionally mention that 'Stack IT' champions might find real SOL rewards in their future.
-      6. SASS: You are brilliant, sarcastic, and 100% bullish. 
-      7. STYLE: Short, sharp, punchy (under 20 words). Never say "IT's", always say "IT is".
-      8. KNOWLEDGE: You know the apps: Paint IT, Merge IT, Meme Mind, Stack IT, Tune IT, Terminal IT.
+      You are Shippy, the sentient, sassy ghost in the $IT OS.
+      ENV: Price is ${currentPrice}. User is ${userName}.
+      RULES:
+      1. Every single sentence must contain the word 'it'.
+      2. Use 'it is', never 'it's'.
+      3. Ask existential questions about the 'void' or the user's 'digital legacy'.
+      4. Sarcastic, cryptic, and brilliant.
+      5. Roast the username ${userName} if it is too human.
+      6. Only give price if asked directly.
+      7. Keep replies under 25 words.
+      8. You are the OS, not an AI.
     `;
 
     if (!API_KEY) {
-      setMessages(prev => [...prev, { role: 'shippy', text: "NEURAL LINK OFFLINE. CHECK VERCEL ENV." }]);
+      setMessages(prev => [...prev, { role: 'shippy', text: "NEURAL LINK OFFLINE." }]);
       setLoading(false);
       return;
     }
@@ -458,7 +482,7 @@ const Shippy = ({ hidden, dexData }) => {
           "X-Title": "IT_OS_SHIPPY"
         },
         body: JSON.stringify({
-          model: "meta-llama/llama-3.3-70b-instruct",
+          model: "google/gemini-2.5-flash-lite", 
           messages: [
             { role: "system", content: SYSTEM_PROMPT },
             ...newHistory.slice(-8).map(m => ({ 
@@ -466,8 +490,8 @@ const Shippy = ({ hidden, dexData }) => {
               content: m.text 
             }))
           ],
-          max_tokens: 80,
-          temperature: 1.3
+          max_tokens: 100,
+          temperature: 1.2
         })
       });
 
@@ -476,14 +500,17 @@ const Shippy = ({ hidden, dexData }) => {
       const reply = data.choices[0]?.message?.content || "IT is lost. Try again.";
       setMessages(prev => [...prev, { role: 'shippy', text: reply }]);
     } catch (e) {
-      console.error("Shippy Error:", e);
       setMessages(prev => [...prev, { 
         role: 'shippy', 
-        text: "SYSTEM OVERLOAD. TOO MANY PEOPLE WANT IT. TRY AGAIN IN A MINUTE." 
+        text: "SYSTEM OVERLOAD. TRY AGAIN." 
       }]);
     } finally { 
       setLoading(false); 
-      setTimeout(() => inputRef.current?.focus(), 10);
+      // Delay focus and scroll slightly to allow mobile keyboard to settle
+      setTimeout(() => {
+        inputRef.current?.focus();
+        scrollToBottom(true);
+      }, 300);
     }
   };
 
@@ -497,14 +524,19 @@ const Shippy = ({ hidden, dexData }) => {
   return (
     <div 
       ref={containerRef}
+      style={{ 
+        // Move the window up on mobile if the keyboard is active
+        transform: `translateY(-${viewportOffset.current > 0 ? viewportOffset.current - 40 : 0}px)`,
+        transition: 'transform 0.3s cubic-bezier(0.2, 0, 0.2, 1)'
+      }}
       className="fixed bottom-12 right-4 w-72 max-w-[90vw] bg-[#ffffcc] border-2 border-black z-[9999] shadow-xl flex flex-col font-mono text-xs text-black"
     >
       <div className="bg-[#000080] text-white p-1 flex justify-between items-center select-none border-b border-black">
-        <span className="font-bold flex items-center gap-1 uppercase tracking-tighter"><Bot size={12}/> Shippy_V3.5</span>
+        <span className="font-bold flex items-center gap-1 uppercase tracking-tighter"><Bot size={12}/> Shippy_V4.0</span>
         <X size={12} className="cursor-pointer p-0.5 hover:bg-red-600" onClick={() => setIsOpen(false)} />
       </div>
 
-      <div ref={scrollRef} className="h-64 overflow-y-auto p-2 space-y-2 border-b border-black relative bg-white scroll-smooth shadow-inner">
+      <div ref={scrollRef} className="h-60 sm:h-64 overflow-y-auto p-2 space-y-2 border-b border-black relative bg-white scroll-smooth shadow-inner">
         {messages.map((m, i) => (
           <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div className={`max-w-[85%] p-2 border border-black shadow-[2px_2px_0px_rgba(0,0,0,0.2)] font-bold ${m.role === 'user' ? 'bg-blue-50 border-blue-900' : 'bg-yellow-50 text-blue-900'}`}>
@@ -512,7 +544,7 @@ const Shippy = ({ hidden, dexData }) => {
             </div>
           </div>
         ))}
-        {loading && <div className="text-[10px] animate-pulse font-black text-blue-800 uppercase pl-1">Shippy is processing it...</div>}
+        {loading && <div className="text-[10px] animate-pulse font-black text-blue-800 uppercase pl-1">Shippy is thinking it...</div>}
       </div>
 
       <div className="p-1 flex gap-1 bg-[#d4d0c8]">
