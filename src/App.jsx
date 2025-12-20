@@ -119,10 +119,12 @@ const SOCIALS = {
 
 
 const TUNES_PLAYLIST = [
-  { file: "PUMP_IT_UP.mp3", title: "PUMP IT UP", duration: "1:51", artist: "Unknown Degen" },
-  { file: "GREEN_CANDLES.mp3", title: "GREEN CANDLES", duration: "3:17", artist: "Satoshi" },
+  { file: "GET_IT_STARTED.mp3", title: "LETS GET IT STARTED", duration: "1:37", artist: "CREW" },
+  { file: "PUMP_IT_UP.mp3", title: "PUMP IT", duration: "1:51", artist: "Unknown Degen" },
+  { file: "GREEN_CANDLES.mp3", title: "GREEN CANDLES", duration: "3:17", artist: "Memesmith" },
   { file: "LIKE_TO_MEME_IT.mp3", title: "I LIKE TO MEME IT", duration: "3:30", artist: "MEMERS" },
-  { file: "WAGMI_ANTHEM.mp3", title: "WAGMI ANTHEM", duration: "3:56", artist: "Community" }
+  { file: "WAGMI_ANTHEM.mp3", title: "WAGMI ANTHEM", duration: "3:56", artist: "Community" },
+  { file: "MEME_IT.mp3", title: "MEME IT 2.0", duration: "2:34", artist: "MEMERS" }
 ];
 
 const CA_ADDRESS = "So11111111111111111111111111111111111111112";
@@ -275,7 +277,7 @@ const StartMenu = ({ isOpen, onClose, onOpenApp }) => {
             <div className="hover:bg-[#000080] hover:text-white cursor-pointer px-2 py-2 flex flex-col gap-1 active:bg-[#000080] active:text-white" onClick={handleCopy}>
                 <div className="flex items-center gap-2">
                     {caCopied ? <Check size={16} /> : <Copy size={16} />}
-                    <span className="font-bold">Copy CA</span>
+                    <span className="font-bold">Copy</span>
                 </div>
                 <div className="text-[10px] font-mono break-all leading-tight opacity-80 pl-6">
                     {CA_ADDRESS}
