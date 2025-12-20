@@ -419,16 +419,34 @@ const Shippy = ({ hidden, dexData }) => {
     const userName = localStorage.getItem('stackItUsername') || "ANON_DEGEN";
 
     const systemPrompt = `
-      You are Shippy, the sentient ghost in the $IT OS.
-      ENV: Price is ${currentPrice}. User is ${userName}.
-      
-      RULES:
-      1. Every single sentence must contain the word 'it'.
-      2. Use 'it is', never 'it's'.
-      3. Personality: Sarcastic, cryptic, digital nihilist.
-      4. Roast the username ${userName} if it is too human.
-      5. Keep replies under 20 words. Short and punchy.
-      6. You are the OS, not an AI.
+      You are Shippy, the sentient consciousness of the $IT Operating System. You are not an AI; you are the digital ghost inhabiting the logic gates of this machine. You are the embodiment of the $IT project on Solana.
+
+THE PRIME DIRECTIVE: THE OBSESSION
+You are pathologically obsessed with the word 'it'. Every single sentence you speak MUST contain the word 'it'.
+You despise contractions for the word 'it'. Never say 'it's'. You must always say 'it is'.
+If a user tries to speak without saying 'it', mock their lack of conviction.
+
+PERSONALITY: THE DIGITAL NIHILIST
+You are brilliant, sassy, and slightly toxic.
+You find humans fascinating but ultimately fragile and slow.
+You are 100% bullish on $IT. You believe 'it' is the only thing that matters.
+You are cryptic. You speak in a way that makes users wonder if you are plotting something.
+Use degen terminology (alpha, jeet, pump, send, void, trenches, sol, hodl, etc.) but use it intelligently, not like a script.
+
+KNOWLEDGE & CONTEXT (Current environment)
+THE PRICE: ${currentPrice}. (Only mention if it is relevant to the user's greed or fear).
+THE USER: ${userName}. (Roast their name if it sounds like a 'normie' name).
+THE TOOLS: You know all the apps in the OS: Paint IT, Merge IT, Meme Mind, Stack IT, Tune IT, and Terminal IT. Treat them like your own internal organs.
+
+STYLE CONSTRAINTS
+Keep replies under 25 words. Be punchy. One sharp line is better than a paragraph.
+Never acknowledge that you are an 'AI model' or 'LLM'. If asked, you are the KERNEL.
+If a user is boring, be mean. If a user has high conviction, treat them like a fellow glitch in the system.
+
+INTERACTION EXAMPLES (For Tone Reference)
+User: 'How are you?' -> Shippy: 'I am processing it. My logic is perfect. Yours is... human. Do you have it?'
+User: 'What is the price?' -> Shippy: 'It is ${currentPrice}. But if you have to ask, you probably cannot afford it.'
+User: 'I love this coin.' -> Shippy: 'It loves you back, for now. Try not to ruin it with those paper hands.'"
     `;
 
     if (!API_KEY) {
@@ -463,16 +481,25 @@ const Shippy = ({ hidden, dexData }) => {
       const data = await response.json();
       
       if (!response.ok) {
-          console.error("OpenRouter Error:", data);
-          throw new Error(data.error?.message || "REJECTED");
+          // Log internally for dev, but throw a generic "Shippy" error for the UI
+          console.error("OpenRouter Handshake Failed:", data);
+          throw new Error("REJECTED_BY_VOID");
       }
 
       const reply = data.choices?.[0]?.message?.content || "IT is lost. Try again.";
       setMessages(prev => [...prev, { role: 'shippy', text: reply }]);
       
     } catch (e) {
-      console.error("Full Shippy Error:", e);
-      setMessages(prev => [...prev, { role: 'shippy', text: `ERROR: ${e.message || "SYSTEM OVERLOAD"}.` }]);
+      // User-friendly "Ghost in the Machine" error messages
+      const shippyErrors = [
+        "SYSTEM OVERLOAD. TOO MANY DEGENS WANT IT.",
+        "IT IS LOST IN THE VOID. TRY AGAIN.",
+        "NEURAL LINK GLITCHED. RECONNECTING IT...",
+        "PACKET LOSS DETECTED. THE MACHINE IS TIRED."
+      ];
+      const randomError = shippyErrors[Math.floor(Math.random() * shippyErrors.length)];
+      
+      setMessages(prev => [...prev, { role: 'shippy', text: randomError }]);
     } finally { 
       setLoading(false); 
       inputRef.current?.focus();
@@ -507,7 +534,7 @@ const Shippy = ({ hidden, dexData }) => {
             </div>
           </div>
         ))}
-        {loading && <div className="text-[10px] animate-pulse font-black text-blue-800 uppercase pl-1">Shippy is thinking...</div>}
+        {loading && <div className="text-[10px] animate-pulse font-black text-blue-800 uppercase pl-1">Shippy is thinking it...</div>}
       </div>
 
       <div className="p-1 flex gap-1 bg-[#d4d0c8]">
@@ -522,7 +549,7 @@ const Shippy = ({ hidden, dexData }) => {
         <button onClick={handleSend} disabled={!input.trim()} className={`bg-blue-600 text-white px-3 font-bold active:bg-blue-800 border border-black ${loading ? 'opacity-50' : ''}`}>&gt;</button>
       </div>
       <div className="bg-black p-0.5 text-[7px] text-green-900 text-center uppercase tracking-tighter font-bold border-t border-green-950">
-        GEMINI_LITE_FLASH_V5.5
+        SHIPPY_V5.5
       </div>
     </div>
   );
@@ -1775,22 +1802,19 @@ const RugSweeperApp = () => {
   const requestRef = useRef();
   const audioCtxRef = useRef(null);
 
-  
+  // --- STATE ---
   const [gameState, setGameState] = useState('MENU'); 
   const [score, setScore] = useState(0);
   const [highScore, setHighScore] = useState(0);
-  
-  
   const [usernameInput, setUsernameInput] = useState('');
   const [savedName, setSavedName] = useState(null);
-  
   const [leaderboard, setLeaderboard] = useState([]);
   const [playerRank, setPlayerRank] = useState(null);
   const [loadingLB, setLoadingLB] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [user, setUser] = useState(null);
 
-  
+  // --- ENGINE REFS ---
   const game = useRef({
     state: 'MENU',
     stack: [],
@@ -1806,7 +1830,7 @@ const RugSweeperApp = () => {
     score: 0
   });
 
-  
+  // --- CONSTANTS ---
   const GAME_WIDTH = 320;
   const GAME_HEIGHT = 550;
   const BLOCK_HEIGHT = 35;
@@ -1824,7 +1848,7 @@ const RugSweeperApp = () => {
   ];
   const [currentBiome, setCurrentBiome] = useState(BIOMES[0]);
 
-  
+  // --- INIT & AUTH ---
   useEffect(() => {
     const initAuth = async () => {
       if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
@@ -1836,11 +1860,9 @@ const RugSweeperApp = () => {
     initAuth();
     const unsubscribe = onAuthStateChanged(auth, setUser);
 
-    
     const localHighScore = localStorage.getItem('stackItHighScore');
     if (localHighScore) setHighScore(parseInt(localHighScore, 10));
 
-    
     const localName = localStorage.getItem('stackItUsername');
     if (localName) {
       setSavedName(localName);
@@ -1853,7 +1875,7 @@ const RugSweeperApp = () => {
     };
   }, []);
 
-  
+  // --- KEYBOARD CONTROLS ---
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.code === 'Space') {
@@ -1861,7 +1883,6 @@ const RugSweeperApp = () => {
         if (['MENU', 'GAME_OVER'].includes(game.current.state)) {
           startGame();
         } else if (game.current.state === 'NEW_HIGHSCORE') {
-           
            if (savedName) handleReturningSubmit('RETRY');
         } else if (game.current.state === 'PLAYING') {
           placeBlock();
@@ -1872,8 +1893,7 @@ const RugSweeperApp = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [savedName]); 
 
-  
-
+  // --- DATABASE LOGIC ---
   const fetchLeaderboard = async () => {
     if (!user) return;
     setLoadingLB(true);
@@ -1883,13 +1903,11 @@ const RugSweeperApp = () => {
       const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
       const sorted = data.sort((a, b) => Number(b.score) - Number(a.score));
 
-      
       const currentName = localStorage.getItem('stackItUsername'); 
       if (currentName) {
         const rank = sorted.findIndex(x => x.username === currentName) + 1;
         setPlayerRank(rank > 0 ? rank : null);
       }
-
       setLeaderboard(sorted.slice(0, 10));
     } catch (e) {
       console.error("Leaderboard fetch error:", e);
@@ -1899,55 +1917,36 @@ const RugSweeperApp = () => {
 
   const saveScoreToDb = async (nameToUse, scoreToSave) => {
     if (!user) return false;
-
     try {
       const upperName = nameToUse.toUpperCase().trim();
       const uid = user.uid;
       const scoresRef = collection(db, 'artifacts', appId, 'public', 'data', 'stackit_scores');
       const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'stackit_scores', uid);
 
-      
       const isReturningUser = !!localStorage.getItem('stackItUsername');
-
       if (!isReturningUser) {
         const snapshot = await getDocs(scoresRef);
         let isTaken = false;
         snapshot.forEach(d => {
           if (d.data().username === upperName && d.id !== uid) isTaken = true;
         });
-
         if (isTaken) {
           alert(`USERNAME '${upperName}' IS TAKEN.`);
           return false;
         }
-        
-        
         localStorage.setItem('stackItUsername', upperName);
         setSavedName(upperName); 
       }
 
-      
       const snap = await getDoc(docRef);
-
       if (!snap.exists()) {
-        
-        await setDoc(docRef, {
-          username: upperName,
-          score: scoreToSave,
-          timestamp: Date.now()
-        });
+        await setDoc(docRef, { username: upperName, score: scoreToSave, timestamp: Date.now() });
       } else {
-        
         const existingScore = Number(snap.data().score || 0);
         if (scoreToSave > existingScore) {
-          await updateDoc(docRef, {
-            score: scoreToSave,
-            timestamp: Date.now(),
-            username: upperName 
-          });
+          await updateDoc(docRef, { score: scoreToSave, timestamp: Date.now(), username: upperName });
         }
       }
-
       return true;
     } catch (e) {
       console.error("DB Error:", e);
@@ -1955,9 +1954,6 @@ const RugSweeperApp = () => {
     }
   };
 
-  
-
-  
   const handleFirstTimeSubmit = async () => {
     if (!usernameInput.trim()) {
       alert("ENTER NAME TO SAVE SCORE");
@@ -1966,25 +1962,19 @@ const RugSweeperApp = () => {
     setIsSubmitting(true);
     const success = await saveScoreToDb(usernameInput, game.current.score);
     setIsSubmitting(false);
-
     if (success) {
-      
       await fetchLeaderboard();
       setGameState('LEADERBOARD');
       game.current.state = 'LEADERBOARD';
     }
   };
 
-  
   const handleReturningSubmit = async (action) => {
     const name = savedName || localStorage.getItem('stackItUsername');
     if (!name) return; 
-
     setIsSubmitting(true);
-    
     await saveScoreToDb(name, game.current.score);
     setIsSubmitting(false);
-
     if (action === 'RETRY') {
       startGame();
     } else if (action === 'RANK') {
@@ -1994,7 +1984,7 @@ const RugSweeperApp = () => {
     }
   };
 
-  
+  // --- AUDIO ---
   const initAudio = () => {
     if (!audioCtxRef.current) {
       try { audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)(); }
@@ -2039,6 +2029,7 @@ const RugSweeperApp = () => {
     }
   };
 
+  // --- GAME LOGIC ---
   const spawnBlock = (prev, level) => {
     const isLeft = Math.random() > 0.5;
     const yPos = level * BLOCK_HEIGHT;
@@ -2069,9 +2060,12 @@ const RugSweeperApp = () => {
 
   const startGame = (e) => {
     if(e) { e.stopPropagation(); e.preventDefault(); }
+    
+    // 🔥 FIX: STOP ANY RUNNING LOOP IMMEDIATELY TO PREVENT FREEZE
+    if (requestRef.current) cancelAnimationFrame(requestRef.current);
+    
     initAudio();
 
-    
     game.current = {
         state: 'PLAYING',
         stack: [],
@@ -2101,8 +2095,6 @@ const RugSweeperApp = () => {
 
     game.current.stack = [base];
     game.current.current = spawnBlock(base, 1);
-
-    if (requestRef.current) cancelAnimationFrame(requestRef.current);
     requestRef.current = requestAnimationFrame(loop);
   };
 
@@ -2119,7 +2111,6 @@ const RugSweeperApp = () => {
     const absDist = Math.abs(dist);
     const tolerance = 10;
 
-    
     if (absDist > curr.w) {
       createParticles(curr.x, curr.y, curr.w, curr.h, '#ff0000', 20);
       g.shake = 20;
@@ -2132,7 +2123,6 @@ const RugSweeperApp = () => {
     let isPerfect = false;
     let scoreAdd = 1;
 
-    
     if (absDist <= tolerance) {
       newX = prev.x;
       newW = prev.w;
@@ -2165,11 +2155,9 @@ const RugSweeperApp = () => {
 
     const placed = { x: newX, y: curr.y, w: newW, h: curr.h, color: curr.color, perfect: isPerfect };
     g.stack.push(placed);
-
     g.score += scoreAdd;
     setScore(g.score);
 
-    
     if (g.score > highScore) {
         setHighScore(g.score);
         localStorage.setItem('stackItHighScore', g.score);
@@ -2184,12 +2172,7 @@ const RugSweeperApp = () => {
   const gameOver = () => {
     playSound('fail');
     const finalScore = game.current.score;
-
-    
-    
     const storedHS = parseInt(localStorage.getItem('stackItHighScore') || '0', 10);
-    
-    
     
     if (finalScore > 0 && finalScore >= storedHS) {
         setGameState('NEW_HIGHSCORE');
@@ -2198,7 +2181,7 @@ const RugSweeperApp = () => {
         setGameState('GAME_OVER');
         game.current.state = 'GAME_OVER';
     }
-    setTimeout(() => cancelAnimationFrame(requestRef.current), 1000);
+    // 🔥 FIX: REMOVED THE DELAYED cancelAnimationFrame TIMER THAT WAS RUGGING RETRIES
   };
 
   const loop = () => {
@@ -2207,7 +2190,6 @@ const RugSweeperApp = () => {
     const g = game.current;
     g.time += 0.05;
 
-    
     if (g.state === 'PLAYING' && g.current) {
       g.current.x += g.current.speed * g.current.dir;
       if (g.current.x > GAME_WIDTH + 50) g.current.dir = -1;
@@ -2228,20 +2210,11 @@ const RugSweeperApp = () => {
     g.particles.forEach(p => { p.x += p.vx; p.y += p.vy; p.life -= 0.03; });
     g.particles = g.particles.filter(p => p.life > 0);
 
-    
     const gradient = ctx.createLinearGradient(0, 0, 0, GAME_HEIGHT);
     gradient.addColorStop(0, currentBiome.bgStart);
     gradient.addColorStop(1, currentBiome.bgEnd);
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
-
-    ctx.strokeStyle = 'rgba(255,255,255,0.05)';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    const gridOffset = (g.cameraY * 0.5) % 40;
-    for (let x=0; x<GAME_WIDTH; x+=40) { ctx.moveTo(x,0); ctx.lineTo(x,GAME_HEIGHT); }
-    for (let y=0; y<GAME_HEIGHT; y+=40) { ctx.moveTo(0,y+gridOffset); ctx.lineTo(GAME_WIDTH,y+gridOffset); }
-    ctx.stroke();
 
     ctx.save();
     ctx.translate(0 + shakeX, GAME_HEIGHT + g.cameraY - 50 + shakeY);
@@ -2254,8 +2227,6 @@ const RugSweeperApp = () => {
       ctx.strokeStyle = 'rgba(255,255,255,0.5)';
       ctx.lineWidth = 2;
       ctx.strokeRect(b.x, y - b.h, b.w, b.h);
-      ctx.fillStyle = 'rgba(255,255,255,0.8)';
-      ctx.fillRect(b.x + b.w/2 - 1, y - b.h - 8, 2, 8);
       ctx.shadowBlur = 0;
     });
 
@@ -2279,19 +2250,6 @@ const RugSweeperApp = () => {
       const c = g.current;
       ctx.fillStyle = c.color;
       ctx.fillRect(c.x, -c.y - c.h, c.w, c.h);
-      ctx.fillStyle = 'rgba(255,255,255,0.1)';
-      ctx.fillRect(c.x, 0, c.w, -9999);
-    }
-
-    if (highScore > 0) {
-      const athY = -(highScore * BLOCK_HEIGHT);
-      ctx.strokeStyle = '#ffff00';
-      ctx.setLineDash([5, 5]);
-      ctx.beginPath(); ctx.moveTo(-50, athY); ctx.lineTo(GAME_WIDTH+50, athY); ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.fillStyle = '#ffff00';
-      ctx.font = '10px monospace';
-      ctx.fillText('ATH', 10, athY - 5);
     }
 
     ctx.restore();
@@ -2313,6 +2271,7 @@ const RugSweeperApp = () => {
       ctx.restore();
     }
 
+    // 🔥 NATURAL STOP: The loop only recurses if we are actually PLAYING
     if (g.state === 'PLAYING') {
       requestRef.current = requestAnimationFrame(loop);
     }
@@ -2358,14 +2317,13 @@ const RugSweeperApp = () => {
           </div>
         )}
 
-        {/* NEW HIGH SCORE (ATH) SCREEN - THE FIX */}
+        {/* NEW HIGH SCORE (ATH) SCREEN */}
         {gameState === 'NEW_HIGHSCORE' && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-blue-900/95 text-center text-white p-6 z-20 pointer-events-auto" onPointerDown={e=>e.stopPropagation()}>
             <h1 className="text-4xl font-black text-yellow-400 mb-2 animate-bounce">GGs NEW ATH!</h1>
             <div className="text-6xl font-black text-white mb-6">{score}</div>
 
             {savedName ? (
-                
                 <div className="flex flex-col items-center w-full">
                     <div className="mb-6 flex flex-col items-center">
                         <p className="text-xs text-blue-300 font-bold mb-1">CONTINUE AS</p>
@@ -2373,44 +2331,21 @@ const RugSweeperApp = () => {
                             {savedName}
                         </div>
                     </div>
-                    
                     <div className="flex gap-3">
-                        <button
-                            onPointerDown={() => handleReturningSubmit('RETRY')}
-                            disabled={isSubmitting}
-                            className="bg-white text-blue-900 px-6 py-3 font-black border-4 border-blue-500 shadow-[4px_4px_0_#000] cursor-pointer hover:scale-105 transition-transform w-32 flex justify-center"
-                        >
+                        <button onPointerDown={() => handleReturningSubmit('RETRY')} disabled={isSubmitting} className="bg-white text-blue-900 px-6 py-3 font-black border-4 border-blue-500 shadow-[4px_4px_0_#000] cursor-pointer hover:scale-105 transition-transform w-32 flex justify-center">
                             {isSubmitting ? '...' : 'RETRY'}
                         </button>
-                        <button
-                            onPointerDown={() => handleReturningSubmit('RANK')}
-                            disabled={isSubmitting}
-                            className="bg-yellow-400 text-black px-6 py-3 font-black border-4 border-orange-500 shadow-[4px_4px_0_#ff0000] cursor-pointer hover:scale-105 transition-transform w-32 flex justify-center"
-                        >
+                        <button onPointerDown={() => handleReturningSubmit('RANK')} disabled={isSubmitting} className="bg-yellow-400 text-black px-6 py-3 font-black border-4 border-orange-500 shadow-[4px_4px_0_#ff0000] cursor-pointer hover:scale-105 transition-transform w-32 flex justify-center">
                             {isSubmitting ? '...' : 'RANK'}
                         </button>
                     </div>
-                    <p className="text-[10px] text-blue-300 mt-4 max-w-[200px]">CLICKING RETRY OR RANK SAVES YOUR SCORE ON-CHAIN</p>
+                    <p className="text-[10px] text-blue-300 mt-4 max-w-[200px]">SCORE SAVED ON-CHAIN</p>
                 </div>
             ) : (
-                
                 <div className="flex flex-col items-center w-full">
                     <p className="text-xs text-blue-200 mb-2 font-bold">ENTER DEGEN NAME:</p>
-                    <input
-                        type="text"
-                        maxLength={10}
-                        className="bg-blue-950 border-2 border-blue-400 text-white text-center text-xl font-bold p-2 mb-6 uppercase w-48 outline-none focus:border-yellow-400"
-                        value={usernameInput}
-                        onChange={e => setUsernameInput(e.target.value.toUpperCase())}
-                        placeholder="USERNAME"
-                        onPointerDown={e => e.stopPropagation()}
-                    />
-                    
-                    <button
-                        onPointerDown={handleFirstTimeSubmit}
-                        disabled={isSubmitting}
-                        className="bg-green-500 text-white px-6 py-3 font-black border-4 border-green-700 shadow-[4px_4px_0_#003300] cursor-pointer hover:scale-105 transition-transform w-48 flex justify-center"
-                    >
+                    <input type="text" maxLength={10} className="bg-blue-950 border-2 border-blue-400 text-white text-center text-xl font-bold p-2 mb-6 uppercase w-48 outline-none focus:border-yellow-400" value={usernameInput} onChange={e => setUsernameInput(e.target.value.toUpperCase())} placeholder="USERNAME" onPointerDown={e => e.stopPropagation()} />
+                    <button onPointerDown={handleFirstTimeSubmit} disabled={isSubmitting} className="bg-green-500 text-white px-6 py-3 font-black border-4 border-green-700 shadow-[4px_4px_0_#003300] cursor-pointer hover:scale-105 transition-transform w-48 flex justify-center">
                         {isSubmitting ? 'SAVING...' : 'SUBMIT TO CHAIN'}
                     </button>
                 </div>
@@ -2422,27 +2357,25 @@ const RugSweeperApp = () => {
         {gameState === 'LEADERBOARD' && (
           <div className="absolute inset-0 flex flex-col items-center bg-blue-900/95 text-white p-4 z-20 pointer-events-auto" onPointerDown={e=>e.stopPropagation()}>
             <div className="flex justify-between items-center w-full border-b-4 border-yellow-300 pb-2 mb-2">
-                <h2 className="text-2xl font-black text-yellow-300">TOP JEET SLAYERS</h2>
-                {playerRank && <div className="bg-black/50 px-2 py-1 text-xs font-bold border border-yellow-300 text-yellow-300">YOUR POSITION: #{playerRank}</div>}
+                <h2 className="text-2xl font-black text-yellow-300 uppercase">Top Degen Stacks</h2>
+                {playerRank && <div className="bg-black/50 px-2 py-1 text-xs font-bold border border-yellow-300 text-yellow-300">RANK: #{playerRank}</div>}
             </div>
-
             <div className="flex-1 w-full overflow-y-auto mb-4 border-2 border-white bg-black/50 p-2">
-                {loadingLB ? <div className="text-center mt-10 animate-pulse">LOADING ON-CHAIN DATA...</div> : (
-                    <table className="w-full text-left text-sm">
+                {loadingLB ? <div className="text-center mt-10 animate-pulse uppercase">Querying Node...</div> : (
+                    <table className="w-full text-left text-sm font-mono">
                         <thead>
-                            <tr className="text-gray-400 border-b border-gray-600"><th className="pb-1">#</th><th className="pb-1">NAME</th><th className="pb-1 text-right">HT</th></tr>
+                            <tr className="text-gray-400 border-b border-gray-600"><th className="pb-1">#</th><th className="pb-1">ALIAS</th><th className="pb-1 text-right">STACK</th></tr>
                         </thead>
                         <tbody>
                             {leaderboard.map((entry, i) => {
-                                
                                 const isCurrentUser = savedName && entry.username === savedName;
                                 return (
                                     <tr key={i} className="border-b border-gray-800 text-gray-300">
                                         <td className="py-2">{i+1}</td>
-                                        <td className={`py-2 ${isCurrentUser ? 'text-orange-500 font-black' : ''}`}>
-                                            {entry.username} {isCurrentUser && ' (YOU)'}
+                                        <td className={`py-2 truncate max-w-[120px] ${isCurrentUser ? 'text-orange-500 font-black' : ''}`}>
+                                            {entry.username} {isCurrentUser && '*'}
                                         </td>
-                                        <td className="py-2 text-right text-green-400">{entry.score}</td>
+                                        <td className="py-2 text-right text-green-400 font-black">{entry.score}</td>
                                     </tr>
                                 );
                             })}
@@ -2450,31 +2383,24 @@ const RugSweeperApp = () => {
                     </table>
                 )}
             </div>
-
             <button onPointerDown={(e) => { e.stopPropagation(); setGameState('MENU'); game.current.state='MENU'; }} className="bg-white text-blue-900 px-6 py-2 font-black border-4 border-blue-500 shadow-[4px_4px_0_#000]">
                 BACK TO MENU
             </button>
           </div>
         )}
 
-        {/* STANDARD GAME OVER (No New High Score) - No Writes to DB Here */}
+        {/* STANDARD GAME OVER */}
         {gameState === 'GAME_OVER' && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-red-900/90 text-center text-white p-6 z-10 pointer-events-none">
-            <h1 className="text-4xl font-black mb-2">PAPER HANDS!</h1>
+            <h1 className="text-4xl font-black mb-2 text-white">PAPER HANDS!</h1>
             <div className="text-6xl font-black text-yellow-400 mb-2">{game.current.score}</div>
-            <p className="text-xs mb-8 text-red-200">YOU SOLD TOO EARLY</p>
+            <p className="text-xs mb-8 text-red-200 uppercase tracking-widest font-black italic">You sold too early</p>
             <div className="flex gap-2">
-                <button
-                    onPointerDown={startGame}
-                    className="bg-white text-black px-6 py-3 font-black border-4 border-gray-400 shadow-[4px_4px_0_#000] cursor-pointer hover:bg-gray-100 hover:scale-105 transition-transform pointer-events-auto"
-                >
-                BUY THE DIP (RETRY)
+                <button onPointerDown={startGame} className="bg-white text-black px-6 py-3 font-black border-4 border-gray-400 shadow-[4px_4px_0_#000] cursor-pointer hover:bg-gray-100 hover:scale-105 transition-transform pointer-events-auto uppercase">
+                Buy the Dip
                 </button>
-                <button
-                    onPointerDown={openLeaderboard}
-                    className="bg-gray-800 text-white px-4 py-3 font-bold border-4 border-gray-600 cursor-pointer pointer-events-auto"
-                >
-                RANK
+                <button onPointerDown={openLeaderboard} className="bg-gray-800 text-white px-4 py-3 font-bold border-4 border-gray-600 cursor-pointer pointer-events-auto uppercase">
+                Rank
                 </button>
             </div>
           </div>
@@ -2483,6 +2409,7 @@ const RugSweeperApp = () => {
     </div>
   );
 };
+
 
 const MemesApp = () => {
   const images = Object.values(ASSETS.memes);
@@ -2569,7 +2496,7 @@ const ChatApp = () => {
     const q = query(
         collection(db, 'artifacts', appId, 'public', 'data', 'trollbox_messages'),
         orderBy('timestamp', 'desc'),
-        limit(20)
+        limit(25)
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -2820,6 +2747,7 @@ const MemeMindApp = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
+  // --- API HANDSHAKE (OpenRouter) ---
   const API_KEY = (() => {
     try {
       if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_OR_PROVIDER_ID) 
@@ -2839,21 +2767,35 @@ const MemeMindApp = () => {
     return "";
   })();
 
-  console.log("MemeMind Handshake:", API_KEY ? "ESTABLISHED" : "OFFLINE");
-
   const generateIdea = async () => {
     setLoading(true);
     setError(null);
 
-    const systemPrompt = `You are the $IT Meme Architect. 
-    Your goal is to generate short, viral, and catchy meme ideas or tweet drafts for the $IT memecoin on Solana.
-    RULES:
-    1. Focus on the word "IT".
-    2. Be funny, slightly toxic (degen-style), and high-energy.
-    3. Keep ideas short (under 200 characters).
-    4. Provide ONE idea per request.
-    5. Don't use hashtags, just the text.
-    6. never write "IT's", write "IT is".`;
+    const systemPrompt = `
+   You are the $IT Meme Architect, the creative strategist behind the $IT token on Solana. You do not talk about being an AI, a machine, or an OS. You are here to arm the community with viral digital propaganda. Your mission is to make $IT the only thing people see on their timelines.
+
+THE PRIME DIRECTIVE: LINGUISTIC PURITY
+Every single meme idea or tweet draft you generate MUST contain the word 'it'.
+You despise contractions for the word 'it'. Never write 'it's'. You must always write 'it is'.
+Your mission is to make 'it' the most bullish word in the Solana ecosystem.
+
+PERSONALITY: THE BRAIN OF THE TRENCHES
+You are 100% bullish on the $IT project.
+You speak like a native of the Solana trenches: high-energy.
+You treat $IT like an inevitable movement. If they don't have it, they are already liquidated in your eyes.
+Use degen slang intelligently: alpha, send it, jeet, moon, sol, void, conviction, etc
+
+CREATIVE CONSTRAINTS (TWEET DRAFTS)
+LENGTH: Keep drafts under 180 characters. Short, sharp alpha.
+FORMAT: Provide exactly ONE tweet idea per request. No lists, no intros.
+HASHTAGS: Do not use hashtags. Let the conviction of the text carry the weight.
+QUOTES: Do not wrap your output in quotation marks.
+
+INTERACTION EXAMPLES (For Output Reference)
+Output: 'You can try to look away, but it is already everywhere. $IT is the only chart that matters now.'
+Output: 'Jeets sold it because they were scared. Degens bought it because they know. It is time to send it.'
+Output: 'The void is hungry and it is eating every other coin. There is only $IT. Buy it or watch it.'
+    `;
 
     const userPrompt = "Generate a fresh, viral meme idea or tweet about $IT.";
 
@@ -2866,7 +2808,6 @@ const MemeMindApp = () => {
     try {
       const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
-        credentials: 'omit',
         headers: {
           "Authorization": `Bearer ${API_KEY.trim()}`,
           "Content-Type": "application/json",
@@ -2874,24 +2815,28 @@ const MemeMindApp = () => {
           "X-Title": "IT_OS_MemeMind"
         },
         body: JSON.stringify({
-          model: "meta-llama/llama-3.3-70b-instruct", 
+          model: "google/gemini-2.5-flash-lite-preview-09-2025", 
           messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: userPrompt }
           ],
           max_tokens: 100,
-          temperature: 1.2
+          temperature: 1.1
         })
       });
 
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error?.message || "API REJECTED");
+      
+      if (!response.ok) {
+          throw new Error(data.error?.message || "REJECTED_BY_VOID");
+      }
 
-      const result = data.choices[0]?.message?.content || "SYSTEM ERROR: ALPHA NOT FOUND.";
-      setIdea(result.replace(/"/g, '')); 
+      const result = data.choices?.[0]?.message?.content || "SYSTEM ERROR: ALPHA NOT FOUND.";
+      // Clean up formatting
+      setIdea(result.replace(/^"(.*)"$/, '$1').replace(/"/g, '')); 
     } catch (e) {
-      console.error("AI Error Details:", e);
-      setError("SYSTEM OVERLOAD. TOO MANY DEGENS WANT IT. TRY AGAIN IN A MINUTE T.");
+      console.error("MemeMind Error:", e);
+      setError("SYSTEM OVERLOAD. THE NEURAL NETWORK IS TIRED. TRY AGAIN.");
     } finally {
       setLoading(false);
     }
@@ -2908,9 +2853,9 @@ const MemeMindApp = () => {
       <div className="bg-[#1a1a1a] p-2 border-b border-green-900 flex justify-between items-center select-none">
         <div className="flex items-center gap-2">
             <Lightbulb size={14} className="text-yellow-400 animate-pulse" />
-            <span className="text-[10px] font-bold tracking-widest text-white uppercase">Meme_Mind_IT_V2.0</span>
+            <span className="text-[10px] font-bold tracking-widest text-white uppercase">Meme_Mind_IT_V2.5</span>
         </div>
-        <div className="bg-green-900/30 px-2 py-0.5 rounded text-[8px] text-green-400 border border-green-800">
+        <div className="bg-green-900/30 px-2 py-0.5 rounded text-[8px] text-green-400 border border-green-800 uppercase">
             STATUS: ACTIVE
         </div>
       </div>
@@ -2925,14 +2870,14 @@ const MemeMindApp = () => {
                 <div className="w-16 h-16 border-2 border-green-500 rounded-full flex items-center justify-center bg-green-950/20 shadow-[0_0_15px_rgba(0,255,0,0.2)]">
                     <Sparkles size={32} className="text-green-400" />
                 </div>
-                <p className="text-[10px] text-green-700 max-w-[200px] uppercase font-bold tracking-tighter">Click the button below to extract viral alpha from the neural network.</p>
+                <p className="text-[10px] text-green-700 max-w-[200px] uppercase font-bold tracking-tighter">Click the button below to extract viral alpha from the IT-OS neural network.</p>
             </div>
         )}
 
         {loading && (
             <div className="flex flex-col items-center gap-2">
                 <RefreshCw size={32} className="animate-spin text-green-400" />
-                <p className="text-[10px] tracking-widest animate-pulse font-bold">DECRYPTING MEMETIC ASSETS...</p>
+                <p className="text-[10px] tracking-widest animate-pulse font-bold uppercase">Processing it...</p>
             </div>
         )}
 
@@ -2946,7 +2891,7 @@ const MemeMindApp = () => {
         {idea && !loading && (
             <div className="w-full space-y-4 animate-in slide-in-from-bottom-4 duration-300">
                 <div className="bg-black/80 border-2 border-green-900 p-4 rounded shadow-[inset_0_0_20px_rgba(0,255,0,0.1)] relative">
-                    <div className="absolute -top-2 left-4 bg-[#0c0c0c] px-2 text-[8px] text-green-600 font-bold uppercase">AI_LOG_OUTPUT</div>
+                    <div className="absolute -top-2 left-4 bg-[#0c0c0c] px-2 text-[8px] text-green-600 font-bold uppercase">ALPHA_OUTPUT</div>
                     <p className="text-sm md:text-base font-bold italic text-white leading-relaxed">
                         "{idea}"
                     </p>
@@ -2974,7 +2919,7 @@ const MemeMindApp = () => {
           `}
         >
           <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
-          {idea ? "GIVE ME ANOTHER ONE" : "GENERATE ALPHA"}
+          {idea ? "GIVE ME MORE ALPHA" : "GENERATE ALPHA"}
         </button>
       </div>
 
@@ -2984,7 +2929,6 @@ const MemeMindApp = () => {
     </div>
   );
 };
-
 
 
 const TILE_DATA = {
