@@ -315,37 +315,8 @@ const StartMenu = ({ isOpen, onClose, onOpenApp }) => {
 
 
 
-// --- UTILS: PCM to WAV Converter (Required for Gemini TTS) ---
-function pcmToWav(pcmData, sampleRate) {
-  const buffer = new ArrayBuffer(44 + pcmData.length * 2);
-  const view = new DataView(buffer);
-  const writeString = (offset, string) => {
-    for (let i = 0; i < string.length; i++) {
-      view.setUint8(offset + i, string.charCodeAt(i));
-    }
-  };
-  writeString(0, 'RIFF');
-  view.setUint32(4, 32 + pcmData.length * 2, true);
-  writeString(8, 'WAVE');
-  writeString(12, 'fmt ');
-  view.setUint32(16, 16, true);
-  view.setUint16(20, 1, true);
-  view.setUint16(22, 1, true);
-  view.setUint32(24, sampleRate, true);
-  view.setUint32(28, sampleRate * 2, true);
-  view.setUint16(32, 2, true);
-  view.setUint16(34, 16, true);
-  writeString(36, 'data');
-  view.setUint32(40, pcmData.length * 2, true);
-  for (let i = 0; i < pcmData.length; i++) {
-    view.setInt16(44 + i * 2, pcmData[i], true);
-  }
-  return new Blob([buffer], { type: 'audio/wav' });
-}
-
 const Shippy = ({ hidden, dexData }) => {
   const [isOpen, setIsOpen] = useState(false); 
-  const [isVoiceEnabled, setIsVoiceEnabled] = useState(false); // Off by default
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -353,7 +324,6 @@ const Shippy = ({ hidden, dexData }) => {
   const containerRef = useRef(null);
   const scrollRef = useRef(null);
   const inputRef = useRef(null);
-  const viewportOffset = useRef(0);
 
   // --- API HANDSHAKE (OpenRouter) ---
   const API_KEY = (() => {
@@ -385,60 +355,11 @@ const Shippy = ({ hidden, dexData }) => {
     setMessages([{ role: 'shippy', text: randomMsg }]);
   }, []);
 
-  // --- FEATURE: ✨ Shippy Voice (Gemini Native TTS) ---
-  const speakMessage = async (text) => {
-    if (!isVoiceEnabled || !API_KEY) return;
-    try {
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${API_KEY.trim()}`, {
-        method: "POST",
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: `Say in a sassy, witty, ghost-like voice: ${text}` }] }],
-          generationConfig: {
-            responseModalities: ["AUDIO"],
-            speechConfig: {
-              voiceConfig: {
-                prebuiltVoiceConfig: { voiceName: "Puck" }
-              }
-            }
-          }
-        })
-      });
-
-      const result = await response.json();
-      const audioDataB64 = result.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-      if (audioDataB64) {
-        const binaryString = atob(audioDataB64);
-        const len = binaryString.length;
-        const bytes = new Int16Array(len / 2);
-        for (let i = 0; i < len; i += 2) {
-          bytes[i / 2] = (binaryString.charCodeAt(i + 1) << 8) | binaryString.charCodeAt(i);
-        }
-        const wavBlob = pcmToWav(bytes, 24000);
-        const audioUrl = URL.createObjectURL(wavBlob);
-        const audio = new Audio(audioUrl);
-        audio.play();
-      }
-    } catch (e) {
-      console.error("Shippy Voice Error (Likely API restriction):", e);
-    }
-  };
-
-  // --- MOBILE KEYBOARD & VIEWPORT FIX ---
+  // Initial focus when opening
   useEffect(() => {
-    const handleViewportChange = () => {
-      if (!window.visualViewport) return;
-      const offset = window.innerHeight - window.visualViewport.height;
-      viewportOffset.current = offset;
-      if (isOpen && offset > 50) scrollToBottom(true);
-    };
-    if (window.visualViewport) {
-      window.visualViewport.addEventListener('resize', handleViewportChange);
-      window.visualViewport.addEventListener('scroll', handleViewportChange);
+    if (isOpen && inputRef.current) {
+        setTimeout(() => inputRef.current.focus(), 100);
     }
-    return () => {
-      window.visualViewport?.removeEventListener('resize', handleViewportChange);
-      window.visualViewport?.removeEventListener('scroll', handleViewportChange);
-    };
   }, [isOpen]);
 
   // Click outside hide
@@ -467,7 +388,7 @@ const Shippy = ({ hidden, dexData }) => {
     }
   };
 
-  useEffect(() => { if (isOpen) setTimeout(() => { inputRef.current?.focus(); scrollToBottom(); }, 150); }, [isOpen]);
+  useEffect(() => { if (isOpen) scrollToBottom(); }, [isOpen]);
   useEffect(() => { scrollToBottom(true); }, [messages, loading]);
 
   const formatMessage = (text) => {
@@ -542,13 +463,12 @@ const Shippy = ({ hidden, dexData }) => {
       const data = await response.json();
       
       if (!response.ok) {
-          console.error("OpenRouter Error Object:", data);
+          console.error("OpenRouter Error:", data);
           throw new Error(data.error?.message || "REJECTED");
       }
 
       const reply = data.choices?.[0]?.message?.content || "IT is lost. Try again.";
       setMessages(prev => [...prev, { role: 'shippy', text: reply }]);
-      speakMessage(reply);
       
     } catch (e) {
       console.error("Full Shippy Error:", e);
@@ -569,27 +489,14 @@ const Shippy = ({ hidden, dexData }) => {
   return (
     <div 
       ref={containerRef}
-      style={{ 
-        transform: `translateY(-${viewportOffset.current > 0 ? viewportOffset.current - 40 : 0}px)`,
-        transition: 'transform 0.3s cubic-bezier(0.2, 0, 0.2, 1)'
-      }}
       className="fixed bottom-12 right-4 w-72 max-w-[90vw] bg-[#ffffcc] border-2 border-black z-[9999] shadow-xl flex flex-col font-mono text-xs text-black"
     >
       <div className="bg-[#000080] text-white p-1 flex justify-between items-center select-none border-b border-black">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 px-1">
           <Bot size={12}/>
-          <span className="font-bold uppercase tracking-tighter">Shippy_V5.4</span>
+          <span className="font-bold uppercase tracking-tighter">Shippy_V5.5</span>
         </div>
-        <div className="flex items-center gap-2">
-           <button 
-             onClick={(e) => { e.stopPropagation(); setIsVoiceEnabled(!isVoiceEnabled); }}
-             className={`p-0.5 rounded border border-black/20 ${isVoiceEnabled ? 'bg-green-600' : 'bg-red-800'}`}
-             title="Toggle Voice"
-           >
-             {isVoiceEnabled ? <Volume2 size={12}/> : <VolumeX size={12}/>}
-           </button>
-           <X size={12} className="cursor-pointer p-0.5 hover:bg-red-600" onClick={() => setIsOpen(false)} />
-        </div>
+        <X size={12} className="cursor-pointer p-0.5 hover:bg-red-600" onClick={() => setIsOpen(false)} />
       </div>
 
       <div ref={scrollRef} className="h-64 sm:h-72 overflow-y-auto p-2 space-y-2 border-b border-black relative bg-white scroll-smooth shadow-inner">
@@ -615,7 +522,7 @@ const Shippy = ({ hidden, dexData }) => {
         <button onClick={handleSend} disabled={!input.trim()} className={`bg-blue-600 text-white px-3 font-bold active:bg-blue-800 border border-black ${loading ? 'opacity-50' : ''}`}>&gt;</button>
       </div>
       <div className="bg-black p-0.5 text-[7px] text-green-900 text-center uppercase tracking-tighter font-bold border-t border-green-950">
-        GEMINI_LITE_OR_V5.4
+        GEMINI_LITE_FLASH_V5.5
       </div>
     </div>
   );
