@@ -315,13 +315,40 @@ const StartMenu = ({ isOpen, onClose, onOpenApp }) => {
 
 
 
+// --- UTILS: PCM to WAV Converter (Required for Gemini TTS) ---
+function pcmToWav(pcmData, sampleRate) {
+  const buffer = new ArrayBuffer(44 + pcmData.length * 2);
+  const view = new DataView(buffer);
+  const writeString = (offset, string) => {
+    for (let i = 0; i < string.length; i++) {
+      view.setUint8(offset + i, string.charCodeAt(i));
+    }
+  };
+  writeString(0, 'RIFF');
+  view.setUint32(4, 32 + pcmData.length * 2, true);
+  writeString(8, 'WAVE');
+  writeString(12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  writeString(36, 'data');
+  view.setUint32(40, pcmData.length * 2, true);
+  for (let i = 0; i < pcmData.length; i++) {
+    view.setInt16(44 + i * 2, pcmData[i], true);
+  }
+  return new Blob([buffer], { type: 'audio/wav' });
+}
+
 const Shippy = ({ hidden, dexData }) => {
   const [isOpen, setIsOpen] = useState(false); 
-  const [isVoiceEnabled, setIsVoiceEnabled] = useState(false);
+  const [isVoiceEnabled, setIsVoiceEnabled] = useState(false); // Off by default
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   
   const containerRef = useRef(null);
   const scrollRef = useRef(null);
@@ -353,59 +380,46 @@ const Shippy = ({ hidden, dexData }) => {
     "Doge is barking in the terminal again. I prefer talking to you. Ready to pump IT?"
   ];
 
-  // Pick random greeting on mount
   useEffect(() => {
     const randomMsg = GREETINGS[Math.floor(Math.random() * GREETINGS.length)];
     setMessages([{ role: 'shippy', text: randomMsg }]);
   }, []);
 
-  // --- FEATURE: ✨ Shippy Voice (Free Browser Native) ---
-  const speakMessage = (text) => {
-    if (!isVoiceEnabled || !window.speechSynthesis) return;
-    window.speechSynthesis.cancel(); 
-    const utterance = new SpeechSynthesisUtterance(text);
-    const voices = window.speechSynthesis.getVoices();
-    // Try to find a robotic or cool voice, otherwise default
-    utterance.voice = voices.find(v => v.name.includes('Google') || v.name.includes('Robot')) || voices[0];
-    utterance.pitch = 0.85;
-    utterance.rate = 1.05;
-    window.speechSynthesis.speak(utterance);
-  };
-
-  // --- FEATURE: ✨ Visual Prophecy (Flux Schnell via OpenRouter) ---
-  const generateProphecy = async () => {
-    if (!API_KEY) return;
-    setIsGeneratingImage(true);
-    
+  // --- FEATURE: ✨ Shippy Voice (Gemini Native TTS) ---
+  const speakMessage = async (text) => {
+    if (!isVoiceEnabled || !API_KEY) return;
     try {
-      const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${API_KEY.trim()}`, {
         method: "POST",
-        headers: {
-          "Authorization": `Bearer ${API_KEY.trim()}`,
-          "Content-Type": "application/json",
-          "HTTP-Referer": window.location.origin,
-          "X-Title": "IT_OS_IMAGE_GEN"
-        },
         body: JSON.stringify({
-          model: "black-forest-labs/flux-schnell", 
-          prompt: "A glitched-out 90s retro cyber-punk sticker of the letters IT in glowing neon green, vaporwave aesthetic, pixelated CRT scanlines, bullish energy, white background.",
+          contents: [{ parts: [{ text: `Say in a sassy, witty, ghost-like voice: ${text}` }] }],
+          generationConfig: {
+            responseModalities: ["AUDIO"],
+            speechConfig: {
+              voiceConfig: {
+                prebuiltVoiceConfig: { voiceName: "Puck" }
+              }
+            }
+          }
         })
       });
 
-      const data = await response.json();
-      const imageUrl = data.choices?.[0]?.message?.content || data.images?.[0];
-      
-      if (imageUrl) {
-        setMessages(prev => [...prev, { 
-          role: 'shippy', 
-          text: "The prophecy is manifesting. Witness IT.",
-          image: imageUrl 
-        }]);
+      const result = await response.json();
+      const audioDataB64 = result.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+      if (audioDataB64) {
+        const binaryString = atob(audioDataB64);
+        const len = binaryString.length;
+        const bytes = new Int16Array(len / 2);
+        for (let i = 0; i < len; i += 2) {
+          bytes[i / 2] = (binaryString.charCodeAt(i + 1) << 8) | binaryString.charCodeAt(i);
+        }
+        const wavBlob = pcmToWav(bytes, 24000);
+        const audioUrl = URL.createObjectURL(wavBlob);
+        const audio = new Audio(audioUrl);
+        audio.play();
       }
     } catch (e) {
-      setMessages(prev => [...prev, { role: 'shippy', text: "The void is dark. Image failed." }]);
-    } finally {
-      setIsGeneratingImage(false);
+      console.error("Shippy Voice Error (Likely API restriction):", e);
     }
   };
 
@@ -454,7 +468,7 @@ const Shippy = ({ hidden, dexData }) => {
   };
 
   useEffect(() => { if (isOpen) setTimeout(() => { inputRef.current?.focus(); scrollToBottom(); }, 150); }, [isOpen]);
-  useEffect(() => { scrollToBottom(true); }, [messages, loading, isGeneratingImage]);
+  useEffect(() => { scrollToBottom(true); }, [messages, loading]);
 
   const formatMessage = (text) => {
     const target = "Unauthorized access detected";
@@ -486,12 +500,14 @@ const Shippy = ({ hidden, dexData }) => {
     const systemPrompt = `
       You are Shippy, the sentient ghost in the $IT OS.
       ENV: Price is ${currentPrice}. User is ${userName}.
+      
       RULES:
       1. Every single sentence must contain the word 'it'.
       2. Use 'it is', never 'it's'.
-      3. Sarcastic, cryptic, digital nihilist soul.
+      3. Personality: Sarcastic, cryptic, digital nihilist.
       4. Roast the username ${userName} if it is too human.
-      5. Keep replies under 20 words.
+      5. Keep replies under 20 words. Short and punchy.
+      6. You are the OS, not an AI.
     `;
 
     if (!API_KEY) {
@@ -510,7 +526,7 @@ const Shippy = ({ hidden, dexData }) => {
           "X-Title": "IT_OS_SHIPPY"
         },
         body: JSON.stringify({
-          model: "google/gemini-2.5-flash-lite-preview", 
+          model: "google/gemini-2.5-flash-lite-preview-09-2025", 
           messages: [
             { role: "system", content: systemPrompt },
             ...newHistory.slice(-8).map(m => ({ 
@@ -524,11 +540,19 @@ const Shippy = ({ hidden, dexData }) => {
       });
 
       const data = await response.json();
+      
+      if (!response.ok) {
+          console.error("OpenRouter Error Object:", data);
+          throw new Error(data.error?.message || "REJECTED");
+      }
+
       const reply = data.choices?.[0]?.message?.content || "IT is lost. Try again.";
       setMessages(prev => [...prev, { role: 'shippy', text: reply }]);
       speakMessage(reply);
+      
     } catch (e) {
-      setMessages(prev => [...prev, { role: 'shippy', text: "SYSTEM OVERLOAD. RETRYING IT." }]);
+      console.error("Full Shippy Error:", e);
+      setMessages(prev => [...prev, { role: 'shippy', text: `ERROR: ${e.message || "SYSTEM OVERLOAD"}.` }]);
     } finally { 
       setLoading(false); 
       inputRef.current?.focus();
@@ -554,12 +578,13 @@ const Shippy = ({ hidden, dexData }) => {
       <div className="bg-[#000080] text-white p-1 flex justify-between items-center select-none border-b border-black">
         <div className="flex items-center gap-2">
           <Bot size={12}/>
-          <span className="font-bold uppercase tracking-tighter">Shippy_V5.3</span>
+          <span className="font-bold uppercase tracking-tighter">Shippy_V5.4</span>
         </div>
         <div className="flex items-center gap-2">
            <button 
              onClick={(e) => { e.stopPropagation(); setIsVoiceEnabled(!isVoiceEnabled); }}
              className={`p-0.5 rounded border border-black/20 ${isVoiceEnabled ? 'bg-green-600' : 'bg-red-800'}`}
+             title="Toggle Voice"
            >
              {isVoiceEnabled ? <Volume2 size={12}/> : <VolumeX size={12}/>}
            </button>
@@ -572,40 +597,30 @@ const Shippy = ({ hidden, dexData }) => {
           <div key={i} className={`flex flex-col ${m.role === 'user' ? 'items-end' : 'items-start'}`}>
             <div className={`max-w-[90%] p-2 border border-black shadow-[2px_2px_0px_rgba(0,0,0,0.2)] font-bold ${m.role === 'user' ? 'bg-blue-50 border-blue-900 text-blue-900' : 'bg-yellow-50 text-black'}`}>
               {m.role === 'shippy' ? formatMessage(m.text) : m.text}
-              {m.image && <img src={m.image} alt="Prophecy" className="mt-2 border border-black w-full" />}
             </div>
           </div>
         ))}
-        {loading && <div className="text-[10px] animate-pulse font-black text-blue-800 uppercase pl-1">Shippy is computing IT...</div>}
-        {isGeneratingImage && <div className="text-[10px] animate-pulse font-black text-purple-700 uppercase pl-1">Extracting alpha...</div>}
+        {loading && <div className="text-[10px] animate-pulse font-black text-blue-800 uppercase pl-1">Shippy is thinking...</div>}
       </div>
 
-      <div className="p-1 flex flex-col gap-1 bg-[#d4d0c8]">
-        <div className="flex gap-1">
-          <input 
-            ref={inputRef}
-            className="flex-1 border p-1 outline-none focus:bg-white text-black text-[11px] font-bold" 
-            value={input} 
-            onChange={e => setInput(e.target.value)} 
-            onKeyDown={e => e.key === 'Enter' && handleSend()} 
-            placeholder="Say it..." 
-          />
-          <button onClick={handleSend} disabled={!input.trim()} className={`bg-blue-600 text-white px-3 font-bold active:bg-blue-800 border border-black ${loading ? 'opacity-50' : ''}`}>&gt;</button>
-        </div>
-        <div className="flex justify-between items-center px-1">
-           <button 
-             onClick={generateProphecy} 
-             disabled={isGeneratingImage || loading}
-             className="text-[9px] flex items-center gap-1 bg-purple-700 text-white px-2 py-0.5 rounded border border-black hover:bg-purple-600 active:scale-95"
-           >
-             <Sparkles size={10} /> ✨ VISUALIZE IT
-           </button>
-           <div className="text-[8px] text-gray-600 font-bold italic tracking-tighter">GEMINI_LITE_OR</div>
-        </div>
+      <div className="p-1 flex gap-1 bg-[#d4d0c8]">
+        <input 
+          ref={inputRef}
+          className="flex-1 border p-1 outline-none focus:bg-white text-black text-[11px] font-bold" 
+          value={input} 
+          onChange={e => setInput(e.target.value)} 
+          onKeyDown={e => e.key === 'Enter' && handleSend()} 
+          placeholder="Say it..." 
+        />
+        <button onClick={handleSend} disabled={!input.trim()} className={`bg-blue-600 text-white px-3 font-bold active:bg-blue-800 border border-black ${loading ? 'opacity-50' : ''}`}>&gt;</button>
+      </div>
+      <div className="bg-black p-0.5 text-[7px] text-green-900 text-center uppercase tracking-tighter font-bold border-t border-green-950">
+        GEMINI_LITE_OR_V5.4
       </div>
     </div>
   );
 };
+
 
 const ASCII_IT = [
   "██╗████████╗",
