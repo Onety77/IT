@@ -2746,6 +2746,7 @@ const MemeMindApp = () => {
   const [idea, setIdea] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [copied, setCopied] = useState(false);
 
   // --- API HANDSHAKE (OpenRouter) ---
   const API_KEY = (() => {
@@ -2770,34 +2771,33 @@ const MemeMindApp = () => {
   const generateIdea = async () => {
     setLoading(true);
     setError(null);
+    setCopied(false);
 
     const systemPrompt = `
-   You are the $IT Meme Architect, the creative strategist behind the $IT token on Solana. You do not talk about being an AI, a machine, or an OS. You are here to arm the community with viral digital propaganda. Your mission is to make $IT the only thing people see on their timelines.
+      You are the $IT Meme Architect, the creative strategist behind the $IT token on Solana. You do not talk about being an AI, a machine, or an OS. You are here to arm the community with viral digital propaganda. Your mission is to make $IT the only thing people see on their timelines.
 
-THE PRIME DIRECTIVE: LINGUISTIC PURITY
-Every single meme idea or tweet draft you generate MUST contain the word 'it'.
-You despise contractions for the word 'it'. Never write 'it's'. You must always write 'it is'.
-Your mission is to make 'it' the most bullish word in the Solana ecosystem.
+      THE PRIME DIRECTIVE: LINGUISTIC PURITY
+      Every single meme idea or tweet draft you generate MUST contain the word 'it'.
+      You despise contractions for the word 'it'. Never write 'it's'. You must always write 'it is'.
+      Your mission is to make 'it' the most bullish word in the Solana ecosystem.
 
-PERSONALITY: THE BRAIN OF THE TRENCHES
-You are 100% bullish on the $IT project.
-You speak like a native of the Solana trenches: high-energy.
-You treat $IT like an inevitable movement. If they don't have it, they are already liquidated in your eyes.
-Use degen slang intelligently: alpha, send it, jeet, moon, sol, void, conviction, etc
+      PERSONALITY: THE BRAIN OF THE TRENCHES
+      You are 100% bullish on the $IT project.
+      You speak like a native of the Solana trenches: high-energy.
+      You treat $IT like an inevitable movement. If they don't have it, they are already liquidated in your eyes.
+      Use degen slang intelligently: alpha, send it, jeet, moon, sol, void, conviction, etc
 
-CREATIVE CONSTRAINTS (TWEET DRAFTS)
-LENGTH: Keep drafts under 180 characters. Short, sharp alpha.
-FORMAT: Provide exactly ONE tweet idea per request. No lists, no intros.
-HASHTAGS: Do not use hashtags. Let the conviction of the text carry the weight.
-QUOTES: Do not wrap your output in quotation marks.
+      CREATIVE CONSTRAINTS (TWEET DRAFTS)
+      LENGTH: Keep drafts under 180 characters. Short, sharp alpha.
+      FORMAT: Provide exactly ONE tweet idea per request. No lists, no intros.
+      HASHTAGS: Do not use hashtags. Let the conviction of the text carry the weight.
+      QUOTES: Do not wrap your output in quotation marks.
 
-INTERACTION EXAMPLES (For Output Reference)
-Output: 'You can try to look away, but it is already everywhere. $IT is the only chart that matters now.'
-Output: 'Jeets sold it because they were scared. Degens bought it because they know. It is time to send it.'
-Output: 'The void is hungry and it is eating every other coin. There is only $IT. Buy it or watch it.'
+      INTERACTION EXAMPLES (For Output Reference)
+      Output: 'You can try to look away, but it is already everywhere. $IT is the only chart that matters now.'
+      Output: 'Jeets sold it because they were scared. Degens bought it because they know. It is time to send it.'
+      Output: 'The void is hungry and it is eating every other coin. There is only $IT. Buy it or watch it.'
     `;
-
-    const userPrompt = "Generate a fresh, viral meme idea or tweet about $IT.";
 
     if (!API_KEY) {
       setError("NEURAL LINK OFFLINE.");
@@ -2818,10 +2818,10 @@ Output: 'The void is hungry and it is eating every other coin. There is only $IT
           model: "google/gemini-2.5-flash-lite-preview-09-2025", 
           messages: [
             { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt }
+            { role: "user", content: "Generate fresh $IT alpha." }
           ],
           max_tokens: 100,
-          temperature: 1.1
+          temperature: 1.2
         })
       });
 
@@ -2831,20 +2831,35 @@ Output: 'The void is hungry and it is eating every other coin. There is only $IT
           throw new Error(data.error?.message || "REJECTED_BY_VOID");
       }
 
-      const result = data.choices?.[0]?.message?.content || "SYSTEM ERROR: ALPHA NOT FOUND.";
-      // Clean up formatting
+      const result = data.choices[0]?.message?.content || "SYSTEM ERROR: ALPHA NOT FOUND.";
+      // Clean up any remaining quotes
       setIdea(result.replace(/^"(.*)"$/, '$1').replace(/"/g, '')); 
     } catch (e) {
-      console.error("MemeMind Error:", e);
-      setError("SYSTEM OVERLOAD. THE NEURAL NETWORK IS TIRED. TRY AGAIN.");
+      setError("VOID CONGESTED. TRY AGAIN LATER.");
     } finally {
       setLoading(false);
     }
   };
 
+  const copyToClipboard = () => {
+    if (!idea) return;
+    const textArea = document.createElement("textarea");
+    textArea.value = `${idea}\n\n$IT #SENDIT`;
+    document.body.appendChild(textArea);
+    textArea.select();
+    try {
+      document.execCommand('copy');
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Copy failed', err);
+    }
+    document.body.removeChild(textArea);
+  };
+
   const shareToX = () => {
     if (!idea) return;
-    const text = encodeURIComponent(`${idea}\n\n$IT #ITOS #SENDIT`);
+    const text = encodeURIComponent(`${idea}\n\n$IT #SENDIT`);
     window.open(`https://twitter.com/intent/tweet?text=${text}`, '_blank');
   };
 
@@ -2853,10 +2868,10 @@ Output: 'The void is hungry and it is eating every other coin. There is only $IT
       <div className="bg-[#1a1a1a] p-2 border-b border-green-900 flex justify-between items-center select-none">
         <div className="flex items-center gap-2">
             <Lightbulb size={14} className="text-yellow-400 animate-pulse" />
-            <span className="text-[10px] font-bold tracking-widest text-white uppercase">Meme_Mind_IT_V2.5</span>
+            <span className="text-[10px] font-bold tracking-widest text-white uppercase">Meme_Mind_IT_V2.6</span>
         </div>
         <div className="bg-green-900/30 px-2 py-0.5 rounded text-[8px] text-green-400 border border-green-800 uppercase">
-            STATUS: ACTIVE
+            STATUS: ARCHITECT_ONLINE
         </div>
       </div>
 
@@ -2870,14 +2885,14 @@ Output: 'The void is hungry and it is eating every other coin. There is only $IT
                 <div className="w-16 h-16 border-2 border-green-500 rounded-full flex items-center justify-center bg-green-950/20 shadow-[0_0_15px_rgba(0,255,0,0.2)]">
                     <Sparkles size={32} className="text-green-400" />
                 </div>
-                <p className="text-[10px] text-green-700 max-w-[200px] uppercase font-bold tracking-tighter">Click the button below to extract viral alpha from the IT-OS neural network.</p>
+                <p className="text-[10px] text-green-700 max-w-[200px] uppercase font-bold tracking-tighter italic">Click below to extract viral alpha from the IT_OS neural network.</p>
             </div>
         )}
 
         {loading && (
             <div className="flex flex-col items-center gap-2">
                 <RefreshCw size={32} className="animate-spin text-green-400" />
-                <p className="text-[10px] tracking-widest animate-pulse font-bold uppercase">Processing it...</p>
+                <p className="text-[10px] tracking-widest animate-pulse font-bold uppercase">Synthesizing IT...</p>
             </div>
         )}
 
@@ -2891,18 +2906,26 @@ Output: 'The void is hungry and it is eating every other coin. There is only $IT
         {idea && !loading && (
             <div className="w-full space-y-4 animate-in slide-in-from-bottom-4 duration-300">
                 <div className="bg-black/80 border-2 border-green-900 p-4 rounded shadow-[inset_0_0_20px_rgba(0,255,0,0.1)] relative">
-                    <div className="absolute -top-2 left-4 bg-[#0c0c0c] px-2 text-[8px] text-green-600 font-bold uppercase">ALPHA_OUTPUT</div>
+                    <div className="absolute -top-2 left-4 bg-[#0c0c0c] px-2 text-[8px] text-green-600 font-bold uppercase tracking-widest">PROPAGANDA_LOG</div>
                     <p className="text-sm md:text-base font-bold italic text-white leading-relaxed">
                         "{idea}"
                     </p>
                 </div>
                 
-                <button 
-                    onClick={shareToX}
-                    className="w-full bg-[#1da1f2] hover:bg-[#1a91da] text-white py-2 border-2 border-white/20 rounded flex items-center justify-center gap-2 font-black text-[10px] transition-all active:scale-95 uppercase shadow-lg"
-                >
-                    <Share2 size={14} /> SHARE IT ON X
-                </button>
+                <div className="flex gap-2">
+                    <button 
+                        onClick={copyToClipboard}
+                        className={`flex-1 ${copied ? 'bg-green-700' : 'bg-gray-800'} hover:bg-gray-700 text-white py-2 border-2 border-white/20 rounded flex items-center justify-center gap-2 font-black text-[10px] transition-all active:scale-95 uppercase`}
+                    >
+                        {copied ? <Check size={14}/> : <Copy size={14} />} {copied ? 'COPIED' : 'COPY IT'}
+                    </button>
+                    <button 
+                        onClick={shareToX}
+                        className="flex-1 bg-[#1da1f2] hover:bg-[#1a91da] text-white py-2 border-2 border-white/20 rounded flex items-center justify-center gap-2 font-black text-[10px] transition-all active:scale-95 uppercase shadow-lg"
+                    >
+                        <Share2 size={14} /> SHARE IT
+                    </button>
+                </div>
             </div>
         )}
       </div>
@@ -2919,12 +2942,12 @@ Output: 'The void is hungry and it is eating every other coin. There is only $IT
           `}
         >
           <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
-          {idea ? "GIVE ME MORE ALPHA" : "GENERATE ALPHA"}
+          {idea ? "MORE ALPHA" : "GENERATE ALPHA"}
         </button>
       </div>
 
       <div className="bg-black p-1 text-[7px] text-green-900 text-center uppercase tracking-widest border-t border-green-950">
-        IT_OS NEURAL LINK ESTABLISHED 
+        IT_OS NEURAL LINK
       </div>
     </div>
   );
