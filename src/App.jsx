@@ -2181,10 +2181,11 @@ const RugSweeperApp = () => {
     ctx.fillStyle = bgGrad;
     ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
 
-    // Reactive Stars (Pulled by gravity well)
+    // Reactive Stars (Now with restored motion vibes)
     g.stars.forEach(s => {
-      let sx = s.x;
-      let sy = (s.y + g.cameraY * s.p) % GAME_HEIGHT;
+      // Restore Motion: Base drift + Camera shift + Wobble
+      let sx = s.x + Math.sin(g.time * 0.3 + s.y) * 2;
+      let sy = (s.y + g.cameraY * s.p + g.time * 15 * s.p) % GAME_HEIGHT;
       
       // Gravity Well Physics
       if (g.lastTap.power > 0.01) {
@@ -2192,7 +2193,7 @@ const RugSweeperApp = () => {
           const dy = g.lastTap.y - sy;
           const dist = Math.sqrt(dx*dx + dy*dy);
           if (dist < 150) {
-              const force = (1 - dist/150) * g.lastTap.power * 20;
+              const force = (1 - dist/150) * g.lastTap.power * 25;
               sx += (dx / dist) * force;
               sy += (dy / dist) * force;
           }
@@ -2291,7 +2292,6 @@ const RugSweeperApp = () => {
       
       // Light Column
       const cGrad = ctx.createLinearGradient(c.x, -c.y - c.h, c.x, -GAME_HEIGHT);
-      // Fix: hsl colors can't just have hex alpha appended. Convert to hsla string.
       const transparentColor = c.color.replace('hsl', 'hsla').replace(')', ', 0.2)');
       cGrad.addColorStop(0, transparentColor);
       cGrad.addColorStop(1, 'transparent');
@@ -2460,7 +2460,7 @@ const RugSweeperApp = () => {
         {gameState === 'MENU' && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/70 backdrop-blur-sm text-center text-white p-6 z-10 animate-in fade-in duration-500">
             <h1 className="text-7xl font-black text-transparent bg-clip-text bg-gradient-to-t from-green-600 to-green-300 mb-2 drop-shadow-[0_4px_10px_rgba(0,255,0,0.5)] italic tracking-tighter">STACK IT</h1>
-            <p className="text-[10px] font-bold text-green-500 mb-12 tracking-[0.4em] uppercase opacity-80 animate-pulse">stack it to the moon</p>
+            <p className="text-[10px] font-bold text-green-500 mb-12 tracking-[0.4em] uppercase opacity-80 animate-pulse">STACK IT TO THE MOON</p>
             <div className="flex flex-col gap-4 w-full max-w-[180px]">
                 <button onPointerDown={startGame} className="bg-white text-black py-3 font-black border-4 border-blue-500 shadow-[4px_4px_0_#0000ff] active:shadow-none active:translate-x-1 active:translate-y-1 transition-all uppercase italic text-xl">
                 Send IT
@@ -2469,13 +2469,13 @@ const RugSweeperApp = () => {
                 LEADERBOARD
                 </button>
             </div>
-            <p className="mt-8 text-[8px] opacity-40 uppercase tracking-widest">Hold screen for Matrix Sync</p>
+            <p className="mt-8 text-[8px] opacity-40 uppercase tracking-widest">Grind loud enough and even silence starts watching you</p>
           </div>
         )}
 
         {gameState === 'NEW_HIGHSCORE' && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-blue-900/95 text-center text-white p-6 z-20 pointer-events-auto" onPointerDown={e=>e.stopPropagation()}>
-            <h1 className="text-5xl font-black text-yellow-400 mb-2 animate-bounce italic">GOD STATUS!</h1>
+            <h1 className="text-5xl font-black text-yellow-400 mb-2 animate-bounce italic">NEW ATH!</h1>
             <div className="text-8xl font-black text-white mb-8 drop-shadow-[0_10px_20px_rgba(0,0,0,0.5)]">{score}</div>
             {savedName ? (
                 <div className="flex flex-col items-center w-full">
@@ -2509,7 +2509,7 @@ const RugSweeperApp = () => {
         {gameState === 'LEADERBOARD' && (
           <div className="absolute inset-0 flex flex-col items-center bg-blue-950/95 text-white p-6 z-20 pointer-events-auto shadow-2xl" onPointerDown={e=>e.stopPropagation()}>
             <div className="flex justify-between items-center w-full border-b-4 border-yellow-400 pb-4 mb-6">
-                <h2 className="text-4xl font-black text-yellow-400 italic italic">TOP_STACKERS</h2>
+                <h2 className="text-4xl font-black text-yellow-400 italic italic">TOP GS</h2>
                 {playerRank && <div className="bg-black/80 px-4 py-2 text-[10px] font-black border border-yellow-400 text-yellow-400 uppercase tracking-widest">RANK: #{playerRank}</div>}
             </div>
             <div className="flex-1 w-full overflow-y-auto mb-8 bg-black/60 p-4 border-2 border-white/10 shadow-inner">
@@ -2536,7 +2536,7 @@ const RugSweeperApp = () => {
                 )}
             </div>
             <button onPointerDown={(e) => { e.stopPropagation(); setGameState('MENU'); game.current.state='MENU'; }} className="w-full py-4 bg-white text-blue-950 font-black border-4 border-blue-500 shadow-2xl hover:bg-gray-200 transition-all uppercase italic text-xl">
-              CLOSE IT
+                Close IT
             </button>
           </div>
         )}
@@ -3320,7 +3320,7 @@ const MergeItApp = () => {
         ) : (
             <span className="flex items-center gap-2">
                 <AlertTriangle size={12}/> 
-                {marketStatus === "BEARISH_RUG" ? "CRITICAL: LIQUIDITY RUGGED!" : "ALERT: WHALE PUMP IN PROGRESS!"}
+                {marketStatus === "BEARISH" ? "CRITICAL ZONE" : "ALERT: PUMP IN PROGRESS!"}
             </span>
         )}
       </div>
