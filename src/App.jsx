@@ -1797,12 +1797,27 @@ const AmpTunesApp = () => {
 };
 
 
+// --- CONSTANTS ---
+const GAME_WIDTH = 320;
+const GAME_HEIGHT = 550;
+const BLOCK_HEIGHT = 35;
+const BASE_WIDTH = 220;
+const INITIAL_SPEED = 4;
+
+const NOTES = [261.63, 293.66, 329.63, 392.00, 523.25, 587.33, 659.25, 783.99];
+const BIOMES = [
+  { score: 0, name: "THE TRENCHES", bgStart: '#050510', bgEnd: '#000000', text: '#00ff41', gridColor: 'rgba(0, 255, 65, 0.15)' },
+  { score: 15, name: "LIQUIDITY ATMOSPHERE", bgStart: '#000a22', bgEnd: '#000000', text: '#00f2ff', gridColor: 'rgba(0, 242, 255, 0.15)' },
+  { score: 35, name: "SYNTHETIC ORBIT", bgStart: '#110022', bgEnd: '#000000', text: '#ff00cc', gridColor: 'rgba(255, 0, 204, 0.15)' },
+  { score: 60, name: "NEURAL HUB", bgStart: '#0a0a0a', bgEnd: '#000000', text: '#ffffff', gridColor: 'rgba(255, 255, 255, 0.15)' },
+  { score: 100, name: "GOD CANDLE", bgStart: '#221100', bgEnd: '#000000', text: '#ffd700', gridColor: 'rgba(255, 215, 0, 0.15)' },
+];
+
 const RugSweeperApp = () => {
   const canvasRef = useRef(null);
   const requestRef = useRef();
   const audioCtxRef = useRef(null);
 
-  // --- STATE ---
   const [gameState, setGameState] = useState('MENU'); 
   const [score, setScore] = useState(0);
   const [highScore, setHighScore] = useState(0);
@@ -1813,42 +1828,115 @@ const RugSweeperApp = () => {
   const [loadingLB, setLoadingLB] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [user, setUser] = useState(null);
+  const [currentBiome, setCurrentBiome] = useState(BIOMES[0]);
 
-  // --- ENGINE REFS ---
   const game = useRef({
     state: 'MENU',
     stack: [],
     current: null,
     debris: [],
     particles: [],
+    stars: [], 
+    warpLevel: 0,   
+    flash: 0,       
     cameraY: 0,
     shake: 0,
     combo: 0,
     perfectCount: 0,
     startTime: 0,
     time: 0,
-    score: 0
+    score: 0,
+    worldRotation: 0,
+    targetRotation: 0,
+    rotationTimer: 0,
+    slowMo: 1.0,
+    syncEnergy: 100,
+    lastTap: { x: GAME_WIDTH/2, y: GAME_HEIGHT/2, power: 0, active: false }
   });
 
-  // --- CONSTANTS ---
-  const GAME_WIDTH = 320;
-  const GAME_HEIGHT = 550;
-  const BLOCK_HEIGHT = 35;
-  const BASE_WIDTH = 220;
-  const INITIAL_SPEED = 4;
+  // --- HELPER FUNCTIONS ---
 
-  const NOTES = [261.63, 293.66, 329.63, 392.00, 523.25, 587.33, 659.25, 783.99];
-  const BIOMES = [
-    { score: 0, name: "THE TRENCHES", bgStart: '#1a1a2e', bgEnd: '#16213e', text: '#fff' },
-    { score: 10, name: "ATMOSPHERE", bgStart: '#2b5876', bgEnd: '#4e4376', text: '#fff' },
-    { score: 25, name: "ORBIT", bgStart: '#000000', bgEnd: '#434343', text: '#00ff00' },
-    { score: 50, name: "LUNAR BASE", bgStart: '#232526', bgEnd: '#414345', text: '#fff' },
-    { score: 75, name: "MARS COLONY", bgStart: '#870000', bgEnd: '#190a05', text: '#ffcc00' },
-    { score: 100, name: "THE CITADEL", bgStart: '#cc95c0', bgEnd: '#dbd4b4', text: '#000' },
-  ];
-  const [currentBiome, setCurrentBiome] = useState(BIOMES[0]);
+  function spawnBlock(prev, level) {
+    const isLeft = Math.random() > 0.5;
+    const yPos = level * BLOCK_HEIGHT;
+    const speed = INITIAL_SPEED + Math.pow(level, 0.6) * 0.5;
+    return {
+      x: isLeft ? -prev.w : GAME_WIDTH,
+      y: yPos,
+      w: prev.w,
+      h: BLOCK_HEIGHT,
+      dir: isLeft ? 1 : -1,
+      speed: Math.min(speed, 18),
+      color: `hsl(${(level * 15) % 360}, 85%, 55%)`
+    };
+  }
 
-  // --- INIT & AUTH ---
+  function createParticles(x, y, w, h, color, count = 10, char = null) {
+    for(let i=0; i<count; i++) {
+      game.current.particles.push({
+        x: x + Math.random() * w,
+        y: y + Math.random() * h,
+        vx: (Math.random() - 0.5) * 15,
+        vy: (Math.random() - 0.5) * 15,
+        life: 1.0,
+        color: color,
+        char: char || (Math.random() > 0.5 ? '0' : '1'),
+        rotation: Math.random() * Math.PI * 2,
+        vr: (Math.random() - 0.5) * 0.3
+      });
+    }
+  }
+
+  function initAudio() {
+    if (!audioCtxRef.current) {
+      try { audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)(); }
+      catch (e) {}
+    }
+    if (audioCtxRef.current?.state === 'suspended') audioCtxRef.current.resume();
+  }
+
+  function playSound(type) {
+    if (!audioCtxRef.current) return;
+    const ctx = audioCtxRef.current;
+    const t = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    
+    if (type === 'perfect') {
+      osc.type = 'square';
+      const noteFreq = NOTES[game.current.perfectCount % NOTES.length] * (1 + Math.floor(game.current.perfectCount/NOTES.length)*0.5);
+      osc.frequency.setValueAtTime(noteFreq, t);
+      gain.gain.setValueAtTime(0.04, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
+      osc.start(t); osc.stop(t + 0.4);
+    } else if (type === 'place') {
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(120, t);
+      osc.frequency.linearRampToValueAtTime(40, t + 0.1);
+      gain.gain.setValueAtTime(0.1, t);
+      gain.gain.linearRampToValueAtTime(0, t + 0.1);
+      osc.start(t); osc.stop(t + 0.1);
+    } else if (type === 'fail') {
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(150, t);
+      osc.frequency.linearRampToValueAtTime(10, t + 0.9);
+      gain.gain.setValueAtTime(0.2, t);
+      gain.gain.linearRampToValueAtTime(0, t + 0.9);
+      osc.start(t); osc.stop(t + 0.9);
+    } else if (type === 'shift') {
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(40, t);
+      osc.frequency.exponentialRampToValueAtTime(1000, t + 0.8);
+      gain.gain.setValueAtTime(0.1, t);
+      gain.gain.linearRampToValueAtTime(0, t + 0.8);
+      osc.start(t); osc.stop(t + 0.8);
+    }
+  }
+
+  // --- CORE STATE HANDLERS ---
+
   useEffect(() => {
     const initAuth = async () => {
       if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
@@ -1859,41 +1947,420 @@ const RugSweeperApp = () => {
     };
     initAuth();
     const unsubscribe = onAuthStateChanged(auth, setUser);
-
     const localHighScore = localStorage.getItem('stackItHighScore');
     if (localHighScore) setHighScore(parseInt(localHighScore, 10));
-
     const localName = localStorage.getItem('stackItUsername');
     if (localName) {
       setSavedName(localName);
       setUsernameInput(localName);
     }
-
     return () => {
       unsubscribe();
       if (requestRef.current) cancelAnimationFrame(requestRef.current);
     };
   }, []);
 
-  // --- KEYBOARD CONTROLS ---
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.code === 'Space') {
         e.preventDefault();
-        if (['MENU', 'GAME_OVER'].includes(game.current.state)) {
-          startGame();
-        } else if (game.current.state === 'NEW_HIGHSCORE') {
-           if (savedName) handleReturningSubmit('RETRY');
-        } else if (game.current.state === 'PLAYING') {
-          placeBlock();
-        }
+        if (['MENU', 'GAME_OVER'].includes(game.current.state)) startGame();
+        else if (game.current.state === 'NEW_HIGHSCORE') { if (savedName) handleReturningSubmit('RETRY'); }
+        else if (game.current.state === 'PLAYING') handleInteraction(GAME_WIDTH/2, GAME_HEIGHT/2, true);
       }
     };
+    const handleKeyUp = (e) => {
+        if (e.code === 'Space') game.current.slowMo = 1.0;
+    };
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [savedName]); 
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+        window.removeEventListener('keydown', handleKeyDown);
+        window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, [savedName, currentBiome]); 
 
-  // --- DATABASE LOGIC ---
+  const startGame = (e) => {
+    if(e) { e.stopPropagation(); e.preventDefault(); }
+    if (requestRef.current) cancelAnimationFrame(requestRef.current);
+    initAudio();
+
+    const stars = Array(100).fill(0).map(() => ({
+      x: Math.random() * GAME_WIDTH,
+      y: Math.random() * GAME_HEIGHT,
+      size: Math.random() * 2.5 + 0.5,
+      p: Math.random() * 0.9 + 0.1,
+      alpha: Math.random() * 0.6 + 0.2
+    }));
+
+    game.current = {
+        state: 'PLAYING',
+        stack: [],
+        current: null,
+        debris: [],
+        particles: [],
+        stars: stars,
+        warpLevel: 0,
+        flash: 0,
+        cameraY: 0,
+        shake: 0,
+        combo: 0,
+        perfectCount: 0,
+        startTime: Date.now(),
+        time: 0,
+        score: 0,
+        worldRotation: 0,
+        targetRotation: 0,
+        rotationTimer: 0,
+        slowMo: 1.0,
+        syncEnergy: 100,
+        lastTap: { x: GAME_WIDTH/2, y: GAME_HEIGHT/2, power: 0, active: false }
+    };
+
+    setScore(0);
+    setGameState('PLAYING');
+    setCurrentBiome(BIOMES[0]);
+
+    const base = { x: (GAME_WIDTH - BASE_WIDTH) / 2, y: 0, w: BASE_WIDTH, h: BLOCK_HEIGHT, color: '#00ff41' };
+    game.current.stack = [base];
+    game.current.current = spawnBlock(base, 1);
+    requestRef.current = requestAnimationFrame(loop);
+  };
+
+  const handleInteraction = (x, y, isSpace = false) => {
+    if (game.current.state !== 'PLAYING') return;
+    
+    // Hold Mechanic for Slow-Mo
+    game.current.lastTap = { x, y, power: 1.0, active: true };
+    
+    if (game.current.syncEnergy > 10) {
+        game.current.slowMo = 0.4;
+    }
+
+    // Place on Tap Release / Instant Click logic
+    placeBlock();
+  };
+
+  const placeBlock = () => {
+    const g = game.current;
+    if (g.state !== 'PLAYING') return;
+    if (Date.now() - g.startTime < 150) return;
+    
+    const curr = g.current;
+    if (!curr) return;
+    const prev = g.stack[g.stack.length-1];
+    const dist = curr.x - prev.x;
+    const absDist = Math.abs(dist);
+    const tolerance = 8;
+    
+    if (absDist > curr.w) {
+      g.shake = 40;
+      gameOver();
+      return;
+    }
+
+    let newX = curr.x;
+    let newW = curr.w;
+    let isPerfect = false;
+    let scoreAdd = 1;
+    
+    if (absDist <= tolerance) {
+      newX = prev.x; newW = prev.w; isPerfect = true;
+      g.combo++; g.perfectCount++;
+      if (g.combo >= 3) scoreAdd = 2; 
+      if (g.combo >= 3 && newW < BASE_WIDTH) { newW = Math.min(BASE_WIDTH, newW + 15); newX = prev.x - (newW-prev.w)/2; }
+      g.shake = 12; playSound('perfect');
+      g.flash = 0.25;
+      g.syncEnergy = Math.min(100, g.syncEnergy + 15);
+    } else {
+      g.combo = 0; g.perfectCount = 0;
+      newW = curr.w - absDist;
+      newX = dist > 0 ? curr.x : prev.x;
+      const debrisX = dist > 0 ? curr.x + newW : curr.x;
+      const debrisW = absDist;
+      g.debris.push({ 
+        x: debrisX, y: curr.y, w: debrisW, h: curr.h, 
+        vx: dist > 0 ? 8 : -8, vy: -6, color: curr.color, 
+        life: 1.0, rot: 0, vr: (Math.random()-0.5)*0.3 
+      });
+      g.shake = 6; playSound('place');
+      createParticles(debrisX, curr.y, debrisW, curr.h, curr.color, 8);
+    }
+
+    const placed = { x: newX, y: curr.y, w: newW, h: curr.h, color: curr.color, perfect: isPerfect };
+    g.stack.push(placed);
+    g.score += scoreAdd;
+    setScore(g.score);
+
+    // DYNAMIC PERSPECTIVE CHAOS
+    if (g.rotationTimer > 0) {
+        g.rotationTimer--;
+        if (g.rotationTimer === 0) {
+            g.targetRotation = 0;
+            g.flash = 0.6;
+            playSound('shift');
+        }
+    } else if (g.score > 8 && Math.random() < 0.15) { 
+        const variants = [Math.PI/2, -Math.PI/2, Math.PI, Math.PI/4, -Math.PI/4];
+        g.targetRotation = variants[Math.floor(Math.random() * variants.length)];
+        g.rotationTimer = 8 + Math.floor(Math.random() * 5);
+        g.flash = 1.0;
+        playSound('shift');
+    }
+
+    const biome = BIOMES.slice().reverse().find(b => g.score >= b.score);
+    if (biome && biome.name !== currentBiome.name) {
+        setCurrentBiome(biome);
+        g.warpLevel = 1.2;
+        g.flash = 0.8;
+        playSound('shift');
+    }
+
+    if (g.score > highScore) { setHighScore(g.score); localStorage.setItem('stackItHighScore', g.score); }
+    g.current = spawnBlock(placed, g.stack.length);
+    g.slowMo = 1.0; // Reset after placement
+  };
+
+  const gameOver = () => {
+    playSound('fail');
+    game.current.slowMo = 1.0;
+    const finalScore = game.current.score;
+    const storedHS = parseInt(localStorage.getItem('stackItHighScore') || '0', 10);
+    if (finalScore > 0 && finalScore >= storedHS) { setGameState('NEW_HIGHSCORE'); game.current.state = 'NEW_HIGHSCORE'; }
+    else { setGameState('GAME_OVER'); game.current.state = 'GAME_OVER'; }
+  };
+
+  const loop = () => {
+    const ctx = canvasRef.current?.getContext('2d');
+    if (!ctx) return;
+    const g = game.current;
+    
+    const dt = g.slowMo;
+    g.time += 0.05 * dt;
+
+    if (g.state === 'PLAYING' && g.current) {
+      g.current.x += (g.current.speed * dt) * g.current.dir;
+      if (g.current.x > GAME_WIDTH + 80) g.current.dir = -1;
+      if (g.current.x < -80 - g.current.w) g.current.dir = 1;
+      
+      const stackTop = g.stack.length * BLOCK_HEIGHT;
+      const targetY = Math.max(0, stackTop - (GAME_HEIGHT * 0.45));
+      g.cameraY += (targetY - g.cameraY) * 0.08 * dt;
+
+      // Sync Energy Consumption
+      if (g.slowMo < 1.0) {
+          g.syncEnergy = Math.max(0, g.syncEnergy - 0.8);
+          if (g.syncEnergy <= 0) g.slowMo = 1.0;
+      } else {
+          g.syncEnergy = Math.min(100, g.syncEnergy + 0.1);
+      }
+    }
+
+    // Tweening
+    g.shake *= 0.88;
+    g.flash *= 0.92;
+    g.warpLevel *= 0.96;
+    g.lastTap.power *= 0.9;
+    g.worldRotation += (g.targetRotation - g.worldRotation) * 0.08 * dt;
+
+    const shakeX = (Math.random() - 0.5) * g.shake;
+    const shakeY = (Math.random() - 0.5) * g.shake;
+
+    g.debris.forEach(d => { d.x += d.vx * dt; d.y += d.vy * dt; d.vy += 0.5 * dt; d.life -= 0.012 * dt; d.rot += d.vr * dt; });
+    g.debris = g.debris.filter(d => d.life > 0);
+    g.particles.forEach(p => { p.x += p.vx * dt; p.y += p.vy * dt; p.life -= 0.015 * dt; p.rotation += p.vr * dt; });
+    g.particles = g.particles.filter(p => p.life > 0);
+
+    // --- RENDER ---
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+
+    const bgGrad = ctx.createLinearGradient(0, 0, 0, GAME_HEIGHT);
+    bgGrad.addColorStop(0, currentBiome.bgStart);
+    bgGrad.addColorStop(1, currentBiome.bgEnd);
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+
+    // Reactive Stars (Pulled by gravity well)
+    g.stars.forEach(s => {
+      let sx = s.x;
+      let sy = (s.y + g.cameraY * s.p) % GAME_HEIGHT;
+      
+      // Gravity Well Physics
+      if (g.lastTap.power > 0.01) {
+          const dx = g.lastTap.x - sx;
+          const dy = g.lastTap.y - sy;
+          const dist = Math.sqrt(dx*dx + dy*dy);
+          if (dist < 150) {
+              const force = (1 - dist/150) * g.lastTap.power * 20;
+              sx += (dx / dist) * force;
+              sy += (dy / dist) * force;
+          }
+      }
+
+      const h = s.size + (g.warpLevel * 45 * s.p);
+      ctx.fillStyle = `rgba(255, 255, 255, ${s.alpha * (g.slowMo < 1.0 ? 1.5 : 1.0)})`;
+      ctx.fillRect(sx, sy, s.size, h);
+    });
+
+    // Reactive Chromatic Grid
+    ctx.save();
+    const gridSpacing = 40;
+    const gridOffset = (g.cameraY * 0.5) % gridSpacing;
+    const tapBend = (g.lastTap.x - GAME_WIDTH/2) * g.lastTap.power * 0.1;
+    
+    ctx.translate(tapBend, 0);
+    
+    // Multi-color grid lines for glitch effect
+    if (g.slowMo < 1.0) {
+        ctx.strokeStyle = '#ff0000'; ctx.lineWidth = 2;
+        ctx.strokeRect(2, 0, GAME_WIDTH, GAME_HEIGHT);
+        ctx.strokeStyle = '#00ffff'; ctx.lineWidth = 2;
+        ctx.strokeRect(-2, 0, GAME_WIDTH, GAME_HEIGHT);
+    }
+
+    ctx.strokeStyle = currentBiome.gridColor;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let x = -gridSpacing; x <= GAME_WIDTH + gridSpacing; x += gridSpacing) {
+      ctx.moveTo(x, 0); ctx.lineTo(x, GAME_HEIGHT);
+    }
+    for (let y = -gridSpacing; y <= GAME_HEIGHT + gridSpacing; y += gridSpacing) {
+      ctx.moveTo(0, y + gridOffset); ctx.lineTo(GAME_WIDTH, y + gridOffset);
+    }
+    ctx.stroke();
+    ctx.restore();
+
+    // Primary Canvas Transform
+    ctx.save();
+    ctx.translate(GAME_WIDTH/2 + shakeX, GAME_HEIGHT/2 + shakeY);
+    ctx.rotate(g.worldRotation);
+    ctx.translate(-GAME_WIDTH/2, -GAME_HEIGHT/2);
+
+    ctx.save();
+    ctx.translate(0, GAME_HEIGHT + g.cameraY - 70);
+
+    // Render Stacked Candles
+    g.stack.forEach((b, i) => {
+      const y = -b.y;
+      const isPerfect = b.perfect;
+      
+      if (isPerfect) {
+          ctx.shadowBlur = 15;
+          ctx.shadowColor = b.color;
+      } else {
+          ctx.shadowBlur = 0;
+      }
+      
+      const fill = ctx.createLinearGradient(b.x, y - b.h, b.x, y);
+      fill.addColorStop(0, b.color);
+      fill.addColorStop(1, '#000');
+      ctx.fillStyle = fill;
+      ctx.fillRect(b.x, y - b.h, b.w, b.h);
+      
+      ctx.strokeStyle = isPerfect ? '#fff' : 'rgba(255,255,255,0.2)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(b.x, y - b.h, b.w, b.h);
+      ctx.shadowBlur = 0;
+    });
+
+    g.debris.forEach(d => {
+      ctx.save();
+      ctx.translate(d.x + d.w/2, -d.y - d.h/2);
+      ctx.rotate(d.rot);
+      ctx.fillStyle = d.color; ctx.globalAlpha = d.life;
+      ctx.fillRect(-d.w/2, -d.h/2, d.w, d.h);
+      ctx.restore();
+    });
+
+    g.particles.forEach(p => {
+      ctx.save();
+      ctx.translate(p.x, -p.y);
+      ctx.rotate(p.rotation);
+      ctx.fillStyle = p.color; ctx.globalAlpha = p.life;
+      ctx.font = 'bold 12px monospace';
+      ctx.fillText(p.char, 0, 0);
+      ctx.restore();
+    });
+
+    // Moving Candle
+    if (g.state === 'PLAYING' && g.current) {
+      const c = g.current;
+      ctx.fillStyle = c.color;
+      ctx.fillRect(c.x, -c.y - c.h, c.w, c.h);
+      
+      // Light Column
+      const cGrad = ctx.createLinearGradient(c.x, -c.y - c.h, c.x, -GAME_HEIGHT);
+      // Fix: hsl colors can't just have hex alpha appended. Convert to hsla string.
+      const transparentColor = c.color.replace('hsl', 'hsla').replace(')', ', 0.2)');
+      cGrad.addColorStop(0, transparentColor);
+      cGrad.addColorStop(1, 'transparent');
+      ctx.fillStyle = cGrad;
+      ctx.fillRect(c.x, -c.y - c.h, c.w, -GAME_HEIGHT);
+    }
+
+    if (highScore > 0) {
+      const athY = -(highScore * BLOCK_HEIGHT);
+      ctx.strokeStyle = '#ffff00'; ctx.setLineDash([5, 5]);
+      ctx.beginPath(); ctx.moveTo(-100, athY); ctx.lineTo(GAME_WIDTH+100, athY); ctx.stroke();
+      ctx.setLineDash([]); ctx.fillStyle = '#ffff00'; ctx.font = 'bold 10px monospace';
+      ctx.fillText('ATH REKORD', 10, athY - 8);
+    }
+
+    ctx.restore();
+    ctx.restore();
+
+    // Glitch Scanlines Overlay
+    if (g.score > 20) {
+        ctx.fillStyle = 'rgba(255,255,255,0.02)';
+        for(let i=0; i<GAME_HEIGHT; i+=4) {
+            if (Math.random() > 0.98) ctx.fillRect(0, i, GAME_WIDTH, 1);
+        }
+    }
+
+    if (g.flash > 0.01) {
+        ctx.fillStyle = `rgba(255, 255, 255, ${g.flash})`;
+        ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+    }
+
+    // UI Layer
+    ctx.fillStyle = currentBiome.text;
+    ctx.textAlign = 'center';
+    
+    // Score
+    ctx.font = '900 60px Impact';
+    ctx.shadowBlur = 10; ctx.shadowColor = currentBiome.text;
+    ctx.fillText(g.score, GAME_WIDTH/2, 80);
+    ctx.shadowBlur = 0;
+    
+    ctx.font = 'bold 12px monospace';
+    ctx.letterSpacing = "2px";
+    ctx.fillText(currentBiome.name, GAME_WIDTH/2, 105);
+
+    // Sync Energy Bar
+    if (g.state === 'PLAYING') {
+        const barW = 100;
+        ctx.fillStyle = 'rgba(255,255,255,0.2)';
+        ctx.fillRect(GAME_WIDTH/2 - barW/2, 120, barW, 4);
+        ctx.fillStyle = g.syncEnergy > 30 ? '#00ff41' : '#ff0041';
+        ctx.fillRect(GAME_WIDTH/2 - barW/2, 120, barW * (g.syncEnergy/100), 4);
+    }
+
+    if (g.combo > 1) {
+      ctx.fillStyle = `hsl(${g.time * 600}, 100%, 50%)`;
+      ctx.font = 'italic 900 32px Arial';
+      ctx.save();
+      ctx.translate(GAME_WIDTH/2, 160);
+      ctx.rotate(Math.sin(g.time*15)*0.2);
+      ctx.fillText(`${g.combo}X COMBO!`, 0, 0);
+      ctx.restore();
+    }
+
+    if (g.state === 'PLAYING') requestRef.current = requestAnimationFrame(loop);
+  };
+
+  // --- LEADERBOARD & SUBMISSION ---
+
   const fetchLeaderboard = async () => {
     if (!user) return;
     setLoadingLB(true);
@@ -1902,16 +2369,13 @@ const RugSweeperApp = () => {
       const snapshot = await getDocs(q);
       const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
       const sorted = data.sort((a, b) => Number(b.score) - Number(a.score));
-
       const currentName = localStorage.getItem('stackItUsername'); 
       if (currentName) {
         const rank = sorted.findIndex(x => x.username === currentName) + 1;
         setPlayerRank(rank > 0 ? rank : null);
       }
       setLeaderboard(sorted.slice(0, 10));
-    } catch (e) {
-      console.error("Leaderboard fetch error:", e);
-    }
+    } catch (e) { console.error("LB Error:", e); }
     setLoadingLB(false);
   };
 
@@ -1922,51 +2386,31 @@ const RugSweeperApp = () => {
       const uid = user.uid;
       const scoresRef = collection(db, 'artifacts', appId, 'public', 'data', 'stackit_scores');
       const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'stackit_scores', uid);
-
       const isReturningUser = !!localStorage.getItem('stackItUsername');
       if (!isReturningUser) {
         const snapshot = await getDocs(scoresRef);
         let isTaken = false;
-        snapshot.forEach(d => {
-          if (d.data().username === upperName && d.id !== uid) isTaken = true;
-        });
-        if (isTaken) {
-          alert(`USERNAME '${upperName}' IS TAKEN.`);
-          return false;
-        }
+        snapshot.forEach(d => { if (d.data().username === upperName && d.id !== uid) isTaken = true; });
+        if (isTaken) { return false; }
         localStorage.setItem('stackItUsername', upperName);
         setSavedName(upperName); 
       }
-
       const snap = await getDoc(docRef);
-      if (!snap.exists()) {
-        await setDoc(docRef, { username: upperName, score: scoreToSave, timestamp: Date.now() });
-      } else {
+      if (!snap.exists()) await setDoc(docRef, { username: upperName, score: scoreToSave, timestamp: Date.now() });
+      else {
         const existingScore = Number(snap.data().score || 0);
-        if (scoreToSave > existingScore) {
-          await updateDoc(docRef, { score: scoreToSave, timestamp: Date.now(), username: upperName });
-        }
+        if (scoreToSave > existingScore) await updateDoc(docRef, { score: scoreToSave, timestamp: Date.now(), username: upperName });
       }
       return true;
-    } catch (e) {
-      console.error("DB Error:", e);
-      return false;
-    }
+    } catch (e) { console.error("DB Error:", e); return false; }
   };
 
   const handleFirstTimeSubmit = async () => {
-    if (!usernameInput.trim()) {
-      alert("ENTER NAME TO SAVE SCORE");
-      return;
-    }
+    if (!usernameInput.trim()) return;
     setIsSubmitting(true);
     const success = await saveScoreToDb(usernameInput, game.current.score);
     setIsSubmitting(false);
-    if (success) {
-      await fetchLeaderboard();
-      setGameState('LEADERBOARD');
-      game.current.state = 'LEADERBOARD';
-    }
+    if (success) { await fetchLeaderboard(); setGameState('LEADERBOARD'); game.current.state = 'LEADERBOARD'; }
   };
 
   const handleReturningSubmit = async (action) => {
@@ -1975,407 +2419,115 @@ const RugSweeperApp = () => {
     setIsSubmitting(true);
     await saveScoreToDb(name, game.current.score);
     setIsSubmitting(false);
-    if (action === 'RETRY') {
-      startGame();
-    } else if (action === 'RANK') {
-      await fetchLeaderboard();
-      setGameState('LEADERBOARD');
-      game.current.state = 'LEADERBOARD';
-    }
-  };
-
-  // --- AUDIO ---
-  const initAudio = () => {
-    if (!audioCtxRef.current) {
-      try { audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)(); }
-      catch (e) {}
-    }
-    if (audioCtxRef.current?.state === 'suspended') audioCtxRef.current.resume();
-  };
-
-  const playSound = (type) => {
-    if (!audioCtxRef.current) return;
-    const ctx = audioCtxRef.current;
-    const t = ctx.currentTime;
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-
-    if (type === 'perfect') {
-      osc.type = 'square';
-      const noteFreq = NOTES[game.current.perfectCount % NOTES.length] * (1 + Math.floor(game.current.perfectCount/NOTES.length)*0.5);
-      osc.frequency.setValueAtTime(noteFreq, t);
-      gain.gain.setValueAtTime(0.1, t);
-      gain.gain.exponentialRampToValueAtTime(0.01, t + 0.3);
-      osc.start(t);
-      osc.stop(t + 0.3);
-    } else if (type === 'place') {
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(150, t);
-      osc.frequency.linearRampToValueAtTime(50, t + 0.1);
-      gain.gain.setValueAtTime(0.1, t);
-      gain.gain.linearRampToValueAtTime(0, t + 0.1);
-      osc.start(t);
-      osc.stop(t + 0.1);
-    } else if (type === 'fail') {
-      osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(100, t);
-      osc.frequency.linearRampToValueAtTime(20, t + 0.5);
-      gain.gain.setValueAtTime(0.2, t);
-      gain.gain.linearRampToValueAtTime(0, t + 0.5);
-      osc.start(t);
-      osc.stop(t + 0.5);
-    }
-  };
-
-  // --- GAME LOGIC ---
-  const spawnBlock = (prev, level) => {
-    const isLeft = Math.random() > 0.5;
-    const yPos = level * BLOCK_HEIGHT;
-    const speed = INITIAL_SPEED + Math.pow(level, 0.6) * 0.5;
-    return {
-      x: isLeft ? -prev.w : GAME_WIDTH,
-      y: yPos,
-      w: prev.w,
-      h: BLOCK_HEIGHT,
-      dir: isLeft ? 1 : -1,
-      speed: Math.min(speed, 15),
-      color: `hsl(${(level * 10) % 360}, 70%, 60%)`
-    };
-  };
-
-  const createParticles = (x, y, w, h, color, count = 10) => {
-    for(let i=0; i<count; i++) {
-      game.current.particles.push({
-        x: x + Math.random() * w,
-        y: y + Math.random() * h,
-        vx: (Math.random() - 0.5) * 10,
-        vy: (Math.random() - 0.5) * 10,
-        life: 1.0,
-        color: color
-      });
-    }
-  };
-
-  const startGame = (e) => {
-    if(e) { e.stopPropagation(); e.preventDefault(); }
-    
-    // 🔥 FIX: STOP ANY RUNNING LOOP IMMEDIATELY TO PREVENT FREEZE
-    if (requestRef.current) cancelAnimationFrame(requestRef.current);
-    
-    initAudio();
-
-    game.current = {
-        state: 'PLAYING',
-        stack: [],
-        current: null,
-        debris: [],
-        particles: [],
-        cameraY: 0,
-        shake: 0,
-        combo: 0,
-        perfectCount: 0,
-        startTime: Date.now(),
-        time: 0,
-        score: 0
-    };
-
-    setScore(0);
-    setGameState('PLAYING');
-    setCurrentBiome(BIOMES[0]);
-
-    const base = {
-      x: (GAME_WIDTH - BASE_WIDTH) / 2,
-      y: 0,
-      w: BASE_WIDTH,
-      h: BLOCK_HEIGHT,
-      color: '#33ff33'
-    };
-
-    game.current.stack = [base];
-    game.current.current = spawnBlock(base, 1);
-    requestRef.current = requestAnimationFrame(loop);
-  };
-
-  const placeBlock = () => {
-    const g = game.current;
-    if (g.state !== 'PLAYING') return;
-    if (Date.now() - g.startTime < 200) return;
-
-    const curr = g.current;
-    if (!curr) return;
-
-    const prev = g.stack[g.stack.length-1];
-    const dist = curr.x - prev.x;
-    const absDist = Math.abs(dist);
-    const tolerance = 10;
-
-    if (absDist > curr.w) {
-      createParticles(curr.x, curr.y, curr.w, curr.h, '#ff0000', 20);
-      g.shake = 20;
-      gameOver();
-      return;
-    }
-
-    let newX = curr.x;
-    let newW = curr.w;
-    let isPerfect = false;
-    let scoreAdd = 1;
-
-    if (absDist <= tolerance) {
-      newX = prev.x;
-      newW = prev.w;
-      isPerfect = true;
-      g.combo++;
-      g.perfectCount++;
-      if (g.combo >= 3) scoreAdd = 2; 
-
-      if (g.combo >= 3 && newW < BASE_WIDTH) {
-        newW = Math.min(BASE_WIDTH, newW + 20);
-        newX = prev.x - 10;
-      }
-      g.shake = 5;
-      playSound('perfect', g.perfectCount);
-      createParticles(newX, curr.y, newW, curr.h, '#ffffff', 10);
-    } else {
-      g.combo = 0;
-      g.perfectCount = 0;
-      newW = curr.w - absDist;
-      newX = dist > 0 ? curr.x : prev.x;
-      const debrisX = dist > 0 ? curr.x + newW : curr.x;
-      const debrisW = absDist;
-      g.debris.push({
-        x: debrisX, y: curr.y, w: debrisW, h: curr.h,
-        vx: dist > 0 ? 4 : -4, vy: -2, color: curr.color, life: 1.0
-      });
-      g.shake = 2;
-      playSound('place');
-    }
-
-    const placed = { x: newX, y: curr.y, w: newW, h: curr.h, color: curr.color, perfect: isPerfect };
-    g.stack.push(placed);
-    g.score += scoreAdd;
-    setScore(g.score);
-
-    if (g.score > highScore) {
-        setHighScore(g.score);
-        localStorage.setItem('stackItHighScore', g.score);
-    }
-
-    const biome = BIOMES.slice().reverse().find(b => g.score >= b.score);
-    if (biome && biome.name !== currentBiome.name) setCurrentBiome(biome);
-
-    g.current = spawnBlock(placed, g.stack.length);
-  };
-
-  const gameOver = () => {
-    playSound('fail');
-    const finalScore = game.current.score;
-    const storedHS = parseInt(localStorage.getItem('stackItHighScore') || '0', 10);
-    
-    if (finalScore > 0 && finalScore >= storedHS) {
-        setGameState('NEW_HIGHSCORE');
-        game.current.state = 'NEW_HIGHSCORE';
-    } else {
-        setGameState('GAME_OVER');
-        game.current.state = 'GAME_OVER';
-    }
-    // 🔥 FIX: REMOVED THE DELAYED cancelAnimationFrame TIMER THAT WAS RUGGING RETRIES
-  };
-
-  const loop = () => {
-    const ctx = canvasRef.current?.getContext('2d');
-    if (!ctx) return;
-    const g = game.current;
-    g.time += 0.05;
-
-    if (g.state === 'PLAYING' && g.current) {
-      g.current.x += g.current.speed * g.current.dir;
-      if (g.current.x > GAME_WIDTH + 50) g.current.dir = -1;
-      if (g.current.x < -50 - g.current.w) g.current.dir = 1;
-
-      const stackTop = g.stack.length * BLOCK_HEIGHT;
-      const targetY = Math.max(0, stackTop - (GAME_HEIGHT * 0.4));
-      g.cameraY += (targetY - g.cameraY) * 0.1;
-    }
-
-    g.shake *= 0.8;
-    const shakeX = (Math.random() - 0.5) * g.shake;
-    const shakeY = (Math.random() - 0.5) * g.shake;
-
-    g.debris.forEach(d => { d.x += d.vx; d.y += d.vy; d.vy += 0.5; d.life -= 0.02; });
-    g.debris = g.debris.filter(d => d.life > 0);
-
-    g.particles.forEach(p => { p.x += p.vx; p.y += p.vy; p.life -= 0.03; });
-    g.particles = g.particles.filter(p => p.life > 0);
-
-    const gradient = ctx.createLinearGradient(0, 0, 0, GAME_HEIGHT);
-    gradient.addColorStop(0, currentBiome.bgStart);
-    gradient.addColorStop(1, currentBiome.bgEnd);
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
-
-    ctx.save();
-    ctx.translate(0 + shakeX, GAME_HEIGHT + g.cameraY - 50 + shakeY);
-
-    g.stack.forEach(b => {
-      const y = -b.y;
-      if (b.perfect) { ctx.shadowBlur = 15; ctx.shadowColor = '#fff'; } else { ctx.shadowBlur = 0; }
-      ctx.fillStyle = b.color;
-      ctx.fillRect(b.x, y - b.h, b.w, b.h);
-      ctx.strokeStyle = 'rgba(255,255,255,0.5)';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(b.x, y - b.h, b.w, b.h);
-      ctx.shadowBlur = 0;
-    });
-
-    g.debris.forEach(d => {
-      ctx.fillStyle = d.color;
-      ctx.globalAlpha = d.life;
-      ctx.fillRect(d.x, -d.y - d.h, d.w, d.h);
-      ctx.globalAlpha = 1;
-    });
-
-    g.particles.forEach(p => {
-      ctx.fillStyle = p.color;
-      ctx.globalAlpha = p.life;
-      ctx.beginPath();
-      ctx.arc(p.x, -p.y, 3, 0, Math.PI*2);
-      ctx.fill();
-      ctx.globalAlpha = 1;
-    });
-
-    if (g.state === 'PLAYING' && g.current) {
-      const c = g.current;
-      ctx.fillStyle = c.color;
-      ctx.fillRect(c.x, -c.y - c.h, c.w, c.h);
-    }
-
-    ctx.restore();
-
-    ctx.fillStyle = currentBiome.text;
-    ctx.font = '900 40px Impact';
-    ctx.textAlign = 'center';
-    ctx.fillText(g.score, GAME_WIDTH/2, 60);
-    ctx.font = '12px monospace';
-    ctx.fillText(currentBiome.name, GAME_WIDTH/2, 80);
-
-    if (g.combo > 1) {
-      ctx.fillStyle = `hsl(${g.time * 500}, 100%, 50%)`;
-      ctx.font = 'italic 900 20px Arial';
-      ctx.save();
-      ctx.translate(GAME_WIDTH/2, 110);
-      ctx.rotate(Math.sin(g.time*10)*0.1);
-      ctx.fillText(`${g.combo}X COMBO! (+2)`, 0, 0);
-      ctx.restore();
-    }
-
-    // 🔥 NATURAL STOP: The loop only recurses if we are actually PLAYING
-    if (g.state === 'PLAYING') {
-      requestRef.current = requestAnimationFrame(loop);
-    }
+    if (action === 'RETRY') startGame();
+    else if (action === 'RANK') { await fetchLeaderboard(); setGameState('LEADERBOARD'); game.current.state = 'LEADERBOARD'; }
   };
 
   const openLeaderboard = (e) => {
       if(e) { e.stopPropagation(); e.preventDefault(); }
-      fetchLeaderboard();
-      setGameState('LEADERBOARD');
-      game.current.state = 'LEADERBOARD';
+      fetchLeaderboard(); setGameState('LEADERBOARD'); game.current.state = 'LEADERBOARD';
+  };
+
+  const handleInteractionEvent = (e) => {
+    const rect = canvasRef.current.getBoundingClientRect();
+    const scaleX = GAME_WIDTH / rect.width;
+    const scaleY = GAME_HEIGHT / rect.height;
+    handleInteraction((e.clientX - rect.left) * scaleX, (e.clientY - rect.top) * scaleY);
+  };
+
+  const handleRelease = () => {
+      game.current.slowMo = 1.0;
+      game.current.lastTap.active = false;
   };
 
   return (
-    <div className="flex flex-col h-full bg-[#c0c0c0] p-1 font-mono select-none"
-         onPointerDown={(e) => {
-           if (game.current.state === 'PLAYING') {
-               e.preventDefault();
-               placeBlock();
-           }
-         }}
-    >
-      <div className="bg-[#000080] text-white px-2 py-1 flex justify-between items-center text-xs font-bold border-2 border-white border-r-gray-500 border-b-gray-500 mb-1">
-        <span>STACK_IT.EXE</span>
+    <div className="flex flex-col h-full bg-[#c0c0c0] p-1 font-mono select-none overflow-hidden" 
+         onPointerDown={handleInteractionEvent}
+         onPointerUp={handleRelease}
+         onPointerLeave={handleRelease}>
+      
+      <div className="bg-[#000080] text-white px-3 py-1 flex justify-between items-center text-[10px] font-bold border-2 border-white border-r-gray-500 border-b-gray-500 mb-1">
+        <span className="flex items-center gap-2">
+            <div className={`w-2 h-2 rounded-full ${gameState === 'PLAYING' ? 'bg-red-500 animate-pulse' : 'bg-gray-400'}`} />
+            STACK_ENGINE_3.0
+        </span>
         <span className="text-yellow-300">ATH: {highScore}</span>
       </div>
 
-      <div className="flex-1 bg-black relative border-2 border-gray-600 border-r-white border-b-white overflow-hidden cursor-pointer touch-none">
+      <div className="flex-1 bg-black relative border-2 border-gray-600 border-r-white border-b-white overflow-hidden cursor-crosshair touch-none shadow-inner">
         <canvas ref={canvasRef} width={GAME_WIDTH} height={GAME_HEIGHT} className="w-full h-full object-contain block touch-none" />
 
-        {/* MENU */}
         {gameState === 'MENU' && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm text-center text-white p-6 z-10">
-            <h1 className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-t from-green-600 to-green-300 mb-2 drop-shadow-lg italic">STACK IT</h1>
-            <p className="text-sm font-bold text-gray-300 mb-8 tracking-widest">BUILD THE GOD CANDLE</p>
-            <div className="flex gap-2">
-                <button onPointerDown={startGame} className="animate-pulse bg-white text-black px-4 py-2 font-black border-4 border-blue-500 shadow-[4px_4px_0_#0000ff] cursor-pointer hover:scale-105 transition-transform">
-                TAP TO PUMP
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/70 backdrop-blur-sm text-center text-white p-6 z-10 animate-in fade-in duration-500">
+            <h1 className="text-7xl font-black text-transparent bg-clip-text bg-gradient-to-t from-green-600 to-green-300 mb-2 drop-shadow-[0_4px_10px_rgba(0,255,0,0.5)] italic tracking-tighter">STACK IT</h1>
+            <p className="text-[10px] font-bold text-green-500 mb-12 tracking-[0.4em] uppercase opacity-80 animate-pulse">stack it to the moon</p>
+            <div className="flex flex-col gap-4 w-full max-w-[180px]">
+                <button onPointerDown={startGame} className="bg-white text-black py-3 font-black border-4 border-blue-500 shadow-[4px_4px_0_#0000ff] active:shadow-none active:translate-x-1 active:translate-y-1 transition-all uppercase italic text-xl">
+                Send IT
                 </button>
-                <button onPointerDown={openLeaderboard} className="bg-yellow-400 text-black px-4 py-2 font-black border-4 border-orange-500 shadow-[4px_4px_0_#ff0000] cursor-pointer hover:scale-105 transition-transform">
-                RANK
+                <button onPointerDown={openLeaderboard} className="bg-yellow-400 text-black py-2 font-black border-4 border-orange-500 shadow-[4px_4px_0_#ff0000] active:shadow-none active:translate-x-1 active:translate-y-1 transition-all uppercase italic text-sm">
+                LEADERBOARD
                 </button>
             </div>
+            <p className="mt-8 text-[8px] opacity-40 uppercase tracking-widest">Hold screen for Matrix Sync</p>
           </div>
         )}
 
-        {/* NEW HIGH SCORE (ATH) SCREEN */}
         {gameState === 'NEW_HIGHSCORE' && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-blue-900/95 text-center text-white p-6 z-20 pointer-events-auto" onPointerDown={e=>e.stopPropagation()}>
-            <h1 className="text-4xl font-black text-yellow-400 mb-2 animate-bounce">GGs NEW ATH!</h1>
-            <div className="text-6xl font-black text-white mb-6">{score}</div>
-
+            <h1 className="text-5xl font-black text-yellow-400 mb-2 animate-bounce italic">GOD STATUS!</h1>
+            <div className="text-8xl font-black text-white mb-8 drop-shadow-[0_10px_20px_rgba(0,0,0,0.5)]">{score}</div>
             {savedName ? (
                 <div className="flex flex-col items-center w-full">
-                    <div className="mb-6 flex flex-col items-center">
-                        <p className="text-xs text-blue-300 font-bold mb-1">CONTINUE AS</p>
-                        <div className="text-2xl font-black text-white bg-blue-950 border-2 border-blue-400 px-4 py-2 uppercase tracking-widest shadow-md">
+                    <div className="mb-8 flex flex-col items-center">
+                        <p className="text-[10px] text-blue-300 font-bold mb-2 tracking-widest uppercase">Identity Confirmed</p>
+                        <div className="text-3xl font-black text-white bg-blue-950 border-2 border-blue-400 px-8 py-3 uppercase tracking-widest shadow-2xl">
                             {savedName}
                         </div>
                     </div>
-                    <div className="flex gap-3">
-                        <button onPointerDown={() => handleReturningSubmit('RETRY')} disabled={isSubmitting} className="bg-white text-blue-900 px-6 py-3 font-black border-4 border-blue-500 shadow-[4px_4px_0_#000] cursor-pointer hover:scale-105 transition-transform w-32 flex justify-center">
-                            {isSubmitting ? '...' : 'RETRY'}
+                    <div className="flex gap-4">
+                        <button onPointerDown={() => handleReturningSubmit('RETRY')} disabled={isSubmitting} className="bg-white text-blue-900 px-8 py-4 font-black border-4 border-blue-500 shadow-xl hover:scale-105 transition-transform uppercase italic">
+                            {isSubmitting ? '...' : 'Retry'}
                         </button>
-                        <button onPointerDown={() => handleReturningSubmit('RANK')} disabled={isSubmitting} className="bg-yellow-400 text-black px-6 py-3 font-black border-4 border-orange-500 shadow-[4px_4px_0_#ff0000] cursor-pointer hover:scale-105 transition-transform w-32 flex justify-center">
-                            {isSubmitting ? '...' : 'RANK'}
+                        <button onPointerDown={() => handleReturningSubmit('RANK')} disabled={isSubmitting} className="bg-yellow-400 text-black px-8 py-4 font-black border-4 border-orange-500 shadow-xl hover:scale-105 transition-transform uppercase italic">
+                            {isSubmitting ? '...' : 'Rank'}
                         </button>
                     </div>
-                    <p className="text-[10px] text-blue-300 mt-4 max-w-[200px]">SCORE SAVED ON-CHAIN</p>
                 </div>
             ) : (
                 <div className="flex flex-col items-center w-full">
-                    <p className="text-xs text-blue-200 mb-2 font-bold">ENTER DEGEN NAME:</p>
-                    <input type="text" maxLength={10} className="bg-blue-950 border-2 border-blue-400 text-white text-center text-xl font-bold p-2 mb-6 uppercase w-48 outline-none focus:border-yellow-400" value={usernameInput} onChange={e => setUsernameInput(e.target.value.toUpperCase())} placeholder="USERNAME" onPointerDown={e => e.stopPropagation()} />
-                    <button onPointerDown={handleFirstTimeSubmit} disabled={isSubmitting} className="bg-green-500 text-white px-6 py-3 font-black border-4 border-green-700 shadow-[4px_4px_0_#003300] cursor-pointer hover:scale-105 transition-transform w-48 flex justify-center">
-                        {isSubmitting ? 'SAVING...' : 'SUBMIT TO CHAIN'}
+                    <p className="text-[11px] text-blue-200 mb-3 font-bold uppercase tracking-widest">Commit Alias to Protocol:</p>
+                    <input type="text" maxLength={10} className="bg-blue-950 border-4 border-blue-400 text-white text-center text-3xl font-black p-4 mb-8 uppercase w-64 outline-none focus:border-yellow-400 shadow-2xl" value={usernameInput} onChange={e => setUsernameInput(e.target.value.toUpperCase())} placeholder="ALIAS_ID" onPointerDown={e => e.stopPropagation()} />
+                    <button onPointerDown={handleFirstTimeSubmit} disabled={isSubmitting} className="bg-green-500 text-white px-10 py-4 font-black text-xl border-4 border-green-700 shadow-2xl hover:scale-105 transition-transform uppercase italic">
+                        Initialize
                     </button>
                 </div>
             )}
           </div>
         )}
 
-        {/* LEADERBOARD */}
         {gameState === 'LEADERBOARD' && (
-          <div className="absolute inset-0 flex flex-col items-center bg-blue-900/95 text-white p-4 z-20 pointer-events-auto" onPointerDown={e=>e.stopPropagation()}>
-            <div className="flex justify-between items-center w-full border-b-4 border-yellow-300 pb-2 mb-2">
-                <h2 className="text-2xl font-black text-yellow-300 uppercase">Top Degen Stacks</h2>
-                {playerRank && <div className="bg-black/50 px-2 py-1 text-xs font-bold border border-yellow-300 text-yellow-300">RANK: #{playerRank}</div>}
+          <div className="absolute inset-0 flex flex-col items-center bg-blue-950/95 text-white p-6 z-20 pointer-events-auto shadow-2xl" onPointerDown={e=>e.stopPropagation()}>
+            <div className="flex justify-between items-center w-full border-b-4 border-yellow-400 pb-4 mb-6">
+                <h2 className="text-4xl font-black text-yellow-400 italic italic">TOP_STACKERS</h2>
+                {playerRank && <div className="bg-black/80 px-4 py-2 text-[10px] font-black border border-yellow-400 text-yellow-400 uppercase tracking-widest">RANK: #{playerRank}</div>}
             </div>
-            <div className="flex-1 w-full overflow-y-auto mb-4 border-2 border-white bg-black/50 p-2">
-                {loadingLB ? <div className="text-center mt-10 animate-pulse uppercase">Querying Node...</div> : (
+            <div className="flex-1 w-full overflow-y-auto mb-8 bg-black/60 p-4 border-2 border-white/10 shadow-inner">
+                {loadingLB ? <div className="text-center mt-12 animate-pulse text-[12px] font-bold tracking-[0.5em] text-blue-400 uppercase">Synchronizing Nodes...</div> : (
                     <table className="w-full text-left text-sm font-mono">
                         <thead>
-                            <tr className="text-gray-400 border-b border-gray-600"><th className="pb-1">#</th><th className="pb-1">ALIAS</th><th className="pb-1 text-right">STACK</th></tr>
+                            <tr className="text-gray-500 border-b border-gray-800 text-[10px] uppercase tracking-widest font-black"><th className="pb-4">#</th><th className="pb-4">HOLDER</th><th className="pb-4 text-right">STACK</th></tr>
                         </thead>
                         <tbody>
                             {leaderboard.map((entry, i) => {
                                 const isCurrentUser = savedName && entry.username === savedName;
                                 return (
-                                    <tr key={i} className="border-b border-gray-800 text-gray-300">
-                                        <td className="py-2">{i+1}</td>
-                                        <td className={`py-2 truncate max-w-[120px] ${isCurrentUser ? 'text-orange-500 font-black' : ''}`}>
-                                            {entry.username} {isCurrentUser && '*'}
+                                    <tr key={i} className={`border-b border-white/5 transition-colors ${isCurrentUser ? 'bg-blue-400/20' : 'hover:bg-white/5'}`}>
+                                        <td className="py-4 text-[11px] font-black opacity-30">{i+1}</td>
+                                        <td className={`py-4 truncate max-w-[140px] font-black italic ${isCurrentUser ? 'text-orange-400' : 'text-gray-200'}`}>
+                                            {entry.username} {isCurrentUser && ' (YOU)'}
                                         </td>
-                                        <td className="py-2 text-right text-green-400 font-black">{entry.score}</td>
+                                        <td className="py-4 text-right text-green-400 font-black tracking-tighter text-lg">+{entry.score}</td>
                                     </tr>
                                 );
                             })}
@@ -2383,23 +2535,22 @@ const RugSweeperApp = () => {
                     </table>
                 )}
             </div>
-            <button onPointerDown={(e) => { e.stopPropagation(); setGameState('MENU'); game.current.state='MENU'; }} className="bg-white text-blue-900 px-6 py-2 font-black border-4 border-blue-500 shadow-[4px_4px_0_#000]">
-                BACK TO MENU
+            <button onPointerDown={(e) => { e.stopPropagation(); setGameState('MENU'); game.current.state='MENU'; }} className="w-full py-4 bg-white text-blue-950 font-black border-4 border-blue-500 shadow-2xl hover:bg-gray-200 transition-all uppercase italic text-xl">
+              CLOSE IT
             </button>
           </div>
         )}
 
-        {/* STANDARD GAME OVER */}
         {gameState === 'GAME_OVER' && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-red-900/90 text-center text-white p-6 z-10 pointer-events-none">
-            <h1 className="text-4xl font-black mb-2 text-white">PAPER HANDS!</h1>
-            <div className="text-6xl font-black text-yellow-400 mb-2">{game.current.score}</div>
-            <p className="text-xs mb-8 text-red-200 uppercase tracking-widest font-black italic">You sold too early</p>
-            <div className="flex gap-2">
-                <button onPointerDown={startGame} className="bg-white text-black px-6 py-3 font-black border-4 border-gray-400 shadow-[4px_4px_0_#000] cursor-pointer hover:bg-gray-100 hover:scale-105 transition-transform pointer-events-auto uppercase">
-                Buy the Dip
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-red-950/90 text-center text-white p-6 z-10 pointer-events-none animate-in fade-in duration-300 backdrop-blur-sm">
+            <h1 className="text-7xl font-black mb-2 italic text-white drop-shadow-[0_0_30px_rgba(255,0,0,0.6)] tracking-tighter">RUGGED!</h1>
+            <div className="text-8xl font-black text-yellow-400 mb-2 drop-shadow-2xl">{game.current.score}</div>
+            <p className="text-[11px] mb-12 text-red-300 font-black tracking-[0.3em] uppercase opacity-80 italic animate-pulse">Fatal Buffer Overflow Detected</p>
+            <div className="flex gap-4 w-full">
+                <button onPointerDown={startGame} className="flex-1 bg-white text-black py-4 font-black border-4 border-gray-400 shadow-2xl hover:scale-105 transition-transform pointer-events-auto uppercase italic text-lg">
+                Buy Dip
                 </button>
-                <button onPointerDown={openLeaderboard} className="bg-gray-800 text-white px-4 py-3 font-bold border-4 border-gray-600 cursor-pointer pointer-events-auto uppercase">
+                <button onPointerDown={openLeaderboard} className="flex-1 bg-gray-900 text-white py-4 font-bold border-4 border-gray-600 cursor-pointer pointer-events-auto hover:bg-gray-800 transition-colors uppercase italic text-sm">
                 Rank
                 </button>
             </div>
@@ -2409,6 +2560,8 @@ const RugSweeperApp = () => {
     </div>
   );
 };
+
+
 
 
 const MemesApp = () => {
