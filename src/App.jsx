@@ -3470,7 +3470,7 @@ const MergeItApp = () => {
           <div className="flex flex-col">
             <div className="flex items-center gap-2 mb-1">
               <Cpu size={12} className="text-zinc-500"/>
-              <span className="text-[10px] font-black text-white/20 tracking-widest uppercase">STRATEGIC_CORE_v5.4</span>
+              <span className="text-[10px] font-black text-white/20 tracking-widest uppercase">MERGE_IT_v5.4</span>
             </div>
             <div className="flex gap-8 mt-2">
               <div>
