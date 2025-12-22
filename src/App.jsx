@@ -17,7 +17,8 @@ import {
   Move, RotateCcw, RotateCw, Upload,
   Maximize2, LayoutTemplate, Monitor, Share, Sliders, ChevronLeft, Plus,
   Send, User, AlertCircle, XCircle, AlertTriangle,
-  Lightbulb, TrendingUp, Sparkles, RefreshCw, Trophy, Info, Flame, Share2, Joystick, VolumeX
+  Lightbulb, TrendingUp, Sparkles, RefreshCw, Trophy, Info, Flame, Share2, Joystick, VolumeX,
+  TrendingDown, ShieldAlert, Cpu, BarChart3, Binary
 } from 'lucide-react';
 
 
@@ -1876,18 +1877,55 @@ const BASE_WIDTH = 220;
 const INITIAL_SPEED = 4;
 
 const NOTES = [261.63, 293.66, 329.63, 392.00, 523.25, 587.33, 659.25, 783.99];
+// Minor Pentatonic Scale for the Arp (C, Eb, F, G, Bb)
+const SCALE = [130.81, 155.56, 174.61, 196.00, 233.08, 261.63, 311.13, 349.23, 392.00, 466.16];
+
 const BIOMES = [
-  { score: 0, name: "THE TRENCHES", bgStart: '#050510', bgEnd: '#000000', text: '#00ff41', gridColor: 'rgba(0, 255, 65, 0.15)' },
-  { score: 15, name: "LIQUIDITY ATMOSPHERE", bgStart: '#000a22', bgEnd: '#000000', text: '#00f2ff', gridColor: 'rgba(0, 242, 255, 0.15)' },
-  { score: 35, name: "SYNTHETIC ORBIT", bgStart: '#110022', bgEnd: '#000000', text: '#ff00cc', gridColor: 'rgba(255, 0, 204, 0.15)' },
-  { score: 60, name: "NEURAL HUB", bgStart: '#0a0a0a', bgEnd: '#000000', text: '#ffffff', gridColor: 'rgba(255, 255, 255, 0.15)' },
-  { score: 100, name: "GOD CANDLE", bgStart: '#221100', bgEnd: '#000000', text: '#ffd700', gridColor: 'rgba(255, 215, 0, 0.15)' },
+  { score: 0, name: "THE TRENCHES", bgStart: '#050510', bgEnd: '#000000', text: '#00ff41', gridColor: 'rgba(0, 255, 65, 0.15)', freqMod: 1.0 },
+  { score: 15, name: "LIQUIDITY ATMOSPHERE", bgStart: '#000a22', bgEnd: '#000000', text: '#00f2ff', gridColor: 'rgba(0, 242, 255, 0.15)', freqMod: 1.2 },
+  { score: 35, name: "SYNTHETIC ORBIT", bgStart: '#110022', bgEnd: '#000000', text: '#ff00cc', gridColor: 'rgba(255, 0, 204, 0.15)', freqMod: 1.5 },
+  { score: 60, name: "NEURAL HUB", bgStart: '#0a0a0a', bgEnd: '#000000', text: '#ffffff', gridColor: 'rgba(255, 255, 255, 0.15)', freqMod: 1.8 },
+  { score: 100, name: "GOD CANDLE", bgStart: '#221100', bgEnd: '#000000', text: '#ffd700', gridColor: 'rgba(255, 215, 0, 0.15)', freqMod: 2.0 },
 ];
+
+// --- PURE HELPER FUNCTIONS ---
+
+function spawnBlock(prev, level, isMirror = false) {
+  const isLeft = Math.random() > 0.5;
+  const yPos = isMirror ? (GAME_HEIGHT - (level * BLOCK_HEIGHT)) : (level * BLOCK_HEIGHT);
+  const speed = INITIAL_SPEED + Math.pow(level, 0.6) * 0.5;
+  return {
+    x: isLeft ? -prev.w : GAME_WIDTH,
+    y: yPos,
+    w: prev.w,
+    h: BLOCK_HEIGHT,
+    dir: isLeft ? 1 : -1,
+    speed: Math.min(speed, 18),
+    color: isMirror ? '#ffffff' : `hsl(${(level * 15) % 360}, 85%, 55%)`
+  };
+}
+
+function createParticles(particlesArray, x, y, w, h, color, count = 10, char = null) {
+  for(let i=0; i<count; i++) {
+    particlesArray.push({
+      x: x + Math.random() * w,
+      y: y + Math.random() * h,
+      vx: (Math.random() - 0.5) * 15,
+      vy: (Math.random() - 0.5) * 15,
+      life: 1.0,
+      color: color,
+      char: char || (Math.random() > 0.5 ? '0' : '1'),
+      rotation: Math.random() * Math.PI * 2,
+      vr: (Math.random() - 0.5) * 0.3
+    });
+  }
+}
 
 const RugSweeperApp = () => {
   const canvasRef = useRef(null);
   const requestRef = useRef();
   const audioCtxRef = useRef(null);
+  const musicRef = useRef({ nextNoteTime: 0, currentStep: 0, master: null, filter: null });
 
   const [gameState, setGameState] = useState('MENU'); 
   const [score, setScore] = useState(0);
@@ -1916,95 +1954,153 @@ const RugSweeperApp = () => {
     perfectCount: 0,
     startTime: 0,
     time: 0,
+    lastFrameTime: 0,
     score: 0,
     worldRotation: 0,
     targetRotation: 0,
     rotationTimer: 0,
-    slowMo: 1.0,
-    syncEnergy: 100,
-    lastTap: { x: GAME_WIDTH/2, y: GAME_HEIGHT/2, power: 0, active: false }
+    lastTap: { x: GAME_WIDTH/2, y: GAME_HEIGHT/2, power: 0, active: false },
+    mirrorActive: false,
+    isMirrorTurn: false,
+    mirrorStack: [],
+    mirrorMovesLeft: 0,
+    mirrorCurrent: null
   });
 
-  // --- HELPER FUNCTIONS ---
+  // --- AUDIO & MUSIC ENGINE ---
 
-  function spawnBlock(prev, level) {
-    const isLeft = Math.random() > 0.5;
-    const yPos = level * BLOCK_HEIGHT;
-    const speed = INITIAL_SPEED + Math.pow(level, 0.6) * 0.5;
-    return {
-      x: isLeft ? -prev.w : GAME_WIDTH,
-      y: yPos,
-      w: prev.w,
-      h: BLOCK_HEIGHT,
-      dir: isLeft ? 1 : -1,
-      speed: Math.min(speed, 18),
-      color: `hsl(${(level * 15) % 360}, 85%, 55%)`
-    };
-  }
-
-  function createParticles(x, y, w, h, color, count = 10, char = null) {
-    for(let i=0; i<count; i++) {
-      game.current.particles.push({
-        x: x + Math.random() * w,
-        y: y + Math.random() * h,
-        vx: (Math.random() - 0.5) * 15,
-        vy: (Math.random() - 0.5) * 15,
-        life: 1.0,
-        color: color,
-        char: char || (Math.random() > 0.5 ? '0' : '1'),
-        rotation: Math.random() * Math.PI * 2,
-        vr: (Math.random() - 0.5) * 0.3
-      });
-    }
-  }
-
-  function initAudio() {
+  const initAudio = () => {
     if (!audioCtxRef.current) {
-      try { audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)(); }
-      catch (e) {}
+      try {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        audioCtxRef.current = new AudioContext();
+        
+        const masterGain = audioCtxRef.current.createGain();
+        masterGain.gain.setValueAtTime(0.8, audioCtxRef.current.currentTime);
+        
+        const filter = audioCtxRef.current.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(800, audioCtxRef.current.currentTime);
+        
+        const compressor = audioCtxRef.current.createDynamicsCompressor();
+        compressor.threshold.setValueAtTime(-10, audioCtxRef.current.currentTime);
+        compressor.knee.setValueAtTime(40, audioCtxRef.current.currentTime);
+        compressor.ratio.setValueAtTime(12, audioCtxRef.current.currentTime);
+        
+        masterGain.connect(filter);
+        filter.connect(compressor);
+        compressor.connect(audioCtxRef.current.destination);
+        
+        musicRef.current.master = masterGain;
+        musicRef.current.filter = filter;
+      } catch (e) {
+        console.error("Audio initialization failed", e);
+      }
     }
     if (audioCtxRef.current?.state === 'suspended') audioCtxRef.current.resume();
-  }
+  };
 
-  function playSound(type) {
+  const scheduleMusic = () => {
+    if (!audioCtxRef.current || !musicRef.current.master) return;
+    const ctx = audioCtxRef.current;
+    
+    const targetFreq = (gameState === 'PLAYING' || gameState === 'NEW_HIGHSCORE') ? 12000 : 800;
+    musicRef.current.filter.frequency.setTargetAtTime(targetFreq, ctx.currentTime, 0.1);
+
+    while (musicRef.current.nextNoteTime < ctx.currentTime + 0.1) {
+      const t = musicRef.current.nextNoteTime;
+      const step = musicRef.current.currentStep % 16;
+      
+      if (step % 8 === 0 || (step === 10 && Math.random() > 0.7)) {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.frequency.setValueAtTime(120, t);
+        osc.frequency.exponentialRampToValueAtTime(0.01, t + 0.15);
+        gain.gain.setValueAtTime(0.4, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+        osc.connect(gain);
+        gain.connect(musicRef.current.master);
+        osc.start(t); osc.stop(t + 0.15);
+      }
+
+      if (step % 8 === 4) {
+        const noiseBuffer = ctx.createBuffer(1, ctx.sampleRate * 0.1, ctx.sampleRate);
+        const data = noiseBuffer.getChannelData(0);
+        for(let i=0; i<data.length; i++) data[i] = Math.random() * 2 - 1;
+        const src = ctx.createBufferSource();
+        src.buffer = noiseBuffer;
+        const snGain = ctx.createGain();
+        const snFilter = ctx.createBiquadFilter();
+        snFilter.type = 'highpass';
+        snFilter.frequency.setValueAtTime(1000, t);
+        snGain.gain.setValueAtTime(0.05, t);
+        snGain.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+        src.connect(snFilter); snFilter.connect(snGain); snGain.connect(musicRef.current.master);
+        src.start(t);
+      }
+
+      const arpNote = SCALE[(step * 3 + Math.floor(score/10)) % SCALE.length] * (currentBiome.freqMod || 1);
+      const oscArp = ctx.createOscillator();
+      const gainArp = ctx.createGain();
+      oscArp.type = 'triangle';
+      oscArp.frequency.setValueAtTime(arpNote, t);
+      gainArp.gain.setValueAtTime(0.03, t);
+      gainArp.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+      oscArp.connect(gainArp); gainArp.connect(musicRef.current.master);
+      oscArp.start(t); oscArp.stop(t + 0.1);
+
+      if (step % 4 === 0 || step === 6) {
+        const bassOsc = ctx.createOscillator();
+        const bassGain = ctx.createGain();
+        bassOsc.type = 'sawtooth';
+        bassOsc.frequency.setValueAtTime(SCALE[step % 3] / 2, t);
+        bassGain.gain.setValueAtTime(0.04, t);
+        bassGain.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+        const bFilter = ctx.createBiquadFilter();
+        bFilter.type = 'lowpass';
+        bFilter.frequency.setValueAtTime(600, t);
+        bassOsc.connect(bFilter); bFilter.connect(bassGain); bassGain.connect(musicRef.current.master);
+        bassOsc.start(t); bassOsc.stop(t + 0.3);
+      }
+
+      const bpm = 115 + Math.min(score, 45);
+      musicRef.current.nextNoteTime += 60 / bpm / 4; 
+      musicRef.current.currentStep++;
+    }
+  };
+
+  const playSound = (type) => {
     if (!audioCtxRef.current) return;
     const ctx = audioCtxRef.current;
     const t = ctx.currentTime;
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(musicRef.current.master || ctx.destination);
     
     if (type === 'perfect') {
       osc.type = 'square';
-      const noteFreq = NOTES[game.current.perfectCount % NOTES.length] * (1 + Math.floor(game.current.perfectCount/NOTES.length)*0.5);
+      const noteFreq = NOTES[game.current.perfectCount % NOTES.length] * 2;
       osc.frequency.setValueAtTime(noteFreq, t);
-      gain.gain.setValueAtTime(0.04, t);
+      gain.gain.setValueAtTime(0.06, t);
       gain.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
       osc.start(t); osc.stop(t + 0.4);
     } else if (type === 'place') {
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(120, t);
-      osc.frequency.linearRampToValueAtTime(40, t + 0.1);
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(200, t);
+      osc.frequency.exponentialRampToValueAtTime(50, t + 0.1);
       gain.gain.setValueAtTime(0.1, t);
       gain.gain.linearRampToValueAtTime(0, t + 0.1);
       osc.start(t); osc.stop(t + 0.1);
     } else if (type === 'fail') {
       osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(150, t);
-      osc.frequency.linearRampToValueAtTime(10, t + 0.9);
-      gain.gain.setValueAtTime(0.2, t);
-      gain.gain.linearRampToValueAtTime(0, t + 0.9);
-      osc.start(t); osc.stop(t + 0.9);
-    } else if (type === 'shift') {
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(40, t);
-      osc.frequency.exponentialRampToValueAtTime(1000, t + 0.8);
-      gain.gain.setValueAtTime(0.1, t);
-      gain.gain.linearRampToValueAtTime(0, t + 0.8);
-      osc.start(t); osc.stop(t + 0.8);
+      osc.frequency.setValueAtTime(80, t);
+      osc.frequency.linearRampToValueAtTime(20, t + 1.5);
+      gain.gain.setValueAtTime(0.3, t);
+      gain.gain.linearRampToValueAtTime(0, t + 1.5);
+      osc.start(t); osc.stop(t + 1.5);
     }
-  }
+  };
 
   // --- CORE STATE HANDLERS ---
 
@@ -2017,6 +2113,16 @@ const RugSweeperApp = () => {
       }
     };
     initAuth();
+    
+    game.current.stars = Array(120).fill(0).map(() => ({
+      x: Math.random() * GAME_WIDTH,
+      y: Math.random() * GAME_HEIGHT,
+      size: Math.random() * 2.5 + 0.5,
+      p: Math.random() * 0.9 + 0.1,
+      alpha: Math.random() * 0.6 + 0.2
+    }));
+    game.current.lastFrameTime = performance.now();
+
     const unsubscribe = onAuthStateChanged(auth, setUser);
     const localHighScore = localStorage.getItem('stackItHighScore');
     if (localHighScore) setHighScore(parseInt(localHighScore, 10));
@@ -2025,6 +2131,9 @@ const RugSweeperApp = () => {
       setSavedName(localName);
       setUsernameInput(localName);
     }
+
+    requestRef.current = requestAnimationFrame(loop);
+
     return () => {
       unsubscribe();
       if (requestRef.current) cancelAnimationFrame(requestRef.current);
@@ -2035,42 +2144,32 @@ const RugSweeperApp = () => {
     const handleKeyDown = (e) => {
       if (e.code === 'Space') {
         e.preventDefault();
+        initAudio();
         if (['MENU', 'GAME_OVER'].includes(game.current.state)) startGame();
         else if (game.current.state === 'NEW_HIGHSCORE') { if (savedName) handleReturningSubmit('RETRY'); }
-        else if (game.current.state === 'PLAYING') handleInteraction(GAME_WIDTH/2, GAME_HEIGHT/2, true);
+        else if (game.current.state === 'PLAYING') handleInteraction(GAME_WIDTH/2, GAME_HEIGHT/2);
       }
     };
-    const handleKeyUp = (e) => {
-        if (e.code === 'Space') game.current.slowMo = 1.0;
-    };
     window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
-    return () => {
-        window.removeEventListener('keydown', handleKeyDown);
-        window.removeEventListener('keyup', handleKeyUp);
-    };
-  }, [savedName, currentBiome]); 
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [savedName, currentBiome, gameState]); 
 
   const startGame = (e) => {
     if(e) { e.stopPropagation(); e.preventDefault(); }
-    if (requestRef.current) cancelAnimationFrame(requestRef.current);
     initAudio();
 
-    const stars = Array(100).fill(0).map(() => ({
-      x: Math.random() * GAME_WIDTH,
-      y: Math.random() * GAME_HEIGHT,
-      size: Math.random() * 2.5 + 0.5,
-      p: Math.random() * 0.9 + 0.1,
-      alpha: Math.random() * 0.6 + 0.2
-    }));
+    if (audioCtxRef.current) {
+        musicRef.current.nextNoteTime = audioCtxRef.current.currentTime + 0.1;
+    }
+    musicRef.current.currentStep = 0;
 
     game.current = {
+        ...game.current,
         state: 'PLAYING',
         stack: [],
         current: null,
         debris: [],
         particles: [],
-        stars: stars,
         warpLevel: 0,
         flash: 0,
         cameraY: 0,
@@ -2078,14 +2177,15 @@ const RugSweeperApp = () => {
         combo: 0,
         perfectCount: 0,
         startTime: Date.now(),
-        time: 0,
         score: 0,
         worldRotation: 0,
         targetRotation: 0,
         rotationTimer: 0,
-        slowMo: 1.0,
-        syncEnergy: 100,
-        lastTap: { x: GAME_WIDTH/2, y: GAME_HEIGHT/2, power: 0, active: false }
+        mirrorActive: false,
+        isMirrorTurn: false,
+        mirrorStack: [],
+        mirrorMovesLeft: 0,
+        mirrorCurrent: null
     };
 
     setScore(0);
@@ -2095,20 +2195,11 @@ const RugSweeperApp = () => {
     const base = { x: (GAME_WIDTH - BASE_WIDTH) / 2, y: 0, w: BASE_WIDTH, h: BLOCK_HEIGHT, color: '#00ff41' };
     game.current.stack = [base];
     game.current.current = spawnBlock(base, 1);
-    requestRef.current = requestAnimationFrame(loop);
   };
 
-  const handleInteraction = (x, y, isSpace = false) => {
+  const handleInteraction = (x, y) => {
     if (game.current.state !== 'PLAYING') return;
-    
-    // Hold Mechanic for Slow-Mo
     game.current.lastTap = { x, y, power: 1.0, active: true };
-    
-    if (game.current.syncEnergy > 10) {
-        game.current.slowMo = 0.4;
-    }
-
-    // Place on Tap Release / Instant Click logic
     placeBlock();
   };
 
@@ -2117,21 +2208,25 @@ const RugSweeperApp = () => {
     if (g.state !== 'PLAYING') return;
     if (Date.now() - g.startTime < 150) return;
     
-    const curr = g.current;
-    if (!curr) return;
-    const prev = g.stack[g.stack.length-1];
-    const dist = curr.x - prev.x;
+    const activeCurr = g.mirrorActive && g.isMirrorTurn ? g.mirrorCurrent : g.current;
+    if (!activeCurr) return;
+    
+    const activeStack = g.mirrorActive && g.isMirrorTurn ? g.mirrorStack : g.stack;
+    const prev = activeStack[activeStack.length-1];
+    
+    const dist = activeCurr.x - prev.x;
     const absDist = Math.abs(dist);
     const tolerance = 8;
     
-    if (absDist > curr.w) {
+    // STRICT FAILURE CONDITION: Missed the block entirely
+    if (absDist >= activeCurr.w) {
       g.shake = 40;
       gameOver();
       return;
     }
 
-    let newX = curr.x;
-    let newW = curr.w;
+    let newX = activeCurr.x;
+    let newW = activeCurr.w;
     let isPerfect = false;
     let scoreAdd = 1;
     
@@ -2142,41 +2237,63 @@ const RugSweeperApp = () => {
       if (g.combo >= 3 && newW < BASE_WIDTH) { newW = Math.min(BASE_WIDTH, newW + 15); newX = prev.x - (newW-prev.w)/2; }
       g.shake = 12; playSound('perfect');
       g.flash = 0.25;
-      g.syncEnergy = Math.min(100, g.syncEnergy + 15);
     } else {
       g.combo = 0; g.perfectCount = 0;
-      newW = curr.w - absDist;
-      newX = dist > 0 ? curr.x : prev.x;
-      const debrisX = dist > 0 ? curr.x + newW : curr.x;
+      newW = activeCurr.w - absDist;
+      newX = dist > 0 ? activeCurr.x : prev.x;
+      const debrisX = dist > 0 ? activeCurr.x + newW : activeCurr.x;
       const debrisW = absDist;
+      const debrisY = g.mirrorActive && g.isMirrorTurn ? (GAME_HEIGHT - activeCurr.y) : activeCurr.y;
+      
       g.debris.push({ 
-        x: debrisX, y: curr.y, w: debrisW, h: curr.h, 
-        vx: dist > 0 ? 8 : -8, vy: -6, color: curr.color, 
+        x: debrisX, y: debrisY, w: debrisW, h: activeCurr.h, 
+        vx: dist > 0 ? 8 : -8, vy: -6, color: activeCurr.color, 
         life: 1.0, rot: 0, vr: (Math.random()-0.5)*0.3 
       });
       g.shake = 6; playSound('place');
-      createParticles(debrisX, curr.y, debrisW, curr.h, curr.color, 8);
+      createParticles(g.particles, debrisX, debrisY, debrisW, activeCurr.h, activeCurr.color, 8);
     }
 
-    const placed = { x: newX, y: curr.y, w: newW, h: curr.h, color: curr.color, perfect: isPerfect };
-    g.stack.push(placed);
+    const placed = { x: newX, y: activeCurr.y, w: newW, h: activeCurr.h, color: activeCurr.color, perfect: isPerfect };
+    activeStack.push(placed);
     g.score += scoreAdd;
     setScore(g.score);
 
-    // DYNAMIC PERSPECTIVE CHAOS
-    if (g.rotationTimer > 0) {
-        g.rotationTimer--;
-        if (g.rotationTimer === 0) {
-            g.targetRotation = 0;
-            g.flash = 0.6;
-            playSound('shift');
+    if (!g.mirrorActive && g.score >= 35 && Math.random() < 0.15) {
+        g.mirrorActive = true;
+        g.mirrorMovesLeft = 8 + Math.floor(Math.random() * 6);
+        g.isMirrorTurn = true; 
+        g.targetRotation = 0; 
+        const mirrorBase = { x: (GAME_WIDTH - newW) / 2, y: GAME_HEIGHT, w: newW, h: BLOCK_HEIGHT, color: '#ffffff' };
+        g.mirrorStack = [mirrorBase];
+        g.mirrorCurrent = spawnBlock(mirrorBase, 1, true);
+        g.flash = 0.8;
+    } else if (g.mirrorActive) {
+        g.mirrorMovesLeft--;
+        if (g.mirrorMovesLeft <= 0) {
+            g.mirrorActive = false;
+            g.isMirrorTurn = false;
+            g.flash = 0.5;
+            g.current = spawnBlock(g.stack[g.stack.length - 1], g.stack.length);
+        } else {
+            g.isMirrorTurn = !g.isMirrorTurn;
+            if (g.isMirrorTurn) g.mirrorCurrent = spawnBlock(g.mirrorStack[g.mirrorStack.length-1], g.mirrorStack.length, true);
+            else g.current = spawnBlock(g.stack[g.stack.length-1], g.stack.length);
         }
-    } else if (g.score > 8 && Math.random() < 0.15) { 
-        const variants = [Math.PI/2, -Math.PI/2, Math.PI, Math.PI/4, -Math.PI/4];
-        g.targetRotation = variants[Math.floor(Math.random() * variants.length)];
-        g.rotationTimer = 8 + Math.floor(Math.random() * 5);
-        g.flash = 1.0;
-        playSound('shift');
+    } else {
+        g.current = spawnBlock(placed, g.stack.length);
+    }
+
+    if (!g.mirrorActive) {
+        if (g.rotationTimer > 0) {
+            g.rotationTimer--;
+            if (g.rotationTimer === 0) { g.targetRotation = 0; g.flash = 0.6; }
+        } else if (g.score > 8 && Math.random() < 0.12) { 
+            const variants = [Math.PI/2, -Math.PI/2, Math.PI];
+            g.targetRotation = variants[Math.floor(Math.random() * variants.length)];
+            g.rotationTimer = 10;
+            g.flash = 0.8;
+        }
     }
 
     const biome = BIOMES.slice().reverse().find(b => g.score >= b.score);
@@ -2184,54 +2301,58 @@ const RugSweeperApp = () => {
         setCurrentBiome(biome);
         g.warpLevel = 1.2;
         g.flash = 0.8;
-        playSound('shift');
     }
 
     if (g.score > highScore) { setHighScore(g.score); localStorage.setItem('stackItHighScore', g.score); }
-    g.current = spawnBlock(placed, g.stack.length);
-    g.slowMo = 1.0; // Reset after placement
   };
 
   const gameOver = () => {
     playSound('fail');
-    game.current.slowMo = 1.0;
+    game.current.state = 'GAME_OVER';
     const finalScore = game.current.score;
     const storedHS = parseInt(localStorage.getItem('stackItHighScore') || '0', 10);
-    if (finalScore > 0 && finalScore >= storedHS) { setGameState('NEW_HIGHSCORE'); game.current.state = 'NEW_HIGHSCORE'; }
-    else { setGameState('GAME_OVER'); game.current.state = 'GAME_OVER'; }
+    if (finalScore > 0 && finalScore >= storedHS) { setGameState('NEW_HIGHSCORE'); }
+    else { setGameState('GAME_OVER'); }
   };
 
-  const loop = () => {
+  const loop = (timestamp) => {
     const ctx = canvasRef.current?.getContext('2d');
-    if (!ctx) return;
+    if (!ctx) { requestRef.current = requestAnimationFrame(loop); return; }
     const g = game.current;
     
-    const dt = g.slowMo;
+    scheduleMusic();
+
+    const elapsed = timestamp - g.lastFrameTime;
+    g.lastFrameTime = timestamp;
+    const dt = Math.min(elapsed / 16.67, 3.0); 
     g.time += 0.05 * dt;
 
-    if (g.state === 'PLAYING' && g.current) {
-      g.current.x += (g.current.speed * dt) * g.current.dir;
-      if (g.current.x > GAME_WIDTH + 80) g.current.dir = -1;
-      if (g.current.x < -80 - g.current.w) g.current.dir = 1;
+    if (g.state === 'PLAYING') {
+      if (g.mirrorActive) {
+          if (g.isMirrorTurn && g.mirrorCurrent) {
+              g.mirrorCurrent.x += (g.mirrorCurrent.speed * dt) * g.mirrorCurrent.dir;
+              if (g.mirrorCurrent.x > GAME_WIDTH + 80) g.mirrorCurrent.dir = -1;
+              if (g.mirrorCurrent.x < -80 - g.mirrorCurrent.w) g.mirrorCurrent.dir = 1;
+          } else if (!g.isMirrorTurn && g.current) {
+              g.current.x += (g.current.speed * dt) * g.current.dir;
+              if (g.current.x > GAME_WIDTH + 80) g.current.dir = -1;
+              if (g.current.x < -80 - g.current.w) g.current.dir = 1;
+          }
+      } else if (g.current) {
+          g.current.x += (g.current.speed * dt) * g.current.dir;
+          if (g.current.x > GAME_WIDTH + 80) g.current.dir = -1;
+          if (g.current.x < -80 - g.current.w) g.current.dir = 1;
+      }
       
       const stackTop = g.stack.length * BLOCK_HEIGHT;
-      const targetY = Math.max(0, stackTop - (GAME_HEIGHT * 0.45));
+      const targetY = Math.max(0, stackTop - 140); 
       g.cameraY += (targetY - g.cameraY) * 0.08 * dt;
-
-      // Sync Energy Consumption
-      if (g.slowMo < 1.0) {
-          g.syncEnergy = Math.max(0, g.syncEnergy - 0.8);
-          if (g.syncEnergy <= 0) g.slowMo = 1.0;
-      } else {
-          g.syncEnergy = Math.min(100, g.syncEnergy + 0.1);
-      }
     }
 
-    // Tweening
-    g.shake *= 0.88;
-    g.flash *= 0.92;
-    g.warpLevel *= 0.96;
-    g.lastTap.power *= 0.9;
+    g.shake *= Math.pow(0.88, dt);
+    g.flash *= Math.pow(0.92, dt);
+    g.warpLevel *= Math.pow(0.96, dt);
+    g.lastTap.power *= Math.pow(0.9, dt);
     g.worldRotation += (g.targetRotation - g.worldRotation) * 0.08 * dt;
 
     const shakeX = (Math.random() - 0.5) * g.shake;
@@ -2242,68 +2363,41 @@ const RugSweeperApp = () => {
     g.particles.forEach(p => { p.x += p.vx * dt; p.y += p.vy * dt; p.life -= 0.015 * dt; p.rotation += p.vr * dt; });
     g.particles = g.particles.filter(p => p.life > 0);
 
-    // --- RENDER ---
-    ctx.fillStyle = '#000';
-    ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
-
+    ctx.fillStyle = '#000'; ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
     const bgGrad = ctx.createLinearGradient(0, 0, 0, GAME_HEIGHT);
-    bgGrad.addColorStop(0, currentBiome.bgStart);
-    bgGrad.addColorStop(1, currentBiome.bgEnd);
-    ctx.fillStyle = bgGrad;
-    ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+    bgGrad.addColorStop(0, currentBiome.bgStart); bgGrad.addColorStop(1, currentBiome.bgEnd);
+    ctx.fillStyle = bgGrad; ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
 
-    // Reactive Stars (Now with restored motion vibes)
     g.stars.forEach(s => {
-      // Restore Motion: Base drift + Camera shift + Wobble
       let sx = s.x + Math.sin(g.time * 0.3 + s.y) * 2;
       let sy = (s.y + g.cameraY * s.p + g.time * 15 * s.p) % GAME_HEIGHT;
-      
-      // Gravity Well Physics
       if (g.lastTap.power > 0.01) {
-          const dx = g.lastTap.x - sx;
-          const dy = g.lastTap.y - sy;
+          const dx = g.lastTap.x - sx; const dy = g.lastTap.y - sy;
           const dist = Math.sqrt(dx*dx + dy*dy);
           if (dist < 150) {
               const force = (1 - dist/150) * g.lastTap.power * 25;
-              sx += (dx / dist) * force;
-              sy += (dy / dist) * force;
+              sx += (dx / dist) * force; sy += (dy / dist) * force;
           }
       }
-
-      const h = s.size + (g.warpLevel * 45 * s.p);
-      ctx.fillStyle = `rgba(255, 255, 255, ${s.alpha * (g.slowMo < 1.0 ? 1.5 : 1.0)})`;
-      ctx.fillRect(sx, sy, s.size, h);
+      ctx.fillStyle = `rgba(255, 255, 255, ${s.alpha})`;
+      ctx.fillRect(sx, sy, s.size, s.size + g.warpLevel * 45 * s.p);
     });
 
-    // Reactive Chromatic Grid
     ctx.save();
-    const gridSpacing = 40;
-    const gridOffset = (g.cameraY * 0.5) % gridSpacing;
+    const gridOffset = (g.cameraY * 0.5 + g.time * 5) % 40;
     const tapBend = (g.lastTap.x - GAME_WIDTH/2) * g.lastTap.power * 0.1;
-    
-    ctx.translate(tapBend, 0);
-    
-    // Multi-color grid lines for glitch effect
-    if (g.slowMo < 1.0) {
-        ctx.strokeStyle = '#ff0000'; ctx.lineWidth = 2;
-        ctx.strokeRect(2, 0, GAME_WIDTH, GAME_HEIGHT);
-        ctx.strokeStyle = '#00ffff'; ctx.lineWidth = 2;
-        ctx.strokeRect(-2, 0, GAME_WIDTH, GAME_HEIGHT);
-    }
-
-    ctx.strokeStyle = currentBiome.gridColor;
-    ctx.lineWidth = 1;
+    ctx.translate(tapBend, 0); ctx.strokeStyle = currentBiome.gridColor; ctx.lineWidth = 1;
     ctx.beginPath();
-    for (let x = -gridSpacing; x <= GAME_WIDTH + gridSpacing; x += gridSpacing) {
-      ctx.moveTo(x, 0); ctx.lineTo(x, GAME_HEIGHT);
-    }
-    for (let y = -gridSpacing; y <= GAME_HEIGHT + gridSpacing; y += gridSpacing) {
-      ctx.moveTo(0, y + gridOffset); ctx.lineTo(GAME_WIDTH, y + gridOffset);
-    }
-    ctx.stroke();
-    ctx.restore();
+    for (let x = -40; x <= GAME_WIDTH + 40; x += 40) { ctx.moveTo(x, 0); ctx.lineTo(x, GAME_HEIGHT); }
+    for (let y = -40; y <= GAME_HEIGHT + 40; y += 40) { ctx.moveTo(0, y + gridOffset); ctx.lineTo(GAME_WIDTH, y + gridOffset); }
+    ctx.stroke(); ctx.restore();
 
-    // Primary Canvas Transform
+    if (g.mirrorActive) {
+        ctx.fillStyle = 'rgba(255,255,255,0.05)'; ctx.fillRect(0, GAME_HEIGHT/2 - 2, GAME_WIDTH, 4);
+        ctx.fillStyle = '#fff'; ctx.font = 'bold 10px monospace'; ctx.textAlign = 'center';
+        ctx.fillText("SYNC_ERROR: DUAL_STREAM_ACTIVE", GAME_WIDTH/2, GAME_HEIGHT/2 - 10);
+    }
+
     ctx.save();
     ctx.translate(GAME_WIDTH/2 + shakeX, GAME_HEIGHT/2 + shakeY);
     ctx.rotate(g.worldRotation);
@@ -2311,130 +2405,62 @@ const RugSweeperApp = () => {
 
     ctx.save();
     ctx.translate(0, GAME_HEIGHT + g.cameraY - 70);
-
-    // Render Stacked Candles
-    g.stack.forEach((b, i) => {
-      const y = -b.y;
-      const isPerfect = b.perfect;
-      
-      if (isPerfect) {
-          ctx.shadowBlur = 15;
-          ctx.shadowColor = b.color;
-      } else {
-          ctx.shadowBlur = 0;
-      }
-      
+    g.stack.forEach((b) => {
+      const y = -b.y; if (b.perfect) { ctx.shadowBlur = 15; ctx.shadowColor = b.color; }
       const fill = ctx.createLinearGradient(b.x, y - b.h, b.x, y);
-      fill.addColorStop(0, b.color);
-      fill.addColorStop(1, '#000');
-      ctx.fillStyle = fill;
-      ctx.fillRect(b.x, y - b.h, b.w, b.h);
-      
-      ctx.strokeStyle = isPerfect ? '#fff' : 'rgba(255,255,255,0.2)';
-      ctx.lineWidth = 1;
-      ctx.strokeRect(b.x, y - b.h, b.w, b.h);
+      fill.addColorStop(0, b.color); fill.addColorStop(1, '#000');
+      ctx.fillStyle = fill; ctx.fillRect(b.x, y - b.h, b.w, b.h);
+      ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.strokeRect(b.x, y - b.h, b.w, b.h);
       ctx.shadowBlur = 0;
     });
-
-    g.debris.forEach(d => {
-      ctx.save();
-      ctx.translate(d.x + d.w/2, -d.y - d.h/2);
-      ctx.rotate(d.rot);
-      ctx.fillStyle = d.color; ctx.globalAlpha = d.life;
-      ctx.fillRect(-d.w/2, -d.h/2, d.w, d.h);
-      ctx.restore();
-    });
-
-    g.particles.forEach(p => {
-      ctx.save();
-      ctx.translate(p.x, -p.y);
-      ctx.rotate(p.rotation);
-      ctx.fillStyle = p.color; ctx.globalAlpha = p.life;
-      ctx.font = 'bold 12px monospace';
-      ctx.fillText(p.char, 0, 0);
-      ctx.restore();
-    });
-
-    // Moving Candle
-    if (g.state === 'PLAYING' && g.current) {
-      const c = g.current;
-      ctx.fillStyle = c.color;
-      ctx.fillRect(c.x, -c.y - c.h, c.w, c.h);
-      
-      // Light Column
-      const cGrad = ctx.createLinearGradient(c.x, -c.y - c.h, c.x, -GAME_HEIGHT);
-      const transparentColor = c.color.replace('hsl', 'hsla').replace(')', ', 0.2)');
-      cGrad.addColorStop(0, transparentColor);
-      cGrad.addColorStop(1, 'transparent');
-      ctx.fillStyle = cGrad;
-      ctx.fillRect(c.x, -c.y - c.h, c.w, -GAME_HEIGHT);
+    if (g.state === 'PLAYING' && g.current && (!g.mirrorActive || !g.isMirrorTurn)) {
+        ctx.fillStyle = g.current.color; ctx.fillRect(g.current.x, -g.current.y - g.current.h, g.current.w, g.current.h);
+        const colGrad = ctx.createLinearGradient(g.current.x, -g.current.y - g.current.h, g.current.x, -GAME_HEIGHT);
+        const hsla = g.current.color.replace('hsl', 'hsla').replace(')', ', 0.2)');
+        colGrad.addColorStop(0, hsla); colGrad.addColorStop(1, 'transparent');
+        ctx.fillStyle = colGrad; ctx.fillRect(g.current.x, -g.current.y - g.current.h, g.current.w, -GAME_HEIGHT);
     }
+    ctx.restore();
+
+    if (g.mirrorActive) {
+        ctx.save();
+        g.mirrorStack.forEach((b) => {
+            ctx.fillStyle = b.color; ctx.fillRect(b.x, (GAME_HEIGHT - b.y), b.w, b.h);
+            ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.strokeRect(b.x, (GAME_HEIGHT - b.y), b.w, b.h);
+        });
+        if (g.isMirrorTurn && g.mirrorCurrent) {
+            ctx.fillStyle = '#ffffff'; ctx.fillRect(g.mirrorCurrent.x, (GAME_HEIGHT - g.mirrorCurrent.y), g.mirrorCurrent.w, g.mirrorCurrent.h);
+        }
+        ctx.restore();
+    }
+
+    g.debris.forEach(d => { ctx.fillStyle = d.color; ctx.globalAlpha = d.life; ctx.fillRect(d.x, d.y, d.w, d.h); ctx.globalAlpha = 1; });
+    ctx.restore();
+
+    if (g.flash > 0.01) { ctx.fillStyle = `rgba(255,255,255,${g.flash})`; ctx.fillRect(0,0,GAME_WIDTH,GAME_HEIGHT); }
+
+    ctx.fillStyle = currentBiome.text; ctx.textAlign = 'center'; ctx.font = '900 60px Impact';
+    ctx.shadowBlur = 10; ctx.shadowColor = currentBiome.text; ctx.fillText(g.score, GAME_WIDTH/2, 80); ctx.shadowBlur = 0;
+    ctx.font = 'bold 12px monospace'; ctx.fillText(currentBiome.name, GAME_WIDTH/2, 105);
 
     if (highScore > 0) {
-      const athY = -(highScore * BLOCK_HEIGHT);
-      ctx.strokeStyle = '#ffff00'; ctx.setLineDash([5, 5]);
-      ctx.beginPath(); ctx.moveTo(-100, athY); ctx.lineTo(GAME_WIDTH+100, athY); ctx.stroke();
-      ctx.setLineDash([]); ctx.fillStyle = '#ffff00'; ctx.font = 'bold 10px monospace';
-      ctx.fillText('ATH REKORD', 10, athY - 8);
-    }
-
-    ctx.restore();
-    ctx.restore();
-
-    // Glitch Scanlines Overlay
-    if (g.score > 20) {
-        ctx.fillStyle = 'rgba(255,255,255,0.02)';
-        for(let i=0; i<GAME_HEIGHT; i+=4) {
-            if (Math.random() > 0.98) ctx.fillRect(0, i, GAME_WIDTH, 1);
-        }
-    }
-
-    if (g.flash > 0.01) {
-        ctx.fillStyle = `rgba(255, 255, 255, ${g.flash})`;
-        ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
-    }
-
-    // UI Layer
-    ctx.fillStyle = currentBiome.text;
-    ctx.textAlign = 'center';
-    
-    // Score
-    ctx.font = '900 60px Impact';
-    ctx.shadowBlur = 10; ctx.shadowColor = currentBiome.text;
-    ctx.fillText(g.score, GAME_WIDTH/2, 80);
-    ctx.shadowBlur = 0;
-    
-    ctx.font = 'bold 12px monospace';
-    ctx.letterSpacing = "2px";
-    ctx.fillText(currentBiome.name, GAME_WIDTH/2, 105);
-
-    // Sync Energy Bar
-    if (g.state === 'PLAYING') {
-        const barW = 100;
-        ctx.fillStyle = 'rgba(255,255,255,0.2)';
-        ctx.fillRect(GAME_WIDTH/2 - barW/2, 120, barW, 4);
-        ctx.fillStyle = g.syncEnergy > 30 ? '#00ff41' : '#ff0041';
-        ctx.fillRect(GAME_WIDTH/2 - barW/2, 120, barW * (g.syncEnergy/100), 4);
+      const athY = (GAME_HEIGHT + g.cameraY - 70) - (highScore * BLOCK_HEIGHT);
+      ctx.strokeStyle = '#ffff00'; ctx.lineWidth = 1; ctx.setLineDash([5, 5]);
+      ctx.beginPath(); ctx.moveTo(0, athY); ctx.lineTo(GAME_WIDTH, athY); ctx.stroke();
+      ctx.setLineDash([]); ctx.fillStyle = '#ffff00'; ctx.font = 'bold 10px monospace'; ctx.textAlign = 'left';
+      ctx.fillText('ATH', 10, athY - 5);
     }
 
     if (g.combo > 1) {
-      ctx.fillStyle = `hsl(${g.time * 600}, 100%, 50%)`;
-      ctx.font = 'italic 900 32px Arial';
-      ctx.save();
-      ctx.translate(GAME_WIDTH/2, 160);
-      ctx.rotate(Math.sin(g.time*15)*0.2);
-      ctx.fillText(`${g.combo}X COMBO!`, 0, 0);
-      ctx.restore();
+      ctx.fillStyle = `hsl(${g.time * 600}, 100%, 50%)`; ctx.font = 'italic 900 32px Arial'; ctx.textAlign = 'center'; ctx.fillText(`${g.combo}X COMBO!`, GAME_WIDTH/2, 160);
     }
-
-    if (g.state === 'PLAYING') requestRef.current = requestAnimationFrame(loop);
+    requestRef.current = requestAnimationFrame(loop);
   };
 
   // --- LEADERBOARD & SUBMISSION ---
 
   const fetchLeaderboard = async () => {
-    if (!user) return;
-    setLoadingLB(true);
+    if (!user) return; setLoadingLB(true);
     try {
       const q = collection(db, 'artifacts', appId, 'public', 'data', 'stackit_scores');
       const snapshot = await getDocs(q);
@@ -2453,8 +2479,7 @@ const RugSweeperApp = () => {
   const saveScoreToDb = async (nameToUse, scoreToSave) => {
     if (!user) return false;
     try {
-      const upperName = nameToUse.toUpperCase().trim();
-      const uid = user.uid;
+      const upperName = nameToUse.toUpperCase().trim(); const uid = user.uid;
       const scoresRef = collection(db, 'artifacts', appId, 'public', 'data', 'stackit_scores');
       const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'stackit_scores', uid);
       const isReturningUser = !!localStorage.getItem('stackItUsername');
@@ -2463,8 +2488,7 @@ const RugSweeperApp = () => {
         let isTaken = false;
         snapshot.forEach(d => { if (d.data().username === upperName && d.id !== uid) isTaken = true; });
         if (isTaken) { return false; }
-        localStorage.setItem('stackItUsername', upperName);
-        setSavedName(upperName); 
+        localStorage.setItem('stackItUsername', upperName); setSavedName(upperName); 
       }
       const snap = await getDoc(docRef);
       if (!snap.exists()) await setDoc(docRef, { username: upperName, score: scoreToSave, timestamp: Date.now() });
@@ -2477,127 +2501,95 @@ const RugSweeperApp = () => {
   };
 
   const handleFirstTimeSubmit = async () => {
-    if (!usernameInput.trim()) return;
-    setIsSubmitting(true);
+    if (!usernameInput.trim()) return; setIsSubmitting(true);
     const success = await saveScoreToDb(usernameInput, game.current.score);
-    setIsSubmitting(false);
-    if (success) { await fetchLeaderboard(); setGameState('LEADERBOARD'); game.current.state = 'LEADERBOARD'; }
+    setIsSubmitting(false); if (success) { await fetchLeaderboard(); setGameState('LEADERBOARD'); game.current.state = 'LEADERBOARD'; }
   };
 
   const handleReturningSubmit = async (action) => {
-    const name = savedName || localStorage.getItem('stackItUsername');
-    if (!name) return; 
-    setIsSubmitting(true);
-    await saveScoreToDb(name, game.current.score);
-    setIsSubmitting(false);
+    const name = savedName || localStorage.getItem('stackItUsername'); if (!name) return; 
+    setIsSubmitting(true); await saveScoreToDb(name, game.current.score); setIsSubmitting(false);
     if (action === 'RETRY') startGame();
     else if (action === 'RANK') { await fetchLeaderboard(); setGameState('LEADERBOARD'); game.current.state = 'LEADERBOARD'; }
   };
 
-  const openLeaderboard = (e) => {
-      if(e) { e.stopPropagation(); e.preventDefault(); }
-      fetchLeaderboard(); setGameState('LEADERBOARD'); game.current.state = 'LEADERBOARD';
+  const openLeaderboard = (e) => { 
+    if(e) { e.stopPropagation(); e.preventDefault(); } 
+    initAudio();
+    fetchLeaderboard(); 
+    setGameState('LEADERBOARD'); 
+    game.current.state = 'LEADERBOARD'; 
   };
 
-  const handleInteractionEvent = (e) => {
-    const rect = canvasRef.current.getBoundingClientRect();
-    const scaleX = GAME_WIDTH / rect.width;
-    const scaleY = GAME_HEIGHT / rect.height;
-    handleInteraction((e.clientX - rect.left) * scaleX, (e.clientY - rect.top) * scaleY);
+  const handleInteractionEvent = (e) => { 
+    initAudio(); 
+    const rect = canvasRef.current.getBoundingClientRect(); 
+    const scaleX = GAME_WIDTH / rect.width; 
+    const scaleY = GAME_HEIGHT / rect.height; 
+    handleInteraction((e.clientX - rect.left) * scaleX, (e.clientY - rect.top) * scaleY); 
   };
-
-  const handleRelease = () => {
-      game.current.slowMo = 1.0;
-      game.current.lastTap.active = false;
-  };
+  const handleRelease = () => { game.current.lastTap.active = false; };
 
   return (
-    <div className="flex flex-col h-full bg-[#c0c0c0] p-1 font-mono select-none overflow-hidden" 
-         onPointerDown={handleInteractionEvent}
-         onPointerUp={handleRelease}
-         onPointerLeave={handleRelease}>
-      
+    <div className="flex flex-col h-full bg-[#c0c0c0] p-1 font-mono select-none overflow-hidden" onPointerDown={handleInteractionEvent} onPointerUp={handleRelease} onPointerLeave={handleRelease}>
       <div className="bg-[#000080] text-white px-3 py-1 flex justify-between items-center text-[10px] font-bold border-2 border-white border-r-gray-500 border-b-gray-500 mb-1">
-        <span className="flex items-center gap-2">
-            <div className={`w-2 h-2 rounded-full ${gameState === 'PLAYING' ? 'bg-red-500 animate-pulse' : 'bg-gray-400'}`} />
-            STACK_ENGINE_3.0
-        </span>
+        <span className="flex items-center gap-2"><div className={`w-2 h-2 rounded-full ${gameState === 'PLAYING' ? 'bg-red-500 animate-pulse' : 'bg-gray-400'}`} /> STACK_ENGINE_3.0</span>
         <span className="text-yellow-300">ATH: {highScore}</span>
       </div>
-
       <div className="flex-1 bg-black relative border-2 border-gray-600 border-r-white border-b-white overflow-hidden cursor-crosshair touch-none shadow-inner">
         <canvas ref={canvasRef} width={GAME_WIDTH} height={GAME_HEIGHT} className="w-full h-full object-contain block touch-none" />
-
         {gameState === 'MENU' && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/70 backdrop-blur-sm text-center text-white p-6 z-10 animate-in fade-in duration-500">
             <h1 className="text-7xl font-black text-transparent bg-clip-text bg-gradient-to-t from-green-600 to-green-300 mb-2 drop-shadow-[0_4px_10px_rgba(0,255,0,0.5)] italic tracking-tighter">STACK IT</h1>
             <p className="text-[10px] font-bold text-green-500 mb-12 tracking-[0.4em] uppercase opacity-80 animate-pulse">STACK IT TO THE MOON</p>
             <div className="flex flex-col gap-4 w-full max-w-[180px]">
-                <button onPointerDown={startGame} className="bg-white text-black py-3 font-black border-4 border-blue-500 shadow-[4px_4px_0_#0000ff] active:shadow-none active:translate-x-1 active:translate-y-1 transition-all uppercase italic text-xl">
-                Send IT
-                </button>
-                <button onPointerDown={openLeaderboard} className="bg-yellow-400 text-black py-2 font-black border-4 border-orange-500 shadow-[4px_4px_0_#ff0000] active:shadow-none active:translate-x-1 active:translate-y-1 transition-all uppercase italic text-sm">
-                LEADERBOARD
-                </button>
+                <button onPointerDown={startGame} className="bg-white text-black py-3 font-black border-4 border-blue-500 shadow-[4px_4px_0_#0000ff] active:shadow-none active:translate-x-1 active:translate-y-1 transition-all uppercase italic text-xl">Send IT</button>
+                <button onPointerDown={openLeaderboard} className="bg-yellow-400 text-black py-2 font-black border-4 border-orange-500 shadow-[4px_4px_0_#ff0000] active:shadow-none active:translate-x-1 active:translate-y-1 transition-all uppercase italic text-sm">LEADERBOARD</button>
             </div>
-            <p className="mt-8 text-[8px] opacity-40 uppercase tracking-widest">Grind loud enough and even silence starts watching you</p>
+            <p className="mt-8 text-[8px] text-gray-400 uppercase tracking-widest text-center max-w-[200px] leading-relaxed italic">Grind loud enough and even silence starts watching you.</p>
           </div>
         )}
-
         {gameState === 'NEW_HIGHSCORE' && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-blue-900/95 text-center text-white p-6 z-20 pointer-events-auto" onPointerDown={e=>e.stopPropagation()}>
-            <h1 className="text-5xl font-black text-yellow-400 mb-2 animate-bounce italic">NEW ATH!</h1>
+            <h1 className="text-5xl font-black text-yellow-400 mb-2 animate-bounce italic text-glow">NEW ATH</h1>
             <div className="text-8xl font-black text-white mb-8 drop-shadow-[0_10px_20px_rgba(0,0,0,0.5)]">{score}</div>
             {savedName ? (
                 <div className="flex flex-col items-center w-full">
                     <div className="mb-8 flex flex-col items-center">
                         <p className="text-[10px] text-blue-300 font-bold mb-2 tracking-widest uppercase">Identity Confirmed</p>
-                        <div className="text-3xl font-black text-white bg-blue-950 border-2 border-blue-400 px-8 py-3 uppercase tracking-widest shadow-2xl">
-                            {savedName}
-                        </div>
+                        <div className="text-3xl font-black text-white bg-blue-950 border-2 border-blue-400 px-8 py-3 uppercase tracking-widest shadow-2xl">{savedName}</div>
                     </div>
                     <div className="flex gap-4">
-                        <button onPointerDown={() => handleReturningSubmit('RETRY')} disabled={isSubmitting} className="bg-white text-blue-900 px-8 py-4 font-black border-4 border-blue-500 shadow-xl hover:scale-105 transition-transform uppercase italic">
-                            {isSubmitting ? '...' : 'Retry'}
-                        </button>
-                        <button onPointerDown={() => handleReturningSubmit('RANK')} disabled={isSubmitting} className="bg-yellow-400 text-black px-8 py-4 font-black border-4 border-orange-500 shadow-xl hover:scale-105 transition-transform uppercase italic">
-                            {isSubmitting ? '...' : 'Rank'}
-                        </button>
+                        <button onPointerDown={() => handleReturningSubmit('RETRY')} disabled={isSubmitting} className="bg-white text-blue-900 px-8 py-4 font-black border-4 border-blue-500 shadow-xl hover:scale-105 transition-transform uppercase italic">{isSubmitting ? '...' : 'Retry'}</button>
+                        <button onPointerDown={() => handleReturningSubmit('RANK')} disabled={isSubmitting} className="bg-yellow-400 text-black px-8 py-4 font-black border-4 border-orange-500 shadow-xl hover:scale-105 transition-transform uppercase italic">{isSubmitting ? '...' : 'Rank'}</button>
                     </div>
                 </div>
             ) : (
                 <div className="flex flex-col items-center w-full">
                     <p className="text-[11px] text-blue-200 mb-3 font-bold uppercase tracking-widest">Commit Alias to Protocol:</p>
                     <input type="text" maxLength={10} className="bg-blue-950 border-4 border-blue-400 text-white text-center text-3xl font-black p-4 mb-8 uppercase w-64 outline-none focus:border-yellow-400 shadow-2xl" value={usernameInput} onChange={e => setUsernameInput(e.target.value.toUpperCase())} placeholder="ALIAS_ID" onPointerDown={e => e.stopPropagation()} />
-                    <button onPointerDown={handleFirstTimeSubmit} disabled={isSubmitting} className="bg-green-500 text-white px-10 py-4 font-black text-xl border-4 border-green-700 shadow-2xl hover:scale-105 transition-transform uppercase italic">
-                        Initialize
-                    </button>
+                    <button onPointerDown={handleFirstTimeSubmit} disabled={isSubmitting} className="bg-green-500 text-white px-10 py-4 font-black text-xl border-4 border-green-700 shadow-2xl hover:scale-105 transition-transform uppercase italic">Initialize</button>
                 </div>
             )}
           </div>
         )}
-
         {gameState === 'LEADERBOARD' && (
           <div className="absolute inset-0 flex flex-col items-center bg-blue-950/95 text-white p-6 z-20 pointer-events-auto shadow-2xl" onPointerDown={e=>e.stopPropagation()}>
             <div className="flex justify-between items-center w-full border-b-4 border-yellow-400 pb-4 mb-6">
-                <h2 className="text-4xl font-black text-yellow-400 italic italic">TOP GS</h2>
+                <h2 className="text-4xl font-black text-yellow-400 italic">TOP STACKERS</h2>
                 {playerRank && <div className="bg-black/80 px-4 py-2 text-[10px] font-black border border-yellow-400 text-yellow-400 uppercase tracking-widest">RANK: #{playerRank}</div>}
             </div>
             <div className="flex-1 w-full overflow-y-auto mb-8 bg-black/60 p-4 border-2 border-white/10 shadow-inner">
                 {loadingLB ? <div className="text-center mt-12 animate-pulse text-[12px] font-bold tracking-[0.5em] text-blue-400 uppercase">Synchronizing Nodes...</div> : (
                     <table className="w-full text-left text-sm font-mono">
-                        <thead>
-                            <tr className="text-gray-500 border-b border-gray-800 text-[10px] uppercase tracking-widest font-black"><th className="pb-4">#</th><th className="pb-4">HOLDER</th><th className="pb-4 text-right">STACK</th></tr>
-                        </thead>
+                        <thead><tr className="text-gray-500 border-b border-gray-800 text-[10px] uppercase tracking-widest font-black"><th className="pb-4">#</th><th className="pb-4">HOLDER</th><th className="pb-4 text-right">STACK</th></tr></thead>
                         <tbody>
                             {leaderboard.map((entry, i) => {
                                 const isCurrentUser = savedName && entry.username === savedName;
                                 return (
                                     <tr key={i} className={`border-b border-white/5 transition-colors ${isCurrentUser ? 'bg-blue-400/20' : 'hover:bg-white/5'}`}>
                                         <td className="py-4 text-[11px] font-black opacity-30">{i+1}</td>
-                                        <td className={`py-4 truncate max-w-[140px] font-black italic ${isCurrentUser ? 'text-orange-400' : 'text-gray-200'}`}>
-                                            {entry.username} {isCurrentUser && ' (YOU)'}
-                                        </td>
+                                        <td className={`py-4 truncate max-w-[140px] font-black italic ${isCurrentUser ? 'text-orange-400' : 'text-gray-200'}`}>{entry.username} {isCurrentUser && ' (YOU)'}</td>
                                         <td className="py-4 text-right text-green-400 font-black tracking-tighter text-lg">+{entry.score}</td>
                                     </tr>
                                 );
@@ -2606,24 +2598,17 @@ const RugSweeperApp = () => {
                     </table>
                 )}
             </div>
-            <button onPointerDown={(e) => { e.stopPropagation(); setGameState('MENU'); game.current.state='MENU'; }} className="w-full py-4 bg-white text-blue-950 font-black border-4 border-blue-500 shadow-2xl hover:bg-gray-200 transition-all uppercase italic text-xl">
-                Close IT
-            </button>
+            <button onPointerDown={(e) => { e.stopPropagation(); setGameState('MENU'); game.current.state='MENU'; }} className="w-full py-4 bg-white text-blue-950 font-black border-4 border-blue-500 shadow-2xl hover:bg-gray-200 transition-all uppercase italic text-xl">CLOSE IT</button>
           </div>
         )}
-
         {gameState === 'GAME_OVER' && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-red-950/90 text-center text-white p-6 z-10 pointer-events-none animate-in fade-in duration-300 backdrop-blur-sm">
-            <h1 className="text-7xl font-black mb-2 italic text-white drop-shadow-[0_0_30px_rgba(255,0,0,0.6)] tracking-tighter">RUGGED!</h1>
+            <h1 className="text-7xl font-black mb-2 italic text-white drop-shadow-[0_0_30_rgba(255,0,0,0.6)] tracking-tighter">RUGGED!</h1>
             <div className="text-8xl font-black text-yellow-400 mb-2 drop-shadow-2xl">{game.current.score}</div>
-            <p className="text-[11px] mb-12 text-red-300 font-black tracking-[0.3em] uppercase opacity-80 italic animate-pulse">Fatal Buffer Overflow Detected</p>
+            <p className="text-[11px] mb-12 text-red-300 font-black tracking-[0.3em] uppercase opacity-80 italic animate-pulse text-center">BETTER LUCK NEXT TIME</p>
             <div className="flex gap-4 w-full">
-                <button onPointerDown={startGame} className="flex-1 bg-white text-black py-4 font-black border-4 border-gray-400 shadow-2xl hover:scale-105 transition-transform pointer-events-auto uppercase italic text-lg">
-                Buy Dip
-                </button>
-                <button onPointerDown={openLeaderboard} className="flex-1 bg-gray-900 text-white py-4 font-bold border-4 border-gray-600 cursor-pointer pointer-events-auto hover:bg-gray-800 transition-colors uppercase italic text-sm">
-                Rank
-                </button>
+                <button onPointerDown={startGame} className="flex-1 bg-white text-black py-4 font-black border-4 border-gray-400 shadow-2xl hover:scale-105 transition-transform pointer-events-auto uppercase italic text-lg">Buy Dip</button>
+                <button onPointerDown={openLeaderboard} className="flex-1 bg-gray-900 text-white py-4 font-bold border-4 border-gray-600 cursor-pointer pointer-events-auto hover:bg-gray-800 transition-colors uppercase italic text-sm">Rank</button>
             </div>
           </div>
         )}
@@ -3179,19 +3164,21 @@ const MemeMindApp = () => {
 
 
 const TILE_DATA = {
-  2:    { label: 'PEANUTS', color: '#1a1a1a', text: '#555', scale: 'scale-90' },
-  4:    { label: 'DUST', color: '#2a2a2a', text: '#888', scale: 'scale-95' },
-  8:    { label: 'FISH', color: '#003311', text: '#00ff66', scale: 'scale-100' },
-  16:   { label: 'DOLPHIN', color: '#001133', text: '#0066ff', scale: 'scale-100' },
-  32:   { label: 'SHARK', color: '#330033', text: '#ff00ff', scale: 'scale-105' },
-  64:   { label: 'WHALE', color: '#330000', text: '#ff4444', scale: 'scale-105' },
-  128:  { label: 'KRAKEN', color: '#004444', text: '#00ffff', scale: 'scale-110' },
-  256:  { label: 'PUMP', color: '#118811', text: '#fff', scale: 'scale-110' },
-  512:  { label: 'MOON', color: '#888800', text: '#fff', scale: 'scale-110' },
-  1024: { label: 'MARS', color: '#cc4400', text: '#fff', scale: 'scale-115' },
-  2048: { label: 'GOD CANDLE', color: '#00ff00', text: '#000', special: true, scale: 'scale-125' },
-  4096: { label: 'ASCENSION', color: '#ffffff', text: '#000', special: true, scale: 'scale-150' },
+  2:    { label: 'PEANUTS', color: 'bg-zinc-900', border: 'border-zinc-700', text: 'text-zinc-500', glow: '' },
+  4:    { label: 'DUST', color: 'bg-zinc-800', border: 'border-zinc-600', text: 'text-zinc-400', glow: '' },
+  8:    { label: 'FISH', color: 'bg-emerald-950', border: 'border-emerald-500', text: 'text-emerald-400', glow: 'shadow-emerald-900/50' },
+  16:   { label: 'DOLPHIN', color: 'bg-blue-950', border: 'border-blue-500', text: 'text-blue-400', glow: 'shadow-blue-900/50' },
+  32:   { label: 'SHARK', color: 'bg-purple-950', border: 'border-purple-500', text: 'text-purple-400', glow: 'shadow-purple-900/50' },
+  64:   { label: 'WHALE', color: 'bg-red-950', border: 'border-red-500', text: 'text-red-400', glow: 'shadow-red-900/50' },
+  128:  { label: 'KRAKEN', color: 'bg-cyan-950', border: 'border-cyan-500', text: 'text-cyan-400', glow: 'shadow-cyan-900/50' },
+  256:  { label: 'PUMP', color: 'bg-green-900', border: 'border-green-400', text: 'text-white', glow: 'shadow-green-500/40' },
+  512:  { label: 'MOON', color: 'bg-yellow-900', border: 'border-yellow-400', text: 'text-white', glow: 'shadow-yellow-500/40' },
+  1024: { label: 'MARS', color: 'bg-orange-900', border: 'border-orange-400', text: 'text-white', glow: 'shadow-orange-500/40' },
+  2048: { label: 'GOD CANDLE', color: 'bg-white', border: 'border-white', text: 'text-black', special: true, glow: 'shadow-white/60' },
+  4096: { label: 'ASCENSION', color: 'bg-cyan-400', border: 'border-white', text: 'text-black', special: true, glow: 'shadow-cyan-300/60' },
 };
+
+const ZEN_SCALE = [130.81, 146.83, 164.81, 196.00, 220.00, 261.63, 293.66, 329.63, 392.00, 440.00];
 
 const MergeItApp = () => {
   const [grid, setGrid] = useState(Array(16).fill(null));
@@ -3199,73 +3186,169 @@ const MergeItApp = () => {
   const [best, setBest] = useState(0);
   const [gameOver, setGameOver] = useState(false);
   const [marketStatus, setMarketStatus] = useState("STABLE"); 
+  const [stability, setStability] = useState(100);
+  const [glitch, setGlitch] = useState(false);
+  const [recoil, setRecoil] = useState({ x: 0, y: 0 });
+  const [activeParticles, setActiveParticles] = useState([]);
   
   const audioCtx = useRef(null);
+  const schedulerTimer = useRef(null);
+  const nextNoteTime = useRef(0);
+  const currentStep = useRef(0);
   const touchStart = useRef(null);
 
-  
-  const playNote = (freq, type = 'sine', duration = 0.1) => {
-    try {
-        if (!audioCtx.current) audioCtx.current = new (window.AudioContext || window.webkitAudioContext)();
-        if (audioCtx.current.state === 'suspended') audioCtx.current.resume();
-        
-        const osc = audioCtx.current.createOscillator();
-        const gain = audioCtx.current.createGain();
-        osc.type = type;
-        osc.frequency.setValueAtTime(freq, audioCtx.current.currentTime);
-        gain.gain.setValueAtTime(0.05, audioCtx.current.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.current.currentTime + duration);
-        osc.connect(gain);
-        gain.connect(audioCtx.current.destination);
-        osc.start();
-        osc.stop(audioCtx.current.currentTime + duration);
-    } catch(e) {}
+  // --- REBUILT AUDIO ENGINE: ULTRA STABLE ---
+  const initAudio = () => {
+    if (audioCtx.current) {
+      if (audioCtx.current.state === 'suspended') audioCtx.current.resume();
+      return;
+    }
+
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    audioCtx.current = new AudioContext();
+    
+    const compressor = audioCtx.current.createDynamicsCompressor();
+    compressor.threshold.setValueAtTime(-20, audioCtx.current.currentTime);
+    compressor.connect(audioCtx.current.destination);
+    audioCtx.current.master = compressor;
+
+    nextNoteTime.current = audioCtx.current.currentTime + 0.1;
+    
+    const scheduler = () => {
+      if (!audioCtx.current) return;
+      while (nextNoteTime.current < audioCtx.current.currentTime + 0.15) {
+        scheduleNote(currentStep.current, nextNoteTime.current);
+        const bpm = marketStatus === 'BULLISH_PUMP' ? 95 : 74;
+        nextNoteTime.current += (60 / bpm) / 2;
+        currentStep.current++;
+      }
+      schedulerTimer.current = setTimeout(scheduler, 25);
+    };
+    scheduler();
   };
 
-  
+  const scheduleNote = (step, time) => {
+    const ctx = audioCtx.current;
+    if (!ctx || !isFinite(time)) return;
+    const s = step % 16;
+
+    // Sub Bass Pulse
+    if (s % 8 === 0) {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.frequency.setValueAtTime(stability < 40 ? 49.00 : 65.41, time);
+      gain.gain.setValueAtTime(0, time);
+      gain.gain.linearRampToValueAtTime(0.04, time + 0.1);
+      gain.gain.exponentialRampToValueAtTime(0.001, time + 1.2);
+      osc.connect(gain); gain.connect(ctx.master);
+      osc.start(time); osc.stop(time + 1.3);
+    }
+
+    // Melodic Arpeggio
+    if (s % 2 === 0) {
+      const mel = stability < 50 ? [0, 1, 0, 1] : [0, 4, 7, 9, 7, 5, 2, 4];
+      const index = mel[Math.floor(s / 2) % mel.length];
+      const freq = ZEN_SCALE[index % ZEN_SCALE.length];
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, time);
+      gain.gain.setValueAtTime(0, time);
+      gain.gain.linearRampToValueAtTime(0.012, time + 0.05);
+      gain.gain.exponentialRampToValueAtTime(0.001, time + 0.5);
+      osc.connect(gain); gain.connect(ctx.master);
+      osc.start(time); osc.stop(time + 0.6);
+    }
+  };
+
+  const playEffect = (freq, type = 'sine', duration = 0.5, vol = 0.12) => {
+    if (!audioCtx.current || !isFinite(freq)) return;
+    const ctx = audioCtx.current;
+    const t = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, t);
+    gain.gain.setValueAtTime(vol, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + duration);
+    osc.connect(gain); gain.connect(ctx.master);
+    osc.start(t); osc.stop(t + duration);
+  };
+
+  // --- PARTICLES ---
+  const spawnParticles = (idx) => {
+    const row = Math.floor(idx / 4);
+    const col = idx % 4;
+    const newPs = Array(8).fill(0).map(() => ({
+      id: Math.random(),
+      x: col * 25 + 12.5,
+      y: row * 25 + 12.5,
+      vx: (Math.random() - 0.5) * 10,
+      vy: (Math.random() - 0.5) * 10,
+      life: 1.0
+    }));
+    setActiveParticles(prev => [...prev, ...newPs].slice(-32));
+  };
+
+  useEffect(() => {
+    const pTimer = setInterval(() => {
+      setActiveParticles(prev => prev.map(p => ({
+        ...p, x: p.x + p.vx * 0.5, y: p.y + p.vy * 0.5, life: p.life - 0.05
+      })).filter(p => p.life > 0));
+    }, 30);
+    return () => clearInterval(pTimer);
+  }, []);
+
+  // --- GAMEPLAY ---
   const initGame = useCallback(() => {
-    let newGrid = Array(16).fill(null);
-    newGrid = addRandomTile(addRandomTile(newGrid));
-    setGrid(newGrid);
-    setScore(0);
-    setGameOver(false);
-    setMarketStatus("STABLE");
+    setGrid(addRandomTile(addRandomTile(Array(16).fill(null))));
+    setScore(0); setGameOver(false); setMarketStatus("STABLE");
+    setStability(100);
   }, []);
 
   useEffect(() => {
     const savedBest = localStorage.getItem('mergeItBest');
     if (savedBest) setBest(parseInt(savedBest));
     initGame();
+    return () => { if (schedulerTimer.current) clearTimeout(schedulerTimer.current); };
   }, [initGame]);
 
   const addRandomTile = (currentGrid) => {
-    const emptyIndices = currentGrid.map((v, i) => v === null ? i : null).filter(v => v !== null);
-    if (emptyIndices.length === 0) return currentGrid;
-    const randomIndex = emptyIndices[Math.floor(Math.random() * emptyIndices.length)];
+    const empty = currentGrid.map((v, i) => v === null ? i : null).filter(v => v !== null);
+    if (empty.length === 0) return currentGrid;
+    const targetIdx = empty[Math.floor(Math.random() * empty.length)];
     const newGrid = [...currentGrid];
-    const threshold = marketStatus === "BULLISH_PUMP" ? 0.6 : 0.9;
-    newGrid[randomIndex] = Math.random() < threshold ? 2 : 4;
+    newGrid[targetIdx] = Math.random() < 0.9 ? 2 : 4;
     return newGrid;
   };
 
-  const move = (direction) => {
+  const move = useCallback((direction) => {
+    initAudio();
     if (gameOver) return;
+
+    // Kinetic Recoil
+    const strength = 6;
+    if (direction === 'UP') setRecoil({ x: 0, y: -strength });
+    else if (direction === 'DOWN') setRecoil({ x: 0, y: strength });
+    else if (direction === 'LEFT') setRecoil({ x: -strength, y: 0 });
+    else if (direction === 'RIGHT') setRecoil({ x: strength, y: 0 });
+    setTimeout(() => setRecoil({ x: 0, y: 0 }), 80);
+
     let newGrid = [...grid];
     let moved = false;
     let currentScore = score;
-    let mergedThisTurn = false;
+    let mergeCount = 0;
+    let mergeIdxs = [];
 
     const getIndex = (row, col) => row * 4 + col;
-
-    const processLine = (line) => {
+    const processLine = (line, indices) => {
       let filtered = line.filter(v => v !== null);
       for (let i = 0; i < filtered.length - 1; i++) {
         if (filtered[i] === filtered[i + 1]) {
-          filtered[i] *= 2;
-          currentScore += filtered[i];
+          filtered[i] *= 2; currentScore += filtered[i];
+          mergeIdxs.push(indices[i]);
           filtered.splice(i + 1, 1);
-          moved = true;
-          mergedThisTurn = true;
+          moved = true; mergeCount++;
         }
       }
       while (filtered.length < 4) filtered.push(null);
@@ -3274,9 +3357,10 @@ const MergeItApp = () => {
 
     if (direction === 'UP' || direction === 'DOWN') {
       for (let col = 0; col < 4; col++) {
-        let line = [0, 1, 2, 3].map(row => newGrid[getIndex(row, col)]);
+        const idxs = [0, 1, 2, 3].map(row => getIndex(row, col));
+        let line = idxs.map(idx => newGrid[idx]);
         if (direction === 'DOWN') line.reverse();
-        let processed = processLine(line);
+        let processed = processLine(line, direction === 'DOWN' ? [...idxs].reverse() : idxs);
         if (direction === 'DOWN') processed.reverse();
         processed.forEach((val, row) => {
           if (newGrid[getIndex(row, col)] !== val) moved = true;
@@ -3285,9 +3369,10 @@ const MergeItApp = () => {
       }
     } else {
       for (let row = 0; row < 4; row++) {
-        let line = [0, 1, 2, 3].map(col => newGrid[getIndex(row, col)]);
+        const idxs = [0, 1, 2, 3].map(col => getIndex(row, col));
+        let line = idxs.map(idx => newGrid[idx]);
         if (direction === 'RIGHT') line.reverse();
-        let processed = processLine(line);
+        let processed = processLine(line, direction === 'RIGHT' ? [...idxs].reverse() : idxs);
         if (direction === 'RIGHT') processed.reverse();
         processed.forEach((val, col) => {
           if (newGrid[getIndex(row, col)] !== val) moved = true;
@@ -3297,43 +3382,41 @@ const MergeItApp = () => {
     }
 
     if (moved) {
-      if (mergedThisTurn) playNote(440 + (currentScore % 500), 'square', 0.1);
-      else playNote(150, 'sine', 0.05);
+      let nextStability = stability;
+      if (mergeCount > 0) {
+        nextStability = Math.min(100, stability + (mergeCount * 12));
+        mergeIdxs.forEach(spawnParticles);
+        playEffect(ZEN_SCALE[Math.floor(Math.random() * ZEN_SCALE.length)] * 2, 'sine', 0.8, 0.15);
+      } else {
+        nextStability = Math.max(0, stability - 15);
+        playEffect(120, 'sine', 0.1, 0.05);
+      }
+      setStability(nextStability);
 
-      const withRandom = addRandomTile(newGrid);
-      setGrid(withRandom);
+      let finalGrid = [...newGrid];
+      if (nextStability < 40) {
+        setMarketStatus("BEARISH_RUG");
+        if (mergeCount === 0) {
+          setGlitch(true); setTimeout(() => setGlitch(false), 200);
+          const filled = finalGrid.map((v, i) => v !== null ? i : null).filter(v => v !== null);
+          const whale = filled.sort((a, b) => finalGrid[b] - finalGrid[a])[0];
+          if (whale !== undefined) {
+            finalGrid[whale] = null;
+            playEffect(60, 'sawtooth', 0.8, 0.25);
+          }
+        }
+      } else {
+        setMarketStatus(mergeCount >= 2 ? "BULLISH_PUMP" : "STABLE");
+        if (mergeCount >= 2) playEffect(800, 'sine', 0.4);
+      }
+
+      const gridWithNew = addRandomTile(finalGrid);
+      setGrid(gridWithNew);
       setScore(currentScore);
-
-      if (currentScore > best) {
-        setBest(currentScore);
-        localStorage.setItem('mergeItBest', currentScore);
-      }
-
-      
-      if (currentScore > 0 && currentScore % 500 < 30 && marketStatus === "STABLE") {
-          triggerVolatility(withRandom);
-      } else if (currentScore % 500 > 150) {
-          setMarketStatus("STABLE");
-      }
-
-      checkGameOver(withRandom);
+      if (currentScore > best) { setBest(currentScore); localStorage.setItem('mergeItBest', currentScore); }
+      checkGameOver(gridWithNew);
     }
-  };
-
-  const triggerVolatility = (currentGrid) => {
-      const isRug = Math.random() > 0.6; 
-      setMarketStatus(isRug ? "BEARISH_RUG" : "BULLISH_PUMP");
-      playNote(isRug ? 80 : 600, 'sawtooth', 0.4);
-      
-      const filled = currentGrid.map((v, i) => v !== null ? i : null).filter(v => v !== null);
-      if (filled.length > 0) {
-          const target = filled[Math.floor(Math.random() * filled.length)];
-          const newGrid = [...currentGrid];
-          if (isRug) newGrid[target] = null; 
-          else newGrid[target] *= 2; 
-          setGrid(newGrid);
-      }
-  };
+  }, [grid, score, best, gameOver, stability]);
 
   const checkGameOver = (currentGrid) => {
     if (currentGrid.includes(null)) return;
@@ -3343,146 +3426,174 @@ const MergeItApp = () => {
       if (row < 3 && currentGrid[i] === currentGrid[i + 4]) return;
     }
     setGameOver(true);
-    playNote(60, 'sawtooth', 0.8);
+    playEffect(42, 'sawtooth', 1.2);
   };
 
-  
   useEffect(() => {
-    const handleKeyDown = (e) => {
+    const handleKey = (e) => {
+      if (gameOver) return;
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
-          e.preventDefault();
-          if (e.key === 'ArrowUp') move('UP');
-          if (e.key === 'ArrowDown') move('DOWN');
-          if (e.key === 'ArrowLeft') move('LEFT');
-          if (e.key === 'ArrowRight') move('RIGHT');
+        e.preventDefault(); move(e.key.replace('Arrow', '').toUpperCase());
       }
     };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [grid, gameOver, marketStatus]);
-
-  const handleTouchStart = (e) => {
-      touchStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-  };
-
-  const handleTouchEnd = (e) => {
-      if (!touchStart.current) return;
-      const dx = e.changedTouches[0].clientX - touchStart.current.x;
-      const dy = e.changedTouches[0].clientY - touchStart.current.y;
-      if (Math.max(Math.abs(dx), Math.abs(dy)) > 30) {
-          if (Math.abs(dx) > Math.abs(dy)) move(dx > 0 ? 'RIGHT' : 'LEFT');
-          else move(dy > 0 ? 'DOWN' : 'UP');
-      }
-      touchStart.current = null;
-  };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [move, gameOver]);
 
   return (
-    <div className="flex flex-col h-full bg-[#050505] text-white font-mono select-none overflow-hidden touch-none"
-         onTouchStart={handleTouchStart}
-         onTouchEnd={handleTouchEnd}>
-      
-      {/* 1. FIXED HEADER: VOLATILITY NOTIFICATION BAR */}
-      <div className={`h-6 flex items-center justify-center transition-colors duration-500 text-[9px] font-black uppercase tracking-widest
-        ${marketStatus === "STABLE" ? 'bg-black text-gray-700' : 
-          marketStatus === "BEARISH_RUG" ? 'bg-red-900 text-white animate-pulse' : 'bg-green-800 text-white animate-bounce'}
-      `}>
-        {marketStatus === "STABLE" ? (
-            <span className="flex items-center gap-1 opacity-50"><Info size={10}/> MARKET_STATUS: NOMINAL</span>
-        ) : (
-            <span className="flex items-center gap-2">
-                <AlertTriangle size={12}/> 
-                {marketStatus === "BEARISH" ? "CRITICAL ZONE" : "ALERT: PUMP IN PROGRESS!"}
-            </span>
-        )}
+    <div 
+      className={`flex flex-col h-full bg-[#050505] text-white font-mono select-none overflow-hidden touch-none relative transition-all duration-700 
+        ${marketStatus === 'BEARISH_RUG' ? 'bg-red-950/20' : ''} 
+        ${glitch ? 'animate-glitch contrast-200 brightness-150' : ''}`}
+      onTouchStart={(e) => { initAudio(); touchStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }; }}
+      onTouchEnd={(e) => { 
+        if (!touchStart.current) return; 
+        const dx = e.changedTouches[0].clientX - touchStart.current.x; 
+        const dy = e.changedTouches[0].clientY - touchStart.current.y; 
+        if (Math.max(Math.abs(dx), Math.abs(dy)) > 30) {
+          move(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'RIGHT' : 'LEFT') : (dy > 0 ? 'DOWN' : 'UP'));
+        }
+        touchStart.current = null; 
+      }}
+    >
+      {/* HUD: MARKET STATE */}
+      <div className={`h-8 flex items-center justify-center transition-all duration-700 text-[10px] font-black uppercase tracking-[0.4em] z-50 border-b border-white/5
+        ${marketStatus === "STABLE" ? 'bg-zinc-950 text-zinc-600' : 
+          marketStatus === "BEARISH_RUG" ? 'bg-red-600 text-white' : 'bg-green-500 text-white'}`}>
+        {marketStatus === "STABLE" ? "MARKET_PROTOCOL: NOMINAL" : 
+         marketStatus === "BEARISH_RUG" ? "LIQUIDATION_SEQUENCE_ACTIVE" : "BULLISH_APPRECIATION_DETECTED"}
       </div>
 
-      {/* 2. SUB-HEADER: STATS */}
-      <div className="bg-[#111] p-3 border-b border-gray-800 flex justify-between items-center shadow-xl">
-        <div className="flex flex-col">
-            <span className="text-[10px] font-black text-green-500 tracking-tighter">MERGE_IT.SYS</span>
-            <div className="flex gap-2 mt-1">
-                <div className="bg-black border border-gray-800 px-2 py-1 rounded min-w-[70px]">
-                    <p className="text-[7px] text-gray-500 font-bold leading-none mb-1 uppercase">Current IT</p>
-                    <p className="text-sm font-black text-green-400">+{score}</p>
-                </div>
-                <div className="bg-black border border-gray-800 px-2 py-1 rounded min-w-[70px]">
-                    <p className="text-[7px] text-gray-500 font-bold leading-none mb-1 uppercase">High IT</p>
-                    <p className="text-sm font-black text-yellow-500">{best}</p>
-                </div>
+      {/* STATS PANEL */}
+      <div className="relative z-10 bg-zinc-950/90 p-5 border-b border-white/5 shadow-2xl">
+        <div className="flex justify-between items-center mb-6">
+          <div className="flex flex-col">
+            <div className="flex items-center gap-2 mb-1">
+              <Cpu size={12} className="text-zinc-500"/>
+              <span className="text-[10px] font-black text-white/20 tracking-widest uppercase">STRATEGIC_CORE_v5.4</span>
+            </div>
+            <div className="flex gap-8 mt-2">
+              <div>
+                <p className="text-[8px] text-zinc-500 uppercase font-black">Current IT</p>
+                <p className="text-2xl font-black text-green-400">+{score}</p>
+              </div>
+              <div>
+                <p className="text-[8px] text-zinc-500 uppercase font-black">High IT</p>
+                <p className="text-2xl font-black text-yellow-500">{best}</p>
+              </div>
+            </div>
+          </div>
+          <button 
+            onClick={initGame} 
+            className="w-14 h-14 bg-white/5 border border-white/10 flex items-center justify-center hover:bg-white/10 active:scale-75 transition-all shadow-inner group"
+          >
+            <RefreshCw size={24} className="text-white/40 group-hover:rotate-180 transition-transform duration-500" />
+          </button>
+        </div>
+
+        {/* STABILITY GAUGE */}
+        <div className="relative group">
+            <div className="h-1.5 w-full bg-black border border-white/5 overflow-hidden">
+                <div 
+                  className={`h-full transition-all duration-700 ${stability < 30 ? 'bg-red-500 animate-pulse' : stability < 60 ? 'bg-yellow-500' : 'bg-emerald-500'}`} 
+                  style={{ width: `${stability}%` }} 
+                />
+            </div>
+            <div className="flex justify-between mt-2">
+              <span className="text-[7px] text-white/20 uppercase font-black tracking-widest leading-none">Integrity Core</span>
+              <span className={`text-[9px] font-black ${stability < 30 ? 'text-red-500' : 'text-white/40'}`}>{stability}%</span>
             </div>
         </div>
-        <button onClick={initGame} className="w-10 h-10 bg-gray-900 rounded border border-gray-700 flex items-center justify-center hover:bg-green-900 transition-colors">
-            <RefreshCw size={18} className="text-gray-400" />
-        </button>
       </div>
 
-      {/* 3. MAIN GAME GRID */}
-      <div className="flex-1 flex items-center justify-center p-4 relative bg-[radial-gradient(circle,_#111_0%,_#000_100%)]">
-        <div className="grid grid-cols-4 gap-2 bg-[#0a0a0a] p-3 rounded-xl border-2 border-gray-800 shadow-[0_0_50px_rgba(0,0,0,1)] relative">
-            {grid.map((val, i) => {
-                const data = val ? TILE_DATA[val] || { label: val, color: '#333', text: '#fff', scale: '' } : null;
-                return (
-                    <div key={i} className={`
-                        w-14 h-14 md:w-16 md:h-16 rounded flex flex-col items-center justify-center transition-all duration-200 relative
-                        ${!val ? 'bg-[#080808] border border-[#111]' : 'shadow-lg'}
-                        ${data?.scale || ''}
-                        ${data?.special ? 'shadow-[0_0_20px_#00ff00] z-10' : ''}
-                    `}
-                    style={val ? { backgroundColor: data.color } : {}}
-                    >
-                        {val && (
-                            <>
-                                <span className={`text-[8px] font-black leading-none text-center px-1 uppercase tracking-tighter`} style={{ color: data.text }}>
-                                    {data.label}
-                                </span>
-                                <span className="text-[10px] md:text-xs mt-1 font-bold" style={{ color: data.text }}>
-                                    {val}
-                                </span>
-                                {data?.special && <Zap size={10} className="absolute top-1 right-1 text-white animate-pulse" />}
-                            </>
-                        )}
-                    </div>
-                )
-            })}
+      {/* GAME GRID */}
+      <div className="flex-1 flex items-center justify-center p-6 relative">
+        <div 
+          className="grid grid-cols-4 gap-2 bg-zinc-900/40 p-4 border border-white/5 shadow-2xl relative transition-transform duration-100 ease-out"
+          style={{ transform: `translate(${recoil.x}px, ${recoil.y}px)` }}
+        >
+          {/* BACKGROUND DECOR */}
+          <div className="absolute inset-0 bg-grid-lines opacity-[0.03] pointer-events-none" />
+          
+          {/* PARTICLES */}
+          <div className="absolute inset-0 pointer-events-none overflow-hidden">
+            {activeParticles.map(p => (
+              <div 
+                key={p.id} 
+                className="absolute w-1 h-1 bg-white rounded-full blur-[1px]" 
+                style={{ left: `${p.x}%`, top: `${p.y}%`, opacity: p.life }} 
+              />
+            ))}
+          </div>
+
+          {grid.map((val, i) => {
+            const data = val ? TILE_DATA[val] : null;
+            return (
+              <div 
+                key={i} 
+                className={`w-16 h-16 md:w-20 md:h-20 flex flex-col items-center justify-center border transition-all duration-200 relative overflow-hidden
+                  ${!val ? 'bg-white/5 border-white/5 opacity-10' : `${data.color} ${data.border} shadow-lg ${data.glow} scale-100`}`}
+              >
+                {val && (
+                  <div className="relative z-10 flex flex-col items-center">
+                    <span className={`text-[8px] font-black uppercase text-center leading-none px-1 mb-1 tracking-tighter ${data.text}`}>
+                      {data.label}
+                    </span>
+                    <span className={`text-lg md:text-2xl font-black tracking-tighter ${data.text}`}>
+                      {val}
+                    </span>
+                    {data?.special && (
+                      <div className="absolute inset-[-10px] border border-white animate-ping opacity-20" />
+                    )}
+                  </div>
+                )}
+                {val && <div className="absolute inset-0 bg-scanlines opacity-10 pointer-events-none" />}
+              </div>
+            );
+          })}
         </div>
 
-        {/* GAME OVER MODAL */}
+        {/* TERMINAL OVERLAY */}
         {gameOver && (
-            <div className="absolute inset-0 bg-black/95 backdrop-blur-sm flex flex-col items-center justify-center z-50 animate-in fade-in duration-700 p-8 text-center">
-                <Skull size={48} className="text-red-600 mb-4 animate-bounce" />
-                <p className="text-red-500 font-black text-2xl mb-1 tracking-tighter">POSITION CLOSED</p>
-                <p className="text-gray-500 text-[10px] mb-8 uppercase tracking-widest">You were liquidated by the volatility.<br/>Final score: {score}</p>
-                <button onClick={initGame} className="w-full bg-green-600 text-black font-black py-4 rounded border-b-4 border-green-900 active:border-0 hover:bg-green-400 transition-all text-sm uppercase">
-                    Try Again
-                </button>
+          <div className="absolute inset-0 bg-black/95 flex flex-col items-center justify-center z-[100] p-12 text-center animate-in zoom-in duration-300">
+            <div className="w-16 h-16 border-2 border-red-500 mb-8 flex items-center justify-center rotate-45">
+              <Skull size={32} className="text-red-500 -rotate-45" />
             </div>
+            <h2 className="text-white font-black text-3xl mb-2 italic uppercase tracking-tighter">Liquidated</h2>
+            <p className="text-zinc-600 text-[10px] mb-12 uppercase tracking-[0.4em] max-w-[240px] leading-relaxed">
+              Strategic protocol overflowed.<br/>Stability reached 0x00.
+            </p>
+            <button 
+              onClick={initGame} 
+              className="w-full bg-white text-black font-black py-5 uppercase italic hover:bg-zinc-200 active:scale-95 transition-all text-xs tracking-widest"
+            >
+              Re-Open Terminal
+            </button>
+          </div>
         )}
       </div>
 
-      {/* 4. FOOTER: CONTROLS HINT */}
-      <div className="p-3 bg-[#0a0a0a] border-t border-gray-900 flex justify-center items-center">
-         <span className="text-[8px] text-gray-500 font-bold tracking-widest uppercase">
-             {window.innerWidth < 768 ? "Swipe IT to Merge IT" : "Use Arrows to Merge IT"}
-         </span>
-      </div>
-
-      {/* FOOTER TICKER */}
-      <div className="bg-black p-1.5 flex gap-4 overflow-hidden border-t border-green-950 whitespace-nowrap">
-        <div className="flex gap-10 animate-marquee text-[8px] font-bold text-green-900 tracking-[0.3em] uppercase">
-            <span>*** 1 IT = 1 IT ***</span>
-            <span>MERGE THE VOID</span>
-            <span>GOD CANDLE IMMINENT</span>
-            <span>NO PAPER HANDS ALLOWED</span>
-            <span>*** 1 IT = 1 IT ***</span>
-            <span>MERGE THE VOID</span>
-            <span>GOD CANDLE IMMINENT</span>
-            <span>NO PAPER HANDS ALLOWED</span>
+      {/* TICKER */}
+      <div className="bg-black py-4 border-t border-white/5 overflow-hidden whitespace-nowrap">
+        <div className="flex gap-20 animate-marquee text-[10px] font-black text-white/5 tracking-[0.5em] uppercase">
+          <span>*** MERGE OR DIE *** STRATEGY_FIRST *** NO PAPER HANDS *** SYSTEM_V5.4 *** MERGE OR DIE ***</span>
+          <span>*** MERGE OR DIE *** STRATEGY_FIRST *** NO PAPER HANDS *** SYSTEM_V5.4 *** MERGE OR DIE ***</span>
         </div>
       </div>
 
       <style>{`
+        .animate-marquee { animation: marquee 30s linear infinite; } 
         @keyframes marquee { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
-        .animate-marquee { animation: marquee 15s linear infinite; }
+        @keyframes glitch {
+          0% { transform: translate(0); }
+          20% { transform: translate(-4px, 4px); }
+          40% { transform: translate(4px, -4px); }
+          60% { transform: translate(-4px, -2px); }
+          100% { transform: translate(0); }
+        }
+        .animate-glitch { animation: glitch 0.1s infinite; }
+        .bg-scanlines { background: repeating-linear-gradient(0deg, rgba(0,0,0,0.3), rgba(0,0,0,0.3) 1px, transparent 1px, transparent 2px); }
+        .bg-grid-lines { background-size: 30px 30px; background-image: linear-gradient(to right, white 1px, transparent 1px), linear-gradient(to bottom, white 1px, transparent 1px); }
       `}</style>
     </div>
   );
