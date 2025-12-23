@@ -3139,7 +3139,7 @@ const ChatApp = () => {
             <span className="text-[7px] font-black text-zinc-500 uppercase tracking-widest leading-none mb-1">Protocol</span>
             <div className="flex items-center gap-1.5">
               <Activity size={12} className={`${isConnected ? 'text-emerald-500' : 'text-zinc-600'} animate-pulse`} />
-              <span className="text-[9px] font-black text-zinc-500">AES_GOD_V5</span>
+              <span className="text-[9px] font-black text-zinc-500">Trollbox_v2.7</span>
             </div>
           </div>
         </div>
@@ -3198,7 +3198,7 @@ const ChatApp = () => {
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
               disabled={cooldown > 0}
-              placeholder={cooldown > 0 ? `LINK_THROTTLED: ${cooldown}S` : "Enter transmission data..."}
+              placeholder={cooldown > 0 ? `LINK_THROTTLED: ${cooldown}S` : "Write IT..."}
               className={`w-full h-full border-t-2 border-l-2 border-zinc-800 border-b border-r border-white px-12 text-sm font-black outline-none transition-all ${style.input} focus:shadow-[inset_0_0_10px_rgba(0,0,0,0.3)]`}
             />
           </div>
