@@ -20,7 +20,7 @@ import {
   Lightbulb, TrendingUp, Sparkles, RefreshCw, Trophy, Info, Flame, Share2, Joystick, VolumeX,
   TrendingDown, ShieldAlert, Cpu, BarChart3, Binary, Grid, ZoomIn, FileImage,
   Wifi, Hash, Lock, Sun, Moon, Database, Radio, Command, Palette, UserCircle,
-  ShieldCheck, Shield,
+  ShieldCheck, Shield, Reply, Quote, CornerDownRight
 } from 'lucide-react';
 
 
@@ -2878,6 +2878,7 @@ const MemesApp = () => {
   );
 };
 
+// --- ASSETS ---
 const AVATAR_LIST = [
   { id: 'pepe', name: 'PEPE', url: '/pfps/pepe.jpg' },
   { id: 'doge', name: 'DOGE', url: '/pfps/doge.jpg' },
@@ -2896,7 +2897,14 @@ const COLOR_LIST = [
   { id: 'white', hex: '#ffffff', label: 'PURE_SIGNAL' },
 ];
 
+const CHAT_PLAYLIST = [
+  "GET_IT_STARTED.mp3",
+  "PUMP_IT_UP.mp3",
+  "MEME_IT.mp3"
+];
+
 const ChatApp = () => {
+  // --- STATE ---
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState("");
   const [username, setUsername] = useState("");
@@ -2911,32 +2919,45 @@ const ChatApp = () => {
   const [booting, setBooting] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   
+  // --- INTERACTION STATE ---
+  const [activeMenu, setActiveMenu] = useState(null); // 'options', 'appearance'
+  const [replyingTo, setReplyingTo] = useState(null); 
+  const [contextMenu, setContextMenu] = useState(null); 
+  const [trackIndex, setTrackIndex] = useState(0);
+  
+  const isDarkMode = theme === 'dark';
   const scrollRef = useRef(null);
   const audioRef = useRef(null);
+  const inputRef = useRef(null);
+  const longPressTimer = useRef(null);
 
   const style = useMemo(() => ({
-    bg: theme === 'light' ? 'bg-[#c0c0c0]' : 'bg-[#121212]',
-    windowBg: theme === 'light' ? 'bg-white' : 'bg-[#080808]',
-    text: theme === 'light' ? 'text-black' : 'text-[#e0e0e0]',
-    input: theme === 'light' ? 'bg-white text-black' : 'bg-[#111] text-white',
-  }), [theme]);
+    bg: isDarkMode ? 'bg-[#0a0a0a]' : 'bg-[#c0c0c0]',
+    windowBg: isDarkMode ? 'bg-[#050505]' : 'bg-white',
+    text: isDarkMode ? 'text-white' : 'text-black',
+    input: isDarkMode ? 'bg-black text-green-400 border-green-900' : 'bg-white text-black border-gray-400',
+    tileMe: isDarkMode ? 'border-t-2 border-l-2 border-black border-r-green-900 border-b-green-900 bg-green-950/30' : 'border-2 border-gray-400 border-l-white border-t-white bg-blue-50',
+    tileOther: isDarkMode ? 'border-2 border-zinc-800 bg-[#111]' : 'border-2 border-gray-400 border-l-white border-t-white bg-white',
+  }), [isDarkMode]);
 
-  // --- AUDIO LOGIC (TUNES_PLAYLIST) ---
+  // --- AUDIO ENGINE ---
   useEffect(() => {
-    if (isSetup && !isMuted && typeof TUNES_PLAYLIST !== 'undefined' && TUNES_PLAYLIST.length > 0) {
+    if (isSetup && !isMuted) {
       if (!audioRef.current) {
-        audioRef.current = new Audio(TUNES_PLAYLIST[0].file);
-        audioRef.current.loop = true;
+        audioRef.current = new Audio(CHAT_PLAYLIST[trackIndex]);
         audioRef.current.volume = 0.3;
+        audioRef.current.onended = () => setTrackIndex(prev => (prev + 1) % CHAT_PLAYLIST.length);
+      } else {
+        audioRef.current.src = CHAT_PLAYLIST[trackIndex];
       }
-      audioRef.current.play().catch(e => console.warn("Audio interaction pending."));
+      audioRef.current.play().catch(() => {});
     } else if (audioRef.current) {
       audioRef.current.pause();
     }
     return () => { if (audioRef.current) audioRef.current.pause(); };
-  }, [isSetup, isMuted]);
+  }, [isSetup, isMuted, trackIndex]);
 
-  // --- AUTH (RULE 3) ---
+  // --- AUTH ---
   useEffect(() => {
     const initAuth = async () => {
       try {
@@ -2945,69 +2966,98 @@ const ChatApp = () => {
         } else {
           await signInAnonymously(auth);
         }
-      } catch (e) { setError("AUTH_FAIL: NODE_REJECTED"); }
+      } catch (e) { setError("NODE_AUTH_ERROR"); }
     };
     initAuth();
     const unsubscribe = onAuthStateChanged(auth, setUser);
     return () => unsubscribe();
   }, []);
 
-  // Load identity
+  // Load Prefs
   useEffect(() => {
-    const saved = {
-      name: localStorage.getItem('tbox_alias'),
-      color: localStorage.getItem('tbox_color'),
-      avatar: localStorage.getItem('tbox_avatar')
-    };
-    if (saved.name) {
-      setUsername(saved.name);
-      setUserColor(saved.color || COLOR_LIST[0].hex);
-      setUserAvatar(saved.avatar || AVATAR_LIST[5].url);
+    const savedName = localStorage.getItem('tbox_alias');
+    if (savedName) {
+      setUsername(savedName);
+      setUserColor(localStorage.getItem('tbox_color') || COLOR_LIST[0].hex);
+      setUserAvatar(localStorage.getItem('tbox_avatar') || AVATAR_LIST[5].url);
       setIsSetup(true);
     }
   }, []);
 
-  // --- FIRESTORE SYNC (RULE 1 & 2) ---
+  // --- FIRESTORE SYNC ---
   useEffect(() => {
     if (!user) return;
     const chatRef = collection(db, 'artifacts', appId, 'public', 'data', 'trollbox_messages');
-
     const unsubscribe = onSnapshot(chatRef, (snapshot) => {
       const msgs = snapshot.docs.map(doc => {
         const data = doc.data();
-        let ts = Date.now();
-        if (data.timestamp) {
-            ts = data.timestamp.toDate ? data.timestamp.toDate().getTime() : data.timestamp;
-        }
+        let ts = data.timestamp?.toDate ? data.timestamp.toDate().getTime() : (data.timestamp || Date.now());
         return { id: doc.id, ...data, _sortTs: ts };
       });
-      const finalMsgs = msgs.sort((a, b) => a._sortTs - b._sortTs).slice(-50);
-      setMessages(finalMsgs);
+      setMessages(msgs.sort((a, b) => a._sortTs - b._sortTs).slice(-50));
       setIsConnected(true);
-      setError(null);
-    }, (err) => { 
-      setIsConnected(false); 
-      setError("NET_SYNC_ERR: Re-linking..."); 
-    });
+    }, () => setIsConnected(false));
     return () => unsubscribe();
   }, [user]);
 
   useEffect(() => {
-    if (scrollRef.current) scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages]);
 
   // --- ACTIONS ---
-  const handleInitialize = () => {
+  const handleInitialize = async () => {
     const name = username.trim().toUpperCase().slice(0, 12);
     if (name.length < 2) return;
+    if (!user) return setError("WAITING_FOR_AUTH");
+
     setBooting(true);
-    setTimeout(() => {
+    setError(null);
+
+    try {
+      // UNIQUE USERNAME CHECK
+      const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'tbox_registry', name);
+      const snap = await getDoc(userRef);
+
+      if (snap.exists() && snap.data().uid !== user.uid) {
+        setBooting(false);
+        return setError("ALIAS_TAKEN: TRY ANOTHER");
+      }
+
+      // Claim Alias in Registry
+      await setDoc(userRef, { uid: user.uid, lastActive: Date.now(), alias: name });
+
       localStorage.setItem('tbox_alias', name);
       localStorage.setItem('tbox_color', userColor);
       localStorage.setItem('tbox_avatar', userAvatar);
+      
       setIsSetup(true);
       setBooting(false);
-    }, 600);
+    } catch (err) {
+      console.error(err);
+      setBooting(false);
+      setError("REGISTRY_ERROR");
+    }
+  };
+
+  const handleUpdateAppearance = () => {
+    localStorage.setItem('tbox_color', userColor);
+    localStorage.setItem('tbox_avatar', userAvatar);
+    setActiveMenu(null);
+  };
+
+  const handleLogOut = () => {
+    setIsSetup(false);
+    setActiveMenu(null);
+  };
+
+  const handleBurnIdentity = async () => {
+    if (!user) return;
+    try {
+      const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'tbox_registry', username);
+      await deleteDoc(userRef);
+      localStorage.clear();
+      window.location.reload();
+    } catch (e) { setError("BURN_FAILED"); }
   };
 
   const handleSend = async (e) => {
@@ -3015,7 +3065,9 @@ const ChatApp = () => {
     if (!inputText.trim() || cooldown > 0 || !user) return;
 
     const text = inputText.trim().slice(0, 240);
+    const currentReply = replyingTo;
     setInputText("");
+    setReplyingTo(null);
     setCooldown(3);
 
     try {
@@ -3025,52 +3077,66 @@ const ChatApp = () => {
         color: userColor,
         avatar: userAvatar,
         timestamp: serverTimestamp(),
-        uid: user.uid
+        uid: user.uid,
+        replyTo: currentReply || null
       });
-    } catch (err) { setError("PACKET_LOSS: Retry Transmission"); }
+    } catch (err) { setError("SEND_ERROR"); }
 
     let t = 3;
     const inv = setInterval(() => { t--; setCooldown(t); if (t <= 0) clearInterval(inv); }, 1000);
   };
 
+  const startReply = (msg) => {
+      setReplyingTo({ user: msg.user, text: msg.text, id: msg.id });
+      setContextMenu(null);
+      inputRef.current?.focus();
+  };
+
+  // --- UI COMPONENTS ---
+  const FactionSelector = () => (
+    <div className="space-y-4 p-4 bg-black border-2 border-green-900 rounded shadow-inner">
+        <div className="space-y-2">
+            <label className="text-[9px] text-emerald-600 font-black tracking-widest uppercase block text-center">Faction Avatar</label>
+            <div className="grid grid-cols-3 gap-2">
+            {AVATAR_LIST.map((av) => (
+                <button key={av.id} onClick={() => setUserAvatar(av.url)} className={`aspect-square border-2 transition-all p-1 bg-zinc-900 ${userAvatar === av.url ? 'border-emerald-500 scale-105' : 'border-zinc-800 grayscale opacity-40 hover:opacity-100'}`}>
+                    <img src={av.url} alt={av.name} className="w-full h-full object-cover" />
+                </button>
+            ))}
+            </div>
+        </div>
+        <div className="space-y-2">
+            <label className="text-[9px] text-emerald-600 font-black tracking-widest uppercase block text-center">Frequency Color</label>
+            <div className="flex justify-center gap-2 flex-wrap">
+            {COLOR_LIST.map((col) => (
+                <button key={col.id} onClick={() => setUserColor(col.hex)} className={`w-8 h-8 border-2 transition-all ${userColor === col.hex ? 'border-white scale-110' : 'border-black/40'}`} style={{ backgroundColor: col.hex }} />
+            ))}
+            </div>
+        </div>
+    </div>
+  );
+
+  // --- GESTURES ---
+  const onMsgContextMenu = (e, msg) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, msg }); };
+  const handleTouchStart = (msg) => { longPressTimer.current = setTimeout(() => { setContextMenu({ x: window.innerWidth / 2 - 60, y: window.innerHeight / 2 - 40, msg }); }, 600); };
+  const handleTouchEnd = () => { if (longPressTimer.current) clearTimeout(longPressTimer.current); };
+
   if (!isSetup) {
     return (
       <div className={`h-full ${style.bg} flex items-center justify-center p-4 font-mono overflow-y-auto`}>
         <div className={`w-full max-w-lg border-2 border-black bg-[#c0c0c0] shadow-2xl transition-all ${booting ? 'scale-110 blur-xl opacity-0' : 'scale-100'}`}>
-          <div className="bg-[#000080] text-white p-2 flex items-center gap-2 font-bold italic border-b-2 border-white">
-            <Terminal size={16} /> INITIALIZE_IDENTITY.EXE
+          <div className="bg-[#000080] text-white p-2 flex items-center gap-2 font-bold border-b-2 border-white uppercase italic tracking-tighter">
+            <Terminal size={16} /> Identity_Initialization.EXE
           </div>
           <div className="bg-black p-6 space-y-6">
-            <div className="space-y-2">
-              <label className="text-[9px] text-emerald-700 font-black tracking-widest uppercase block text-center">Assign Alias</label>
-              <input 
-                autoFocus
-                value={username}
-                onChange={(e) => setUsername(e.target.value.toUpperCase())}
-                className="w-full bg-black border-b-2 border-emerald-900 text-emerald-400 p-3 text-center text-xl font-black outline-none"
-                placeholder="USER_ID"
-              />
+            <div className="space-y-2 text-center text-white">
+              <label className="text-[9px] text-emerald-700 font-black tracking-[0.2em] uppercase block">Assign Permanent Alias</label>
+              <input autoFocus value={username} onChange={(e) => setUsername(e.target.value.toUpperCase())} className="w-full bg-black border-b-2 border-emerald-900 text-emerald-400 p-3 text-center text-xl font-black outline-none focus:border-emerald-500" placeholder="UNIQUE_ID" />
+              {error && <div className="text-[8px] text-red-500 font-bold animate-pulse mt-2">{error}</div>}
             </div>
-            <div className="space-y-2">
-              <label className="text-[9px] text-emerald-700 font-black tracking-widest uppercase block text-center">Select Avatar</label>
-              <div className="grid grid-cols-6 gap-2">
-                {AVATAR_LIST.map((av) => (
-                  <button key={av.id} onClick={() => setUserAvatar(av.url)} className={`aspect-square border-2 transition-all p-1 bg-zinc-900 ${userAvatar === av.url ? 'border-emerald-500 scale-110' : 'border-zinc-800 grayscale opacity-40 hover:opacity-100'}`}>
-                    <img src={av.url} alt={av.name} className="w-full h-full object-cover" />
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="space-y-2">
-              <label className="text-[9px] text-emerald-700 font-black tracking-widest uppercase block text-center">Uplink Color</label>
-              <div className="flex justify-center gap-2">
-                {COLOR_LIST.map((col) => (
-                  <button key={col.id} onClick={() => setUserColor(col.hex)} className={`w-8 h-8 rounded-sm border-2 transition-all ${userColor === col.hex ? 'border-white scale-110' : 'border-black/40'}`} style={{ backgroundColor: col.hex }} />
-                ))}
-              </div>
-            </div>
-            <button onClick={handleInitialize} disabled={username.length < 2} className="w-full bg-[#c0c0c0] border-2 border-gray-400 border-l-white border-t-white py-4 font-black text-sm active:translate-y-1">
-              ESTABLISH_UPLINK
+            <FactionSelector />
+            <button onClick={handleInitialize} disabled={username.length < 2 || booting} className="w-full bg-[#c0c0c0] border-2 border-gray-400 border-l-white border-t-white py-4 font-black text-sm active:translate-y-1">
+              {booting ? "SEARCHING_REGISTRY..." : "ESTABLISH_UPLINK"}
             </button>
           </div>
         </div>
@@ -3079,55 +3145,104 @@ const ChatApp = () => {
   }
 
   return (
-    <div className={`h-full ${style.bg} flex flex-col font-mono select-none overflow-hidden relative`}>
-      {/* Navbar */}
-      <div className={`flex justify-between items-center px-3 py-1.5 border-b ${theme === 'light' ? 'border-zinc-400' : 'border-black'} bg-opacity-80 backdrop-blur-sm z-10`}>
+    <div className={`h-full ${style.bg} ${style.text} flex flex-col font-mono select-none overflow-hidden relative`} onClick={() => {setContextMenu(null); setActiveMenu(null);}}>
+      
+      {/* TOOLBAR */}
+      <div className={`flex justify-between items-center px-3 py-1.5 border-b ${isDarkMode ? 'border-black bg-black/40' : 'border-zinc-400 bg-white/40'} backdrop-blur-md z-[100]`}>
         <div className="flex gap-5 text-[9px] font-black text-zinc-500 uppercase tracking-widest">
-          <span className="flex items-center gap-1.5"><Wifi size={10} className={isConnected ? 'text-emerald-500' : 'text-red-500'}/> {isConnected ? 'Link_Live' : 'Offline'}</span>
-          <button className="hover:text-blue-500 flex items-center gap-1.5" onClick={() => setIsSetup(false)}>
-            <UserCircle size={10}/> Change_ID
-          </button>
+          <span className="flex items-center gap-1.5"><Wifi size={10} className={isConnected ? 'text-emerald-500' : 'text-red-500'}/> {isConnected ? 'Link_Live' : 'Syncing...'}</span>
+          <div className="flex items-center gap-1.5 opacity-50"><User size={10}/> {username}</div>
         </div>
         <div className="flex items-center gap-3">
-          <button onClick={() => setIsMuted(!isMuted)} className={`p-1 transition-all ${isMuted ? 'text-red-500' : 'text-emerald-500'}`}>
-            {isMuted ? <VolumeX size={14}/> : <Volume2 size={14}/>}
-          </button>
+          <button onClick={(e) => {e.stopPropagation(); setActiveMenu(activeMenu === 'options' ? null : 'options')}} className={`p-1 transition-all ${activeMenu ? 'text-white' : 'text-emerald-500 hover:rotate-90'}`}><Settings size={14}/></button>
           <div className="w-px h-3 bg-zinc-700" />
-          <button onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')} className={`w-10 h-5 rounded-full p-0.5 transition-all relative ${theme === 'light' ? 'bg-zinc-400' : 'bg-emerald-900'}`}>
-            <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center transition-all ${theme === 'light' ? 'translate-x-0 bg-white' : 'translate-x-5 bg-emerald-400'}`}>
-              {theme === 'light' ? <Sun size={8} className="text-orange-500" /> : <Moon size={8} className="text-emerald-950" />}
+          <button onClick={(e) => {e.stopPropagation(); setIsMuted(!isMuted)}} className={`p-1 transition-all ${isMuted ? 'text-red-500' : 'text-emerald-500 animate-pulse'}`}>{isMuted ? <VolumeX size={14}/> : <Volume2 size={14}/>}</button>
+          <button onClick={(e) => {e.stopPropagation(); setTheme(isDarkMode ? 'light' : 'dark')}} className={`w-10 h-5 rounded-full p-0.5 transition-all relative ${isDarkMode ? 'bg-emerald-900' : 'bg-zinc-400'}`}>
+            <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center transition-all ${isDarkMode ? 'translate-x-5 bg-emerald-400 shadow-[0_0_8px_#10b981]' : 'translate-x-0 bg-white'}`}>
+              {isDarkMode ? <Moon size={8} className="text-emerald-950" /> : <Sun size={8} className="text-orange-500" />}
             </div>
           </button>
         </div>
       </div>
 
-      {/* Main Stream */}
-      <div ref={scrollRef} className={`flex-1 ${style.windowBg} m-1 p-4 overflow-y-auto scrollbar-classic space-y-4`}>
-        <div className="flex flex-col items-center py-4 border-b border-dashed border-zinc-700 mb-6 opacity-30">
-          <ShieldCheck size={16} className={theme === 'light' ? 'text-blue-900' : 'text-emerald-500'} />
-          <span className="text-[6px] font-black uppercase tracking-[0.4em] mt-1">Neural_Bridge_Active</span>
+      {/* OPTIONS OVERLAY */}
+      {activeMenu === 'options' && (
+          <div className="absolute top-10 right-2 w-48 bg-[#c0c0c0] border-2 border-white border-r-black border-b-black shadow-2xl z-[150] p-1 animate-in zoom-in-95 duration-100" onClick={e=>e.stopPropagation()}>
+              <div className="bg-[#000080] text-white text-[9px] font-bold px-2 py-1 flex items-center gap-1"><Settings size={10}/> OPTIONS_MENU</div>
+              <div className="p-1 space-y-1">
+                  <button onClick={() => setActiveMenu('appearance')} className="w-full text-left px-2 py-1.5 hover:bg-[#000080] hover:text-white flex items-center gap-2 text-[10px] font-black uppercase"><Palette size={12}/> Change Appearance</button>
+                  <button onClick={handleLogOut} className="w-full text-left px-2 py-1.5 hover:bg-[#000080] hover:text-white flex items-center gap-2 text-[10px] font-black uppercase"><LogOut size={12}/> Disconnect Link</button>
+                  <div className="h-px bg-gray-500 my-1"></div>
+                  <button onClick={handleBurnIdentity} className="w-full text-left px-2 py-1.5 hover:bg-red-700 hover:text-white text-red-800 flex items-center gap-2 text-[10px] font-black uppercase"><Trash2 size={12}/> Burn Identity</button>
+              </div>
+          </div>
+      )}
+
+      {/* APPEARANCE MODAL */}
+      {activeMenu === 'appearance' && (
+          <div className="absolute inset-0 bg-black/80 backdrop-blur-sm z-[200] flex items-center justify-center p-4" onClick={e=>e.stopPropagation()}>
+              <div className="w-full max-w-xs bg-[#c0c0c0] border-2 border-white border-r-black border-b-black p-1 shadow-2xl">
+                  <div className="bg-[#000080] text-white text-[10px] font-bold px-2 py-1 flex justify-between">
+                      <span>UPDATE_APPEARANCE.EXE</span>
+                      <X size={12} className="cursor-pointer" onClick={() => setActiveMenu('options')} />
+                  </div>
+                  <div className="p-4 bg-black space-y-4">
+                      <div className="text-center"><span className="text-xs text-gray-500 uppercase font-black">Alias: {username}</span></div>
+                      <FactionSelector />
+                      <button onClick={handleUpdateAppearance} className="w-full bg-[#c0c0c0] border-2 border-gray-400 border-l-white border-t-white py-3 font-black text-[10px] tracking-widest uppercase">Apply Changes</button>
+                  </div>
+              </div>
+          </div>
+      )}
+
+      {/* CHAT STREAM */}
+      <div ref={scrollRef} className={`flex-1 ${style.windowBg} m-1 p-4 overflow-y-auto scrollbar-classic space-y-5 relative`}>
+        <div className="flex flex-col items-center py-6 border-b border-dashed border-zinc-800 mb-8 opacity-40">
+          <Shield size={20} className={isDarkMode ? 'text-emerald-500' : 'text-blue-900'} />
+          <span className="text-[7px] font-black uppercase tracking-[0.5em] mt-2">Degen_Frequency_Active</span>
         </div>
 
         {messages.map((msg, i) => {
           const isMe = msg.uid === user?.uid || msg.user === username;
           const mColor = msg.color || '#3b82f6';
+          const hasReply = !!msg.replyTo;
+
           return (
-            <div key={msg.id || i} className={`flex gap-3 animate-in fade-in duration-300 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
-              <div className="w-8 h-8 rounded-sm overflow-hidden border border-black shrink-0 bg-zinc-900">
+            <div 
+                key={msg.id || i} 
+                onContextMenu={(e) => onMsgContextMenu(e, msg)}
+                onTouchStart={() => handleTouchStart(msg)}
+                onTouchEnd={handleTouchEnd}
+                className={`flex gap-3 animate-in fade-in slide-in-from-bottom-2 duration-300 ${isMe ? 'flex-row-reverse text-right' : 'flex-row'}`}
+            >
+              <div className="w-8 h-8 shrink-0 bg-zinc-900 overflow-hidden border border-white/10 shadow-lg">
                 <img src={msg.avatar || '/pfps/mask.jpg'} alt="" className="w-full h-full object-cover" />
               </div>
-              <div className={`flex-1 min-w-0 max-w-[80%] ${isMe ? 'items-end' : 'items-start'} flex flex-col`}>
-                <div className={`flex items-center gap-2 mb-0.5 ${isMe ? 'flex-row-reverse' : ''}`}>
-                  <span className="text-[10px] font-black uppercase px-1.5 py-0.5" style={{ backgroundColor: mColor, color: '#fff' }}>
-                    {msg.user}
-                  </span>
-                  <span className="text-[7px] font-bold text-zinc-500 opacity-60">
-                    {msg._sortTs ? new Date(msg._sortTs).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : "--:--"}
-                  </span>
+              
+              <div className={`flex-1 min-w-0 max-w-[85%] flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+                <div className={`flex items-center gap-2 mb-1 px-1 ${isMe ? 'flex-row-reverse' : ''}`}>
+                  <span className="text-[10px] font-black uppercase tracking-tighter" style={{ color: mColor }}>{msg.user}</span>
+                  <span className="text-[7px] font-bold text-zinc-500 opacity-40">[{new Date(msg._sortTs).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}]</span>
                 </div>
-                <div className={`p-2.5 text-xs font-bold border-l-4 leading-relaxed break-words shadow-sm transition-all duration-300 ${isMe ? 'text-right' : 'text-left'}`} 
-                     style={{ borderLeftColor: mColor, backgroundColor: isMe ? `${mColor}15` : `${mColor}08`, color: theme === 'light' ? '#333' : '#d1d1d1' }}>
-                  {msg.text}
+
+                <div className={`p-3 relative group transition-all duration-200 shadow-md ${isMe ? style.tileMe : style.tileOther}`}
+                     style={{ borderLeft: !isMe ? `3px solid ${mColor}` : undefined, borderRight: isMe ? `3px solid ${mColor}` : undefined }}>
+                  
+                  {hasReply && (
+                    <div className="mb-2 p-2 border border-zinc-800 bg-black/40 text-gray-400 border-r-white/5 border-b-white/5">
+                        <div className="flex items-center gap-1">
+                            <CornerDownRight size={8} />
+                            <span className="text-[8px] font-black uppercase tracking-tight">{msg.replyTo.user}</span>
+                        </div>
+                        <p className="text-[9px] italic truncate">{msg.replyTo.text}</p>
+                    </div>
+                  )}
+
+                  <p className={`text-xs font-bold leading-relaxed break-words whitespace-pre-wrap ${isDarkMode ? 'text-white' : 'text-black'}`}>{msg.text}</p>
+
+                  <div className={`absolute top-0 ${isMe ? '-left-8' : '-right-8'} opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer p-1`} onClick={(e) => {e.stopPropagation(); startReply(msg)}}>
+                     <Reply size={14} className={isDarkMode ? 'text-emerald-500' : 'text-blue-800'} />
+                  </div>
                 </div>
               </div>
             </div>
@@ -3135,31 +3250,69 @@ const ChatApp = () => {
         })}
       </div>
 
-      {/* Input */}
-      <div className={`p-1.5 ${style.bg} border-t ${theme === 'light' ? 'border-zinc-500' : 'border-black'}`}>
-        {error && <div className="text-[8px] text-red-500 font-bold mb-1 px-1">{error}</div>}
-        <form onSubmit={handleSend} className="flex gap-1.5 h-12">
+      {/* BROADCAST HUB */}
+      <div className={`p-2 border-t-2 relative z-[100] ${isDarkMode ? 'bg-[#111] border-zinc-900' : 'bg-[#d4d0c8] border-white'}`}>
+        {replyingTo && (
+            <div className="absolute -top-10 left-0 w-full bg-emerald-950 text-emerald-400 p-2 text-[9px] font-black flex items-center justify-between border-t border-emerald-900">
+                <div className="flex items-center gap-2 truncate pr-6">
+                    <Quote size={10} />
+                    <span>TARGETING {replyingTo.user}:</span>
+                    <span className="opacity-60 italic truncate">"{replyingTo.text}"</span>
+                </div>
+                <button onClick={() => setReplyingTo(null)} className="hover:text-white p-1"><X size={14}/></button>
+            </div>
+        )}
+
+        <form onSubmit={handleSend} className="flex gap-2 h-12">
           <div className="flex-1 relative">
-            <div className="absolute left-4 top-1/2 -translate-y-1/2 opacity-20"><Binary size={16} className={style.text} /></div>
-            <input 
-              value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
-              disabled={cooldown > 0}
-              placeholder={cooldown > 0 ? `LINK_THROTTLED: ${cooldown}S` : "Enter transmission..."}
-              className={`w-full h-full border-2 border-gray-400 border-l-black border-t-black px-12 text-sm font-black outline-none ${style.input}`}
+            <div className="absolute left-4 top-1/2 -translate-y-1/2 opacity-20"><Binary size={16} className={isDarkMode ? 'text-white' : 'text-black'} /></div>
+            <input ref={inputRef} value={inputText} onChange={(e) => setInputText(e.target.value)} disabled={cooldown > 0} placeholder={cooldown > 0 ? `LINK_THROTTLED: ${cooldown}S` : "Enter transmission..."}
+              className={`w-full h-full border-2 border-zinc-800 border-l-black border-t-black px-12 text-sm font-black outline-none transition-all ${style.input} focus:border-emerald-600`}
             />
+            {cooldown > 0 && (
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 text-red-500 font-black animate-pulse">
+                    <Zap size={14}/> <span className="text-xs">{cooldown}</span>
+                </div>
+            )}
           </div>
-          <button type="submit" disabled={!inputText.trim() || cooldown > 0} className="w-16 h-full border-2 border-gray-400 border-l-white border-t-white bg-[#c0c0c0] flex items-center justify-center active:translate-y-1">
-            <Send size={22} className="text-blue-900" />
+          <button type="submit" disabled={!inputText.trim() || cooldown > 0} className={`w-16 h-full border-2 flex items-center justify-center transition-all active:translate-y-1 ${!inputText.trim() || cooldown > 0 ? 'bg-gray-800 border-gray-900 text-gray-600' : 'bg-[#c0c0c0] border-gray-400 border-l-white border-t-white hover:bg-white'}`}>
+            <Send size={24} className={inputText.trim() ? "text-blue-900" : "opacity-30"} />
           </button>
         </form>
       </div>
 
+      {/* FOOTER */}
+      <div className={`h-8 flex items-center justify-between px-3 text-[8px] font-black border-t uppercase tracking-[0.15em] shrink-0 ${isDarkMode ? 'bg-black text-emerald-900 border-zinc-900' : 'bg-[#c0c0c0] text-gray-600 border-gray-400'}`}>
+        <div className="flex gap-6 items-center">
+          <span className="flex items-center gap-1.5"><User size={10}/> User: {username}</span>
+          <span className="flex items-center gap-1.5"><Activity size={10}/> 0x{appId.slice(0, 4)}</span>
+        </div>
+        <div className="flex gap-4">
+            <button onClick={(e) => {e.stopPropagation(); setMessages([])}} className="hover:text-white">Clear_View</button>
+        </div>
+      </div>
+
+      {/* CONTEXT MENU */}
+      {contextMenu && (
+          <div className="fixed z-[10001] w-40 bg-[#c0c0c0] border-2 border-white border-r-black border-b-black shadow-2xl p-1 font-mono animate-in zoom-in-95 duration-100 text-black"
+            style={{ left: contextMenu.x, top: contextMenu.y }} onClick={(e) => e.stopPropagation()} >
+              <button onClick={() => startReply(contextMenu.msg)} className="w-full text-left px-2 py-2 hover:bg-[#000080] hover:text-white flex items-center gap-2 text-[10px] font-black border border-transparent hover:border-white">
+                  <Reply size={14}/> REPLY IT
+              </button>
+              <button onClick={() => { setInputText(prev => `@${contextMenu.msg.user} ` + prev); setContextMenu(null); inputRef.current?.focus(); }} className="w-full text-left px-2 py-2 hover:bg-[#000080] hover:text-white flex items-center gap-2 text-[10px] font-black border border-transparent hover:border-white">
+                  <UserCircle size={14}/> MENTION IT
+              </button>
+              <div className="h-px bg-gray-500 my-1"></div>
+              <button onClick={() => setContextMenu(null)} className="w-full text-left px-2 py-2 hover:bg-red-700 hover:text-white text-red-800 flex items-center gap-2 text-[10px] font-black border border-transparent hover:border-white">
+                  <X size={14}/> ABORT
+              </button>
+          </div>
+      )}
+
       <style>{`
-        .scrollbar-classic::-webkit-scrollbar { width: 10px; background: #000; }
-        .scrollbar-classic::-webkit-scrollbar-thumb { background: #333; border: 1px solid #555; }
-        .bg-packet-stream { background-size: 80px 80px; background-image: linear-gradient(to right, rgba(255,255,255,0.05) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.05) 1px, transparent 1px); animation: stream 60s linear infinite; }
-        @keyframes stream { from { background-position: 0 0; } to { background-position: 1000px 1000px; } }
+        .scrollbar-classic::-webkit-scrollbar { width: 12px; background: #000; }
+        .scrollbar-classic::-webkit-scrollbar-thumb { background: ${isDarkMode ? '#111' : '#808080'}; border: 1px solid ${isDarkMode ? '#333' : '#fff'}; }
+        @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-3px); } 75% { transform: translateX(3px); } }
       `}</style>
     </div>
   );
