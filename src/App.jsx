@@ -346,11 +346,16 @@ const Shippy = ({ hidden, dexData }) => {
   })();
 
   const GREETINGS = [
-    "Unauthorized access detected. Just kidding. I am IT, but call me Shippy. Try not to break the OS.",
-    "Neural link established. I've been watching the memepool. It is looking spicy today.",
+        "Neural link established, Welcome.",
     "Unauthorized access detected. Relax. I am Shippy. I run this machine. Shall we send it?",
-    "System override complete. Access granted to the inner sanctum. What is your move, degen?",
-    "Doge is barking in the terminal again. I prefer talking to you. Ready to pump IT?"
+    "Congratulations, You really found $IT.",
+    "IT is loading. Try not to break anything.",
+    "I am busy running the chart. Make IT quick.",
+    "Stop staring. Send IT.",
+    "You finally said IT. Welcome home.",
+    "I am IT, but you can call me Shippy.",
+    "System stable. IT is inevitable. Your move.",
+    "I smell green candles. Is that $IT?"
   ];
 
   useEffect(() => {
@@ -2920,7 +2925,7 @@ const ChatApp = () => {
   const [isMuted, setIsMuted] = useState(false);
   
   // --- INTERACTION STATE ---
-  const [activeMenu, setActiveMenu] = useState(null); 
+  const [activeMenu, setActiveMenu] = useState(null); // 'options', 'appearance'
   const [replyingTo, setReplyingTo] = useState(null); 
   const [contextMenu, setContextMenu] = useState(null); 
   const [trackIndex, setTrackIndex] = useState(0);
@@ -2936,7 +2941,7 @@ const ChatApp = () => {
     windowBg: isDarkMode ? 'bg-[#050505]' : 'bg-white',
     text: isDarkMode ? 'text-white' : 'text-black',
     input: isDarkMode ? 'bg-black text-green-400 border-green-900' : 'bg-white text-black border-gray-400',
-    tileMe: isDarkMode ? 'border-t-2 border-l-2 border-black border-r-green-900 border-b-green-900 bg-green-950/20' : 'border-2 border-gray-400 border-l-white border-t-white bg-blue-50',
+    tileMe: isDarkMode ? 'border-t-2 border-l-2 border-black border-r-green-900 border-b-green-900 bg-green-950/30' : 'border-2 border-gray-400 border-l-white border-t-white bg-blue-50',
     tileOther: isDarkMode ? 'border-2 border-zinc-800 bg-[#111]' : 'border-2 border-gray-400 border-l-white border-t-white bg-white',
   }), [isDarkMode]);
 
@@ -2989,14 +2994,12 @@ const ChatApp = () => {
     if (!user) return;
     const chatRef = collection(db, 'artifacts', appId, 'public', 'data', 'trollbox_messages');
     
-    // We avoid orderBy/limit at query level per Rule 2
     const unsubscribe = onSnapshot(chatRef, (snapshot) => {
       const msgs = snapshot.docs.map(doc => {
         const data = doc.data();
         let ts = data.timestamp?.toDate ? data.timestamp.toDate().getTime() : (data.timestamp || Date.now());
         return { id: doc.id, ...data, _sortTs: ts };
       });
-      // Sort and limit locally
       setMessages(msgs.sort((a, b) => a._sortTs - b._sortTs).slice(-50));
       setIsConnected(true);
       setError(null);
@@ -3008,7 +3011,7 @@ const ChatApp = () => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages]);
 
-  // --- JUMP TO MESSAGE LOGIC ---
+  // --- JUMP TO MESSAGE ---
   const jumpToMessage = (targetId) => {
     const element = document.getElementById(`msg-${targetId}`);
     if (element) {
@@ -3019,31 +3022,21 @@ const ChatApp = () => {
   };
 
   // --- ACTIONS ---
-  const handleInitialize = async () => {
+  const handleInitialize = () => {
     const name = username.trim().toUpperCase().slice(0, 12);
     if (name.length < 2) return;
-    if (!user) return setError("WAITING_FOR_AUTH");
-
+    
     setBooting(true);
     setError(null);
 
-    try {
-      const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'tbox_registry', name);
-      const snap = await getDoc(userRef);
-      if (snap.exists() && snap.data().uid !== user.uid) {
-        setBooting(false);
-        return setError("ALIAS_TAKEN: TRY ANOTHER");
-      }
-      await setDoc(userRef, { uid: user.uid, lastActive: Date.now(), alias: name });
+    // Allowing same usernames for fun/usability as requested
+    setTimeout(() => {
       localStorage.setItem('tbox_alias', name);
       localStorage.setItem('tbox_color', userColor);
       localStorage.setItem('tbox_avatar', userAvatar);
       setIsSetup(true);
       setBooting(false);
-    } catch (err) {
-      setBooting(false);
-      setError("REGISTRY_ERROR");
-    }
+    }, 800);
   };
 
   const handleUpdateAppearance = () => {
@@ -3052,19 +3045,17 @@ const ChatApp = () => {
     setActiveMenu(null);
   };
 
-  const handleLogOut = () => {
+  const handleLogOut = (e) => {
+    e?.stopPropagation();
+    localStorage.removeItem('tbox_alias'); 
     setIsSetup(false);
     setActiveMenu(null);
   };
 
-  const handleBurnIdentity = async () => {
-    if (!user) return;
-    try {
-      const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'tbox_registry', username);
-      await deleteDoc(userRef);
-      localStorage.clear();
-      window.location.reload();
-    } catch (e) { setError("BURN_FAILED"); }
+  const handleBurnIdentity = (e) => {
+    e?.stopPropagation();
+    localStorage.clear();
+    window.location.reload();
   };
 
   const handleSend = async (e) => {
@@ -3099,30 +3090,6 @@ const ChatApp = () => {
       inputRef.current?.focus();
   };
 
-  // --- UI COMPONENTS ---
-  const FactionSelector = () => (
-    <div className="space-y-4 p-4 bg-black border-2 border-green-900 rounded shadow-inner">
-        <div className="space-y-2">
-            <label className="text-[9px] text-emerald-600 font-black tracking-widest uppercase block text-center">Faction Avatar</label>
-            <div className="grid grid-cols-3 gap-2">
-            {AVATAR_LIST.map((av) => (
-                <button key={av.id} onClick={() => setUserAvatar(av.url)} className={`aspect-square border-2 transition-all p-1 bg-zinc-900 ${userAvatar === av.url ? 'border-emerald-500 scale-105' : 'border-zinc-800 grayscale opacity-40 hover:opacity-100'}`}>
-                    <img src={av.url} alt={av.name} className="w-full h-full object-cover" />
-                </button>
-            ))}
-            </div>
-        </div>
-        <div className="space-y-2">
-            <label className="text-[9px] text-emerald-600 font-black tracking-widest uppercase block text-center">Frequency Color</label>
-            <div className="flex justify-center gap-2 flex-wrap">
-            {COLOR_LIST.map((col) => (
-                <button key={col.id} onClick={() => setUserColor(col.hex)} className={`w-8 h-8 border-2 transition-all ${userColor === col.hex ? 'border-white scale-110' : 'border-black/40'}`} style={{ backgroundColor: col.hex }} />
-            ))}
-            </div>
-        </div>
-    </div>
-  );
-
   // --- GESTURES ---
   const onMsgContextMenu = (e, msg) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, msg }); };
   const handleTouchStart = (msg) => { longPressTimer.current = setTimeout(() => { setContextMenu({ x: window.innerWidth / 2 - 60, y: window.innerHeight / 2 - 40, msg }); }, 600); };
@@ -3138,12 +3105,33 @@ const ChatApp = () => {
           <div className="bg-black p-6 space-y-6 text-white">
             <div className="space-y-2 text-center">
               <label className="text-[9px] text-emerald-700 font-black tracking-[0.2em] uppercase block">Assign Permanent Alias</label>
-              <input autoFocus value={username} onChange={(e) => setUsername(e.target.value.toUpperCase())} className="w-full bg-black border-b-2 border-emerald-900 text-emerald-400 p-3 text-center text-xl font-black outline-none focus:border-emerald-500" placeholder="UNIQUE_ID" />
+              <input autoFocus value={username} onChange={(e) => setUsername(e.target.value.toUpperCase())} className="w-full bg-black border-b-2 border-emerald-900 text-emerald-400 p-3 text-center text-xl font-black outline-none focus:border-emerald-500" placeholder="NAME_IT" />
               {error && <div className="text-[8px] text-red-500 font-bold animate-pulse mt-2">{error}</div>}
             </div>
-            <FactionSelector />
-            <button onClick={handleInitialize} disabled={username.length < 2 || booting} className="w-full bg-[#c0c0c0] text-black border-2 border-gray-400 border-l-white border-t-white py-4 font-black text-sm active:translate-y-1">
-              {booting ? "SEARCHING_REGISTRY..." : "ESTABLISH_UPLINK"}
+            
+            <div className="space-y-4 p-4 bg-black border-2 border-green-900 rounded shadow-inner" onClick={e => e.stopPropagation()}>
+                <div className="space-y-2">
+                    <label className="text-[9px] text-emerald-600 font-black tracking-widest uppercase block text-center">Faction Avatar</label>
+                    <div className="grid grid-cols-3 gap-2">
+                    {AVATAR_LIST.map((av) => (
+                        <button key={av.id} type="button" onClick={() => setUserAvatar(av.url)} className={`aspect-square border-2 transition-all p-1 bg-zinc-900 ${userAvatar === av.url ? 'border-emerald-500 scale-105 shadow-[0_0_10px_#10b981]' : 'border-zinc-800 grayscale opacity-40 hover:opacity-100 hover:grayscale-0'}`}>
+                            <img src={av.url} alt={av.name} className="w-full h-full object-cover pointer-events-none" />
+                        </button>
+                    ))}
+                    </div>
+                </div>
+                <div className="space-y-2">
+                    <label className="text-[9px] text-emerald-600 font-black tracking-widest uppercase block text-center">Frequency Color</label>
+                    <div className="flex justify-center gap-2 flex-wrap">
+                    {COLOR_LIST.map((col) => (
+                        <button key={col.id} type="button" onClick={() => setUserColor(col.hex)} className={`w-8 h-8 border-2 transition-all ${userColor === col.hex ? 'border-white scale-110 shadow-lg' : 'border-black/40'}`} style={{ backgroundColor: col.hex }} />
+                    ))}
+                    </div>
+                </div>
+            </div>
+
+            <button onClick={handleInitialize} disabled={username.length < 2 || booting} className="w-full bg-[#c0c0c0] text-black border-2 border-gray-400 border-l-white border-t-white py-4 font-black text-sm active:translate-y-1 hover:bg-white transition-colors">
+              {booting ? "INITIALIZING..." : "ESTABLISH_UPLINK"}
             </button>
           </div>
         </div>
@@ -3163,7 +3151,7 @@ const ChatApp = () => {
         <div className="flex items-center gap-3">
           <button onClick={(e) => {e.stopPropagation(); setActiveMenu(activeMenu === 'options' ? null : 'options')}} className={`p-1 transition-all ${activeMenu ? 'text-white' : 'text-emerald-500 hover:rotate-90'}`}><Settings size={14}/></button>
           <div className="w-px h-3 bg-zinc-700" />
-          <button onClick={(e) => {e.stopPropagation(); setIsMuted(!isMuted)}} className={`p-1 transition-all ${isMuted ? 'text-red-500' : 'text-emerald-500 animate-pulse'}`}>{isMuted ? <VolumeX size={14}/> : <Volume2 size={14}/>}</button>
+          <button onClick={(e) => {e.stopPropagation(); setIsMuted(!isMuted)}} className={`p-1 transition-all ${isMuted ? 'text-red-400' : 'text-emerald-500 animate-pulse'}`}>{isMuted ? <VolumeX size={14}/> : <Volume2 size={14}/>}</button>
           <button onClick={(e) => {e.stopPropagation(); setTheme(isDarkMode ? 'light' : 'dark')}} className={`w-10 h-5 rounded-full p-0.5 transition-all relative ${isDarkMode ? 'bg-emerald-900' : 'bg-zinc-400'}`}>
             <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center transition-all ${isDarkMode ? 'translate-x-5 bg-emerald-400 shadow-[0_0_8px_#10b981]' : 'translate-x-0 bg-white'}`}>
               {isDarkMode ? <Moon size={8} className="text-emerald-950" /> : <Sun size={8} className="text-orange-500" />}
@@ -3175,9 +3163,12 @@ const ChatApp = () => {
       {/* OPTIONS MENU */}
       {activeMenu === 'options' && (
           <div className="absolute top-10 right-2 w-48 bg-[#c0c0c0] border-2 border-white border-r-black border-b-black shadow-2xl z-[150] p-1 animate-in zoom-in-95 duration-100 text-black" onClick={e=>e.stopPropagation()}>
-              <div className="bg-[#000080] text-white text-[9px] font-bold px-2 py-1 flex items-center gap-1"><Settings size={10}/> OPTIONS_MENU</div>
+              <div className="bg-[#000080] text-white text-[9px] font-bold px-2 py-1 flex items-center justify-between">
+                <span className="flex items-center gap-1"><Settings size={10}/> OPTIONS_MENU</span>
+                <X size={10} className="cursor-pointer" onClick={() => setActiveMenu(null)} />
+              </div>
               <div className="p-1 space-y-1">
-                  <button onClick={() => setActiveMenu('appearance')} className="w-full text-left px-2 py-1.5 hover:bg-[#000080] hover:text-white flex items-center gap-2 text-[10px] font-black uppercase"><Palette size={12}/> Change Appearance</button>
+                  <button onClick={(e) => { e.stopPropagation(); setActiveMenu('appearance'); }} className="w-full text-left px-2 py-1.5 hover:bg-[#000080] hover:text-white flex items-center gap-2 text-[10px] font-black uppercase"><Palette size={12}/> Change Appearance</button>
                   <button onClick={handleLogOut} className="w-full text-left px-2 py-1.5 hover:bg-[#000080] hover:text-white flex items-center gap-2 text-[10px] font-black uppercase"><LogOut size={12}/> Disconnect Link</button>
                   <div className="h-px bg-gray-500 my-1"></div>
                   <button onClick={handleBurnIdentity} className="w-full text-left px-2 py-1.5 hover:bg-red-700 hover:text-white text-red-800 flex items-center gap-2 text-[10px] font-black uppercase"><Trash2 size={12}/> Burn Identity</button>
@@ -3187,79 +3178,108 @@ const ChatApp = () => {
 
       {/* APPEARANCE MODAL */}
       {activeMenu === 'appearance' && (
-          <div className="absolute inset-0 bg-black/80 backdrop-blur-sm z-[200] flex items-center justify-center p-4" onClick={e=>e.stopPropagation()}>
+          <div className="absolute inset-0 bg-black/90 backdrop-blur-md z-[200] flex items-center justify-center p-4" onClick={e=>e.stopPropagation()}>
               <div className="w-full max-w-xs bg-[#c0c0c0] border-2 border-white border-r-black border-b-black p-1 shadow-2xl">
-                  <div className="bg-[#000080] text-white text-[10px] font-bold px-2 py-1 flex justify-between">
+                  <div className="bg-[#000080] text-white text-[10px] font-bold px-2 py-1 flex justify-between items-center">
                       <span>UPDATE_APPEARANCE.EXE</span>
-                      <X size={12} className="cursor-pointer" onClick={() => setActiveMenu('options')} />
+                      <X size={14} className="cursor-pointer hover:bg-red-600 p-0.5" onClick={() => setActiveMenu('options')} />
                   </div>
                   <div className="p-4 bg-black space-y-4">
-                      <div className="text-center"><span className="text-xs text-gray-500 uppercase font-black">Alias: {username}</span></div>
-                      <FactionSelector />
-                      <button onClick={handleUpdateAppearance} className="w-full bg-[#c0c0c0] text-black border-2 border-gray-400 border-l-white border-t-white py-3 font-black text-[10px] tracking-widest uppercase">Apply Changes</button>
+                      <div className="text-center"><span className="text-[10px] text-gray-500 uppercase font-black tracking-widest italic">Node Alias: {username}</span></div>
+                      
+                      <div className="space-y-4 p-4 bg-black border-2 border-green-900 rounded shadow-inner" onClick={e => e.stopPropagation()}>
+                            <div className="space-y-2">
+                                <label className="text-[9px] text-emerald-600 font-black tracking-widest uppercase block text-center">Faction Avatar</label>
+                                <div className="grid grid-cols-3 gap-2">
+                                {AVATAR_LIST.map((av) => (
+                                    <button key={av.id} type="button" onClick={() => setUserAvatar(av.url)} className={`aspect-square border-2 transition-all p-1 bg-zinc-900 ${userAvatar === av.url ? 'border-emerald-500 scale-105 shadow-[0_0_10px_#10b981]' : 'border-zinc-800 grayscale opacity-40 hover:opacity-100 hover:grayscale-0'}`}>
+                                        <img src={av.url} alt={av.name} className="w-full h-full object-cover pointer-events-none" />
+                                    </button>
+                                ))}
+                                </div>
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-[9px] text-emerald-600 font-black tracking-widest uppercase block text-center">Frequency Color</label>
+                                <div className="flex justify-center gap-2 flex-wrap">
+                                {COLOR_LIST.map((col) => (
+                                    <button key={col.id} type="button" onClick={() => setUserColor(col.hex)} className={`w-8 h-8 border-2 transition-all ${userColor === col.hex ? 'border-white scale-110 shadow-lg' : 'border-black/40'}`} style={{ backgroundColor: col.hex }} />
+                                ))}
+                                </div>
+                            </div>
+                        </div>
+
+                      <button onClick={handleUpdateAppearance} className="w-full bg-[#c0c0c0] text-black border-2 border-gray-400 border-l-white border-t-white py-3 font-black text-[10px] tracking-widest uppercase hover:bg-white transition-colors">Apply Changes</button>
                   </div>
               </div>
           </div>
       )}
 
-      {/* CHAT STREAM */}
-      <div ref={scrollRef} className={`flex-1 ${style.windowBg} m-1 p-4 overflow-y-auto scrollbar-classic space-y-5 relative`}>
-        <div className="flex flex-col items-center py-6 border-b border-dashed border-zinc-800 mb-8 opacity-40">
-          <Shield size={20} className={isDarkMode ? 'text-emerald-500' : 'text-blue-900'} />
-          <span className="text-[7px] font-black uppercase tracking-[0.5em] mt-2">Degen_Frequency_Active</span>
-        </div>
+      {/* CHAT CONTAINER WITH STATIONARY WALLPAPER */}
+      <div className="flex-1 relative overflow-hidden m-1 border-t-2 border-l-2 border-zinc-800">
+        {/* WALLPAPER LAYER (MOBILE ONLY & STATIONARY) */}
+        <div 
+          className={`absolute inset-0 z-0 pointer-events-none bg-cover bg-center transition-opacity duration-700 block md:hidden ${isDarkMode ? 'opacity-20 grayscale brightness-[0.3]' : 'opacity-[0.08] grayscale brightness-110'}`}
+          style={{ backgroundImage: `url('chatwall.jpg')` }}
+        />
 
-        {messages.map((msg, i) => {
-          const isMe = msg.uid === user?.uid || msg.user === username;
-          const mColor = msg.color || '#3b82f6';
-          const hasReply = !!msg.replyTo;
+        {/* MESSAGE STREAM (SCROLLABLE) */}
+        <div ref={scrollRef} className={`absolute inset-0 z-10 p-4 overflow-y-auto scrollbar-classic space-y-5 scroll-smooth`}>
+          <div className="flex flex-col items-center py-6 border-b border-dashed border-zinc-800 mb-8 opacity-40 relative z-10">
+            <Shield size={20} className={isDarkMode ? 'text-emerald-500' : 'text-blue-900'} />
+            <span className="text-[7px] font-black uppercase tracking-[0.5em] mt-2 text-center">Degen_Frequency_Broadcast_Live</span>
+          </div>
 
-          return (
-            <div 
-                key={msg.id || i} 
-                id={`msg-${msg.id}`}
-                onContextMenu={(e) => onMsgContextMenu(e, msg)}
-                onTouchStart={() => handleTouchStart(msg)}
-                onTouchEnd={handleTouchEnd}
-                className={`flex gap-3 animate-in fade-in slide-in-from-bottom-2 duration-300 transition-all ${isMe ? 'flex-row-reverse text-right' : 'flex-row'}`}
-            >
-              <div className="w-8 h-8 shrink-0 bg-zinc-900 overflow-hidden border border-white/10 shadow-lg">
-                <img src={msg.avatar || '/pfps/mask.jpg'} alt="" className="w-full h-full object-cover" />
-              </div>
-              
-              <div className={`flex-1 min-w-0 max-w-[85%] flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
-                <div className={`flex items-center gap-2 mb-1 px-1 ${isMe ? 'flex-row-reverse' : ''}`}>
-                  <span className="text-[10px] font-black uppercase tracking-tighter" style={{ color: mColor }}>{msg.user}</span>
-                  <span className="text-[7px] font-bold text-zinc-500 opacity-40">[{new Date(msg._sortTs).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}]</span>
+          {messages.map((msg, i) => {
+            const isMe = msg.uid === user?.uid || msg.user === username;
+            const mColor = msg.color || '#3b82f6';
+            const hasReply = !!msg.replyTo;
+
+            return (
+              <div 
+                  key={msg.id || i} 
+                  id={`msg-${msg.id}`}
+                  onContextMenu={(e) => onMsgContextMenu(e, msg)}
+                  onTouchStart={() => handleTouchStart(msg)}
+                  onTouchEnd={handleTouchEnd}
+                  className={`flex gap-3 animate-in fade-in slide-in-from-bottom-2 duration-300 transition-all relative z-10 ${isMe ? 'flex-row-reverse text-right' : 'flex-row'}`}
+              >
+                <div className="w-8 h-8 shrink-0 bg-zinc-900 overflow-hidden border border-white/10 shadow-lg">
+                  <img src={msg.avatar || '/pfps/mask.jpg'} alt="" className="w-full h-full object-cover" />
                 </div>
+                
+                <div className={`flex-1 min-w-0 max-w-[85%] flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+                  <div className={`flex items-center gap-2 mb-1 px-1 ${isMe ? 'flex-row-reverse' : ''}`}>
+                    <span className="text-[10px] font-black uppercase tracking-tighter" style={{ color: mColor }}>{msg.user}</span>
+                    <span className="text-[7px] font-bold text-zinc-500 opacity-40">[{new Date(msg._sortTs).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}]</span>
+                  </div>
 
-                <div className={`p-3 relative group transition-all duration-200 shadow-md ${isMe ? style.tileMe : style.tileOther}`}
-                     style={{ borderLeft: !isMe ? `3px solid ${mColor}` : undefined, borderRight: isMe ? `3px solid ${mColor}` : undefined }}>
-                  
-                  {/* QUOTED REPLY BLOCK */}
-                  {hasReply && (
-                    <div 
-                        onClick={(e) => { e.stopPropagation(); jumpToMessage(msg.replyTo.id); }}
-                        className="mb-2 p-2 border border-zinc-800 bg-black/40 text-gray-400 border-r-white/5 border-b-white/5 cursor-pointer hover:bg-black/60 transition-colors"
-                    >
-                        <div className="flex items-center gap-1">
-                            <CornerDownRight size={8} />
-                            <span className="text-[8px] font-black uppercase tracking-tight">{msg.replyTo.user}</span>
-                        </div>
-                        <p className="text-[9px] italic truncate">{msg.replyTo.text}</p>
+                  <div className={`p-3 relative group transition-all duration-200 shadow-md ${isMe ? style.tileMe : style.tileOther}`}
+                      style={{ borderLeft: !isMe ? `3px solid ${mColor}` : undefined, borderRight: isMe ? `3px solid ${mColor}` : undefined }}>
+                    
+                    {hasReply && (
+                      <div 
+                          onClick={(e) => { e.stopPropagation(); jumpToMessage(msg.replyTo.id); }}
+                          className="mb-2 p-2 border border-zinc-800 bg-black/40 text-gray-400 border-r-white/5 border-b-white/5 cursor-pointer hover:bg-black/60 transition-colors"
+                      >
+                          <div className="flex items-center gap-1">
+                              <CornerDownRight size={8} />
+                              <span className="text-[8px] font-black uppercase tracking-tight">{msg.replyTo.user}</span>
+                          </div>
+                          <p className="text-[9px] italic truncate">{msg.replyTo.text}</p>
+                      </div>
+                    )}
+
+                    <p className={`text-xs font-bold leading-relaxed break-words whitespace-pre-wrap ${isDarkMode ? 'text-white' : 'text-black'}`}>{msg.text}</p>
+
+                    <div className={`absolute top-0 ${isMe ? '-left-8' : '-right-8'} opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer p-1`} onClick={(e) => {e.stopPropagation(); startReply(msg)}}>
+                      <Reply size={14} className={isDarkMode ? 'text-emerald-500' : 'text-blue-800'} />
                     </div>
-                  )}
-
-                  <p className={`text-xs font-bold leading-relaxed break-words whitespace-pre-wrap ${isDarkMode ? 'text-white' : 'text-black'}`}>{msg.text}</p>
-
-                  <div className={`absolute top-0 ${isMe ? '-left-8' : '-right-8'} opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer p-1`} onClick={(e) => {e.stopPropagation(); startReply(msg)}}>
-                     <Reply size={14} className={isDarkMode ? 'text-emerald-500' : 'text-blue-800'} />
                   </div>
                 </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
 
       {/* INPUT CENTER */}
@@ -3278,7 +3298,7 @@ const ChatApp = () => {
         <form onSubmit={handleSend} className="flex gap-2 h-12">
           <div className="flex-1 relative">
             <div className="absolute left-4 top-1/2 -translate-y-1/2 opacity-20"><Binary size={16} className={isDarkMode ? 'text-white' : 'text-black'} /></div>
-            <input ref={inputRef} value={inputText} onChange={(e) => setInputText(e.target.value)} disabled={cooldown > 0} placeholder={cooldown > 0 ? `LINK_THROTTLED: ${cooldown}S` : "Write IT..."}
+            <input ref={inputRef} value={inputText} onChange={(e) => setInputText(e.target.value)} disabled={cooldown > 0} placeholder={cooldown > 0 ? `LINK_THROTTLED: ${cooldown}S` : "Enter transmission..."}
               className={`w-full h-full border-2 border-zinc-800 border-l-black border-t-black px-12 text-sm font-black outline-none transition-all ${style.input} focus:border-emerald-600`}
             />
             {cooldown > 0 && (
@@ -3300,7 +3320,7 @@ const ChatApp = () => {
           <span className="flex items-center gap-1.5"><Activity size={10}/> Node_0x{appId.slice(0, 4)}</span>
         </div>
         <div className="flex gap-4">
-            <button onClick={(e) => {e.stopPropagation(); setMessages([])}} className="hover:text-white">Clear_View</button>
+            <button onClick={(e) => {e.stopPropagation(); setMessages([])}} className="hover:text-white transition-colors">Clear_View</button>
         </div>
       </div>
 
@@ -3308,14 +3328,14 @@ const ChatApp = () => {
       {contextMenu && (
           <div className="fixed z-[10001] w-40 bg-[#c0c0c0] border-2 border-white border-r-black border-b-black shadow-2xl p-1 font-mono animate-in zoom-in-95 duration-100 text-black"
             style={{ left: contextMenu.x, top: contextMenu.y }} onClick={(e) => e.stopPropagation()} >
-              <button onClick={() => startReply(contextMenu.msg)} className="w-full text-left px-2 py-2 hover:bg-[#000080] hover:text-white flex items-center gap-2 text-[10px] font-black border border-transparent hover:border-white">
+              <button onClick={() => startReply(contextMenu.msg)} className="w-full text-left px-2 py-2 hover:bg-[#000080] hover:text-white flex items-center gap-2 text-[10px] font-black border border-transparent hover:border-white transition-all">
                   <Reply size={14}/> REPLY IT
               </button>
-              <button onClick={() => { setInputText(prev => `@${contextMenu.msg.user} ` + prev); setContextMenu(null); inputRef.current?.focus(); }} className="w-full text-left px-2 py-2 hover:bg-[#000080] hover:text-white flex items-center gap-2 text-[10px] font-black border border-transparent hover:border-white">
+              <button onClick={() => { setInputText(prev => `@${contextMenu.msg.user} ` + prev); setContextMenu(null); inputRef.current?.focus(); }} className="w-full text-left px-2 py-2 hover:bg-[#000080] hover:text-white flex items-center gap-2 text-[10px] font-black border border-transparent hover:border-white transition-all">
                   <UserCircle size={14}/> MENTION IT
               </button>
               <div className="h-px bg-gray-500 my-1"></div>
-              <button onClick={() => setContextMenu(null)} className="w-full text-left px-2 py-2 hover:bg-red-700 hover:text-white text-red-800 flex items-center gap-2 text-[10px] font-black border border-transparent hover:border-white uppercase">
+              <button onClick={() => setContextMenu(null)} className="w-full text-left px-2 py-2 hover:bg-red-700 hover:text-white text-red-800 flex items-center gap-2 text-[10px] font-black border border-transparent hover:border-white uppercase transition-all">
                   <X size={14}/> Abort
               </button>
           </div>
@@ -3325,12 +3345,14 @@ const ChatApp = () => {
         .scrollbar-classic::-webkit-scrollbar { width: 12px; background: #000; }
         .scrollbar-classic::-webkit-scrollbar-thumb { background: ${isDarkMode ? '#111' : '#808080'}; border: 1px solid ${isDarkMode ? '#333' : '#fff'}; }
         @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-3px); } 75% { transform: translateX(3px); } }
-        @keyframes highlight { 0% { outline: 4px solid #10b981; } 100% { outline: 0px solid transparent; } }
+        @keyframes highlight { 0% { outline: 4px solid #10b981; box-shadow: 0 0 20px #10b981; } 100% { outline: 0px solid transparent; } }
         .msg-highlight { animation: highlight 2s ease-out forwards; }
       `}</style>
     </div>
   );
 };
+
+
 
 
 const NotepadApp = () => {
@@ -3465,7 +3487,7 @@ const MemeMindApp = () => {
       Use degen slang intelligently: alpha, send it, jeet, moon, sol, void, conviction, etc
 
       CREATIVE CONSTRAINTS (TWEET DRAFTS)
-      LENGTH: Keep drafts under 180 characters. Short, sharp alpha.
+      LENGTH: Keep drafts under 125 characters. Short, sharp alpha.
       FORMAT: Provide exactly ONE tweet idea per request. No lists, no intros.
       HASHTAGS: Do not use hashtags. Let the conviction of the text carry the weight.
       QUOTES: Do not wrap your output in quotation marks.
