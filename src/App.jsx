@@ -2703,7 +2703,7 @@ const MemesApp = () => {
   };
 
   const shareToX = () => {
-    const text = encodeURIComponent("Witness IT. The memes are coming from inside the OS. $IT #ITOS #SENDIT");
+    const text = encodeURIComponent("$IT #IT #SENDIT");
     window.open(`https://twitter.com/intent/tweet?text=${text}`, '_blank');
   };
 
@@ -2876,7 +2876,6 @@ const MemesApp = () => {
     </div>
   );
 };
-
 
 const AVATAR_LIST = [
   { id: 'pepe', name: 'PEPE', url: '/pfps/pepe.jpg' },
