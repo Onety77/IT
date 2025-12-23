@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { initializeApp } from 'firebase/app';
 import { 
   getFirestore, collection, addDoc, getDocs, updateDoc, doc, setDoc, getDoc, 
@@ -18,7 +18,8 @@ import {
   Maximize2, LayoutTemplate, Monitor, Share, Sliders, ChevronLeft, Plus,
   Send, User, AlertCircle, XCircle, AlertTriangle,
   Lightbulb, TrendingUp, Sparkles, RefreshCw, Trophy, Info, Flame, Share2, Joystick, VolumeX,
-  TrendingDown, ShieldAlert, Cpu, BarChart3, Binary
+  TrendingDown, ShieldAlert, Cpu, BarChart3, Binary, Grid, ZoomIn, FileImage,
+  Wifi, Hash, Lock, Sun, Moon, Database, Radio, Command, Palette, UserCircle
 } from 'lucide-react';
 
 
@@ -2566,7 +2567,7 @@ const RugSweeperApp = () => {
                 </div>
             ) : (
                 <div className="flex flex-col items-center w-full">
-                    <p className="text-[11px] text-blue-200 mb-3 font-bold uppercase tracking-widest">Commit Alias to Protocol:</p>
+                    <p className="text-[11px] text-blue-200 mb-3 font-bold uppercase tracking-widest">Register IT:</p>
                     <input type="text" maxLength={10} className="bg-blue-950 border-4 border-blue-400 text-white text-center text-3xl font-black p-4 mb-8 uppercase w-64 outline-none focus:border-yellow-400 shadow-2xl" value={usernameInput} onChange={e => setUsernameInput(e.target.value.toUpperCase())} placeholder="ALIAS_ID" onPointerDown={e => e.stopPropagation()} />
                     <button onPointerDown={handleFirstTimeSubmit} disabled={isSubmitting} className="bg-green-500 text-white px-10 py-4 font-black text-xl border-4 border-green-700 shadow-2xl hover:scale-105 transition-transform uppercase italic">Initialize</button>
                 </div>
@@ -2621,51 +2622,305 @@ const RugSweeperApp = () => {
 
 
 const MemesApp = () => {
-  const images = Object.values(ASSETS.memes);
-  const keys = Object.keys(ASSETS.memes);
+  // --- ASSET INTEGRATION ---
+  // We access ASSETS.memes directly. We use a safety check to ensure 
+  // we don't crash the entire OS if the main file hasn't finished 
+  // initializing the global constant yet.
+  const memeData = useMemo(() => {
+    try {
+      if (typeof window !== 'undefined' && window.ASSETS?.memes) return window.ASSETS.memes;
+      if (typeof ASSETS !== 'undefined' && ASSETS?.memes) return ASSETS.memes;
+    } catch (e) { console.error("Asset Linkage Error", e); }
+    return {}; 
+  }, []);
+
+  const images = useMemo(() => Object.values(memeData), [memeData]);
+  const keys = useMemo(() => Object.keys(memeData), [memeData]);
+  
   const [selectedIndex, setSelectedIndex] = useState(null);
+  const [hoveredIndex, setHoveredIndex] = useState(null);
+  const touchStartRef = useRef(null);
+
+  // --- NAVIGATION LOGIC ---
+
+  const navigate = (dir, e) => {
+    e?.stopPropagation();
+    setSelectedIndex((prev) => {
+      if (prev === null) return null;
+      const next = prev + dir;
+      if (next < 0) return images.length - 1;
+      if (next >= images.length) return 0;
+      return next;
+    });
+  };
+
+  // Keyboard Support (Arrows and ESC)
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (selectedIndex === null) return;
+      if (e.key === 'ArrowLeft') navigate(-1);
+      if (e.key === 'ArrowRight') navigate(1);
+      if (e.key === 'Escape') setSelectedIndex(null);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedIndex, images.length]);
+
+  // Touch/Swipe Support
+  const handleTouchStart = (e) => {
+    if (e.touches && e.touches[0]) {
+      touchStartRef.current = e.touches[0].clientX;
+    }
+  };
+
+  const handleTouchEnd = (e) => {
+    if (touchStartRef.current === null || !e.changedTouches) return;
+    const touchEnd = e.changedTouches[0].clientX;
+    const diff = touchStartRef.current - touchEnd;
+
+    // Threshold of 50px for a valid swipe
+    if (Math.abs(diff) > 50) {
+      if (diff > 0) navigate(1); // Swipe left -> Next
+      else navigate(-1); // Swipe right -> Prev
+    }
+    touchStartRef.current = null;
+  };
+
+  // --- ACTIONS ---
+  
+  const downloadImage = (src, name) => {
+    try {
+      const link = document.createElement('a');
+      link.href = src;
+      link.target = "_blank";
+      link.download = `${name || 'IT_MEME'}.jpg`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err) {
+      console.error("Download failed:", err);
+    }
+  };
+
+  const shareToX = () => {
+    const text = encodeURIComponent("Witness IT. The memes are coming from inside the OS. $IT #ITOS #SENDIT");
+    window.open(`https://twitter.com/intent/tweet?text=${text}`, '_blank');
+  };
+
+  // --- VIEW: LIGHTBOX (SINGLE IMAGE) ---
   if (selectedIndex !== null) {
+    const currentSrc = images[selectedIndex];
+    const currentName = keys[selectedIndex];
+
     return (
-      <div className="flex flex-col h-full bg-black text-white relative">
-        <div className="flex-1 flex items-center justify-center p-4 bg-[#1a1a1a]">
-          <img src={images[selectedIndex]} className="max-w-full max-h-full object-contain border-4 border-white shadow-2xl" alt="Meme" />
+      <div 
+        className="flex flex-col h-full bg-[#050505] text-white relative animate-in fade-in zoom-in-95 duration-300 font-mono"
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+        // CLICK OUTSIDE TO CLOSE: Clicking the background wrapper closes the viewer
+        onClick={() => setSelectedIndex(null)} 
+      >
+        {/* Header Toolbar */}
+        <div 
+            className="bg-black/80 backdrop-blur-md p-2 border-b border-white/10 flex justify-between items-center z-20"
+            onClick={(e) => e.stopPropagation()} // Prevent close when clicking header
+        >
+          <div className="flex items-center gap-3">
+            <button 
+              onClick={() => setSelectedIndex(null)}
+              className="p-2 hover:bg-white/10 rounded transition-colors text-gray-400 hover:text-white"
+            >
+              <Grid size={18} />
+            </button>
+            <div className="flex flex-col">
+                <span className="text-[10px] font-black text-green-500 tracking-tighter uppercase leading-none">Media_Viewer</span>
+                <span className="text-xs font-bold truncate max-w-[120px] sm:max-w-[200px]">{currentName}</span>
+            </div>
+          </div>
+          
+          <div className="flex gap-2">
+            <button 
+                onClick={() => downloadImage(currentSrc, currentName)}
+                className="bg-white text-black px-3 py-1 rounded-sm text-[10px] font-black flex items-center gap-1 hover:bg-gray-200 transition-all active:scale-95"
+            >
+              <Download size={12} /> SAVE IT
+            </button>
+            <button 
+                onClick={shareToX}
+                className="bg-[#1da1f2] text-white px-3 py-1 rounded-sm text-[10px] font-black flex items-center gap-1 hover:bg-opacity-90 transition-all active:scale-95"
+            >
+              <Share2 size={12} /> SHARE IT
+            </button>
+          </div>
         </div>
-        <div className="absolute bottom-16 left-0 w-full flex justify-between px-4">
-           <button onClick={(e) => { e.stopPropagation(); setSelectedIndex((selectedIndex - 1 + images.length) % images.length)}} className="bg-white/20 p-4 rounded-full backdrop-blur"><SkipBack size={32} /></button>
-           <button onClick={(e) => { e.stopPropagation(); setSelectedIndex((selectedIndex + 1) % images.length)}} className="bg-white/20 p-4 rounded-full backdrop-blur"><SkipForward size={32} /></button>
+
+        {/* Main Viewing Area */}
+        <div className="flex-1 relative flex items-center justify-center p-4 overflow-hidden group">
+          {/* Navigation Arrows (Desktop Only) */}
+          <button 
+            onClick={(e) => navigate(-1, e)}
+            className="absolute left-4 z-10 p-3 sm:p-4 rounded-full bg-black/50 hover:bg-white/20 text-white/50 hover:text-white transition-all md:opacity-0 md:group-hover:opacity-100 -translate-x-4 md:group-hover:translate-x-0"
+          >
+            <ChevronLeft size={32} strokeWidth={3} />
+          </button>
+          
+          <button 
+            onClick={(e) => navigate(1, e)}
+            className="absolute right-4 z-10 p-3 sm:p-4 rounded-full bg-black/50 hover:bg-white/20 text-white/50 hover:text-white transition-all md:opacity-0 md:group-hover:opacity-100 translate-x-4 md:group-hover:translate-x-0"
+          >
+            <ChevronRight size={32} strokeWidth={3} />
+          </button>
+
+          {/* The Image */}
+          <div className="relative max-w-full max-h-full" onClick={(e) => e.stopPropagation()}>
+            <img 
+              src={currentSrc} 
+              className="max-w-full max-h-[70vh] object-contain border-2 border-white/20 shadow-[0_0_50px_rgba(0,0,0,0.8)]"
+              alt="Meme Content" 
+            />
+            <div className="absolute inset-0 pointer-events-none bg-gradient-to-tr from-white/5 to-transparent"></div>
+          </div>
         </div>
-        <div className="bg-[#c0c0c0] p-2 border-t border-white flex justify-center text-black">
-            <Button onClick={() => setSelectedIndex(null)} className="w-full h-10">Back to Grid</Button>
+
+        {/* Footer Navigation Strip */}
+        <div 
+            className="h-20 bg-black/90 border-t border-white/10 p-2 flex gap-2 overflow-x-auto no-scrollbar items-center justify-center"
+            onClick={(e) => e.stopPropagation()} // Prevent close when clicking footer
+        >
+            {images.map((img, i) => (
+                <div 
+                    key={i}
+                    onClick={(e) => { e.stopPropagation(); setSelectedIndex(i); }}
+                    className={`h-12 w-12 shrink-0 border-2 transition-all cursor-pointer overflow-hidden ${selectedIndex === i ? 'border-green-500 scale-110' : 'border-transparent opacity-40 hover:opacity-100'}`}
+                >
+                    <img src={img} className="w-full h-full object-cover" alt={`thumb-${i}`} />
+                </div>
+            ))}
         </div>
       </div>
     );
   }
+
+  // --- VIEW: GRID GALLERY ---
   return (
-    <div className="bg-white h-full p-4 grid grid-cols-3 sm:grid-cols-4 gap-4 overflow-y-auto content-start">
-        {images.map((src, i) => (
-            <div key={i} className="group cursor-pointer flex flex-col items-center gap-1 p-1 hover:bg-blue-100 border border-transparent rounded active:opacity-50" onClick={() => setSelectedIndex(i)}>
-                <div className="w-full aspect-square bg-gray-100 flex items-center justify-center border border-gray-300 shadow-sm"><img src={src} className="max-w-full max-h-full object-contain" /></div>
-                <div className="text-center text-[10px] font-mono truncate w-full px-1">{keys[i]}</div>
+    <div className="bg-[#f0f0f0] h-full flex flex-col overflow-hidden font-mono select-none">
+        {/* Gallery Header */}
+        <div className="bg-[#c0c0c0] p-2 border-b-2 border-white shadow-sm flex justify-between items-center px-4">
+            <div className="flex items-center gap-2">
+                <FileImage size={16} className="text-gray-700" />
+                <span className="text-xs font-black tracking-tight text-gray-800 uppercase">Meme_Repository_v1.0</span>
             </div>
-        ))}
+            <span className="text-[10px] font-bold text-gray-500">{images.length} Objects Found</span>
+        </div>
+
+        {/* The Grid */}
+        <div className="flex-1 p-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 overflow-y-auto content-start bg-[#808080] custom-scrollbar">
+            {images.length === 0 ? (
+                <div className="col-span-full h-64 flex flex-col items-center justify-center text-white/40 uppercase tracking-widest text-[10px] font-black italic">
+                    <Grid size={32} className="mb-2 opacity-20" />
+                    Searching OS Kernel...
+                </div>
+            ) : images.map((src, i) => (
+                <div 
+                    key={i} 
+                    className="group relative flex flex-col items-center gap-1 transition-all"
+                    onMouseEnter={() => setHoveredIndex(i)}
+                    onMouseLeave={() => setHoveredIndex(null)}
+                    onClick={() => setSelectedIndex(i)}
+                >
+                    {/* Thumbnail Wrapper */}
+                    <div className={`
+                        w-full aspect-square bg-[#c0c0c0] p-1 cursor-pointer
+                        border-t-2 border-l-2 border-r-2 border-b-2
+                        transition-all duration-75 active:scale-95
+                        ${hoveredIndex === i 
+                            ? 'border-t-white border-l-white border-r-gray-700 border-b-gray-700 shadow-lg' 
+                            : 'border-transparent'}
+                    `}>
+                        <div className="w-full h-full bg-black flex items-center justify-center overflow-hidden border border-black/10 relative">
+                            <img 
+                                src={src} 
+                                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" 
+                                alt={keys[i]}
+                                loading="lazy"
+                            />
+                            {/* Hover Overlay */}
+                            <div className="absolute inset-0 bg-blue-600/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                <ZoomIn className="text-white drop-shadow-md" size={24} />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Label */}
+                    <div className={`
+                        text-center text-[9px] font-mono truncate w-full px-1 py-0.5 transition-colors
+                        ${hoveredIndex === i ? 'bg-[#000080] text-white' : 'text-gray-200'}
+                    `}>
+                        {keys[i]}.JPG
+                    </div>
+                </div>
+            ))}
+        </div>
+
+        {/* Footer Status */}
+        <div className="bg-[#c0c0c0] border-t-2 border-white p-1 px-4 flex justify-between items-center text-[9px] font-bold text-gray-700">
+            <div className="flex gap-4">
+                <span>SYSTEM: STABLE</span>
+                <span>CONVICTION: BULLISH</span>
+            </div>
+            <div className="flex items-center gap-1">
+                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+                NEURAL_LINK_ACTIVE
+            </div>
+        </div>
     </div>
   );
 };
 
 
+const AVATAR_LIST = [
+  { id: 'pepe', name: 'PEPE', url: '/pfps/pepe.jpg' },
+  { id: 'doge', name: 'DOGE', url: '/pfps/doge.jpg' },
+  { id: 'wif', name: 'WIF', url: '/pfps/wif.jpg' },
+  { id: 'wojak', name: 'WOJAK', url: '/pfps/wojak.jpg' },
+  { id: 'bonk', name: 'BONK', url: '/pfps/detective.jpg' },
+  { id: 'mask', name: 'MASK', url: '/pfps/mask.jpg' },
+];
+
+const COLOR_LIST = [
+  { id: 'emerald', hex: '#10b981', label: 'NEON_EMERALD' },
+  { id: 'blue', hex: '#3b82f6', label: 'CYBER_BLUE' },
+  { id: 'pink', hex: '#ec4899', label: 'HOT_PINK' },
+  { id: 'gold', hex: '#f59e0b', label: 'LIQUID_GOLD' },
+  { id: 'purple', hex: '#a855f7', label: 'VOID_PURPLE' },
+  { id: 'white', hex: '#ffffff', label: 'PURE_SIGNAL' },
+];
+
 const ChatApp = () => {
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState("");
   const [username, setUsername] = useState("");
+  const [userColor, setUserColor] = useState(COLOR_LIST[0].hex);
+  const [userAvatar, setUserAvatar] = useState(AVATAR_LIST[5].url); 
   const [isSetup, setIsSetup] = useState(false);
   const [isConnected, setIsConnected] = useState(false); 
   const [cooldown, setCooldown] = useState(0);
-  const [userUid, setUserUid] = useState(null);
-  const [sendError, setSendError] = useState(null);
-  const scrollRef = useRef(null);
-  const [pendingMessages, setPendingMessages] = useState([]);
-
+  const [user, setUser] = useState(null);
+  const [error, setError] = useState(null);
+  const [theme, setTheme] = useState('dark');
+  const [booting, setBooting] = useState(false);
   
+  const scrollRef = useRef(null);
+
+  const style = useMemo(() => ({
+    bg: theme === 'light' ? 'bg-[#c0c0c0]' : 'bg-[#121212]',
+    windowBg: theme === 'light' ? 'bg-white' : 'bg-[#080808]',
+    text: theme === 'light' ? 'text-black' : 'text-[#e0e0e0]',
+    bevel: theme === 'light' ? 'border-t-2 border-l-2 border-white border-b-2 border-r-2 border-black' : 'border-t-2 border-l-2 border-[#333] border-b-2 border-r-2 border-black',
+    input: theme === 'light' ? 'bg-white text-black' : 'bg-[#111] text-white',
+  }), [theme]);
+
+  // --- AUTH (RULE 3) ---
   useEffect(() => {
     const initAuth = async () => {
       try {
@@ -2674,194 +2929,309 @@ const ChatApp = () => {
         } else {
           await signInAnonymously(auth);
         }
-      } catch (e) {
-        console.error("Auth Error:", e);
-        setSendError("Auth Failed.");
+      } catch (e) { 
+        setError("AUTH_FAIL: NODE_REJECTED"); 
       }
     };
     initAuth();
-
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user) setUserUid(user.uid);
-    });
+    const unsubscribe = onAuthStateChanged(auth, setUser);
     return () => unsubscribe();
   }, []);
 
-  
+  // Load identity
   useEffect(() => {
-    const savedName = localStorage.getItem('trollbox_username');
-    if (savedName) {
-      setUsername(savedName);
+    const saved = {
+      name: localStorage.getItem('tbox_alias'),
+      color: localStorage.getItem('tbox_color'),
+      avatar: localStorage.getItem('tbox_avatar')
+    };
+    if (saved.name) {
+      setUsername(saved.name);
+      setUserColor(saved.color || COLOR_LIST[0].hex);
+      setUserAvatar(saved.avatar || AVATAR_LIST[5].url);
       setIsSetup(true);
     }
   }, []);
 
-  
+  // --- FIRESTORE SYNC (RULE 1 & 2) ---
   useEffect(() => {
-    if (!userUid) return;
+    if (!user) return;
     
-    
-    
-    const q = query(
-        collection(db, 'artifacts', appId, 'public', 'data', 'trollbox_messages'),
-        orderBy('timestamp', 'desc'),
-        limit(25)
-    );
+    // RULE 2 FIX: We fetch the whole collection without orderBy or limit to avoid index errors.
+    // We then sort and limit locally in memory.
+    const chatRef = collection(db, 'artifacts', appId, 'public', 'data', 'trollbox_messages');
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-        const rawMsgs = snapshot.docs.map(doc => {
-            const data = doc.data();
-            let ts = Date.now();
-            if (data.timestamp) {
-                if (typeof data.timestamp.toDate === 'function') {
-                    ts = data.timestamp.toDate().getTime();
-                } else if (typeof data.timestamp === 'number') {
-                    ts = data.timestamp;
-                }
-            }
-            return { id: doc.id, ...data, _normalizedTs: ts };
-        });
+    const unsubscribe = onSnapshot(chatRef, (snapshot) => {
+      const msgs = snapshot.docs.map(doc => {
+        const data = doc.data();
+        let ts = Date.now();
+        if (data.timestamp) {
+            ts = data.timestamp.toDate ? data.timestamp.toDate().getTime() : data.timestamp;
+        }
+        return {
+            id: doc.id,
+            ...data,
+            _sortTs: ts
+        };
+      });
 
-        
-        const finalMsgs = rawMsgs.reverse();
-        
-        setMessages(finalMsgs);
-        setIsConnected(true); 
-    }, (error) => {
-        console.error("Chat Error:", error);
-        setSendError("Connection Lost.");
+      // Sort by timestamp and take the last 50
+      const finalMsgs = msgs
+        .sort((a, b) => a._sortTs - b._sortTs)
+        .slice(-50);
+
+      setMessages(finalMsgs);
+      setIsConnected(true);
+      setError(null);
+    }, (err) => { 
+      console.error("Firestore error:", err);
+      setIsConnected(false); 
+      setError("NET_SYNC_ERR: Re-linking..."); 
     });
 
     return () => unsubscribe();
-  }, [userUid]);
+  }, [user]);
 
-  
   useEffect(() => {
-    if (scrollRef.current) {
-        scrollRef.current.scrollTo({
-            top: scrollRef.current.scrollHeight,
-            behavior: 'smooth'
-        });
-    }
-  }, [messages, pendingMessages, isConnected]); 
+    if (scrollRef.current) scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
+  }, [messages]);
 
-  
-  const handleSetUser = () => {
-      const name = username.trim().toUpperCase().slice(0, 12);
-      if (name.length < 2) return; 
-      localStorage.setItem('trollbox_username', name);
-      setUsername(name);
+  // --- ACTIONS ---
+  const handleInitialize = () => {
+    const name = username.trim().toUpperCase().slice(0, 12);
+    if (name.length < 2) return;
+    setBooting(true);
+    setTimeout(() => {
+      localStorage.setItem('tbox_alias', name);
+      localStorage.setItem('tbox_color', userColor);
+      localStorage.setItem('tbox_avatar', userAvatar);
       setIsSetup(true);
-  };
-
-  const handleResetUser = () => {
-      if(confirm("Reset Identity?")) {
-          localStorage.removeItem('trollbox_username');
-          setIsSetup(false);
-          setUsername("");
-      }
+      setBooting(false);
+    }, 600);
   };
 
   const handleSend = async (e) => {
-      if(e) e.preventDefault();
-      if (!inputText.trim() || cooldown > 0) return; 
+    if (e) e.preventDefault();
+    if (!inputText.trim() || cooldown > 0 || !user) return;
 
-      const textToSend = inputText.trim().slice(0, 140);
-      setInputText("");
-      setCooldown(2);
-      setSendError(null);
+    const text = inputText.trim().slice(0, 240);
+    setInputText("");
+    setCooldown(3); // Standard tactical cooldown
 
-      const tempId = "temp_" + Date.now();
-      const optimisticMsg = { 
-          id: tempId, text: textToSend, user: username, _normalizedTs: Date.now(), pending: true 
-      };
-      
-      setPendingMessages(prev => [...prev, optimisticMsg]);
+    try {
+      await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'trollbox_messages'), {
+        text,
+        user: username,
+        color: userColor,
+        avatar: userAvatar,
+        timestamp: serverTimestamp(),
+        uid: user.uid
+      });
+    } catch (err) { 
+        console.error("Send Error:", err);
+        setError("PACKET_LOSS: Retry Transmission"); 
+    }
 
-      try {
-          await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'trollbox_messages'), {
-              text: textToSend,
-              user: username,
-              timestamp: serverTimestamp(),
-              uid: userUid || 'anon'
-          });
-          setPendingMessages(prev => prev.filter(m => m.id !== tempId));
-      } catch (err) {
-          setPendingMessages(prev => prev.filter(m => m.id !== tempId));
-          setSendError("Send failed!");
-          setInputText(textToSend);
-      }
-
-      let timer = 2;
-      const interval = setInterval(() => {
-          timer--;
-          setCooldown(timer);
-          if (timer <= 0) clearInterval(interval);
-      }, 1000);
+    let t = 3;
+    const inv = setInterval(() => { t--; setCooldown(t); if (t <= 0) clearInterval(inv); }, 1000);
   };
 
-  const formatTime = (ts) => {
-      if (!ts) return "--:--";
-      const date = new Date(ts);
-      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  };
+  // --- SETUP UI ---
+  if (!isSetup) {
+    return (
+      <div className={`h-full ${style.bg} flex items-center justify-center p-4 font-mono transition-all duration-500 overflow-y-auto`}>
+        <div className={`w-full max-w-lg border-t-2 border-l-2 border-white border-b-2 border-r-2 border-black bg-[#c0c0c0] shadow-2xl overflow-hidden transform transition-all ${booting ? 'scale-110 blur-xl opacity-0' : 'scale-100'}`}>
+          <div className="bg-[#000080] text-white p-2 flex items-center gap-2 font-bold italic border-b border-white">
+            <Terminal size={16} /> INITIALIZE_IDENTITY.EXE
+          </div>
+          <div className="bg-black p-6 space-y-6">
+            
+            <div className="space-y-2">
+              <label className="text-[9px] text-emerald-700 font-black tracking-widest uppercase block text-center">Assign Alias</label>
+              <input 
+                autoFocus
+                value={username}
+                onChange={(e) => setUsername(e.target.value.toUpperCase())}
+                className="w-full bg-[#0a0a0a] border-b-2 border-emerald-900 text-emerald-400 p-3 text-center text-xl font-black outline-none focus:border-emerald-500"
+                placeholder="USER_ID"
+              />
+            </div>
 
-  const displayMessages = [...messages, ...pendingMessages.filter(pm => !messages.find(m => m.text === pm.text && m.user === pm.user))];
+            <div className="space-y-2">
+              <label className="text-[9px] text-emerald-700 font-black tracking-widest uppercase block text-center">Select Faction Avatar</label>
+              <div className="grid grid-cols-6 gap-2">
+                {AVATAR_LIST.map((av) => (
+                  <button 
+                    key={av.id}
+                    onClick={() => setUserAvatar(av.url)}
+                    className={`aspect-square border-2 transition-all p-1 bg-zinc-900 overflow-hidden ${userAvatar === av.url ? 'border-emerald-500 scale-110' : 'border-zinc-800 grayscale hover:grayscale-0'}`}
+                  >
+                    <img src={av.url} alt={av.name} className="w-full h-full object-cover" />
+                  </button>
+                ))}
+              </div>
+            </div>
 
-  return (
-    <div className="flex flex-col h-full bg-[#c0c0c0] font-sans text-xs border-2 border-gray-600 shadow-xl">
-      <div className="bg-[#000080] text-white px-2 py-1 flex justify-between items-center font-bold border-b-2 border-white select-none">
-        <div className="flex items-center gap-2">
-            <MessageSquare size={14}/>
-            <span>TROLLBOX.EXE</span>
+            <div className="space-y-2">
+              <label className="text-[9px] text-emerald-700 font-black tracking-widest uppercase block text-center">Frequency Color</label>
+              <div className="flex justify-center gap-2">
+                {COLOR_LIST.map((col) => (
+                  <button 
+                    key={col.id}
+                    onClick={() => setUserColor(col.hex)}
+                    className={`w-8 h-8 rounded-sm border-2 transition-all ${userColor === col.hex ? 'border-white scale-110' : 'border-black/40'}`}
+                    style={{ backgroundColor: col.hex }}
+                  />
+                ))}
+              </div>
+            </div>
+
+            <button 
+              onClick={handleInitialize}
+              disabled={username.length < 2}
+              className={`w-full py-4 font-black text-sm active:translate-y-1 shadow-[4px_4px_0_rgba(0,0,0,0.5)] border-t-2 border-l-2
+                ${username.length >= 2 ? 'bg-[#c0c0c0] border-white border-b-2 border-r-2 border-black' : 'bg-gray-400 border-gray-500 text-gray-600 cursor-not-allowed'}
+              `}
+            >
+              ESTABLISH_UPLINK
+            </button>
+          </div>
         </div>
-        <div className={`text-[10px] flex items-center gap-1 ${isConnected ? 'text-green-300' : 'text-red-300'}`}>
-            <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-400' : 'bg-red-500 animate-pulse'}`}></div>
-            {isConnected ? "ONLINE" : "OFFLINE"}
+      </div>
+    );
+  }
+
+  // --- MAIN CHAT VIEW ---
+  return (
+    <div className={`h-full ${style.bg} flex flex-col font-mono select-none overflow-hidden relative transition-colors duration-500`}>
+      <div className="absolute inset-0 bg-packet-stream opacity-[0.03] pointer-events-none" />
+
+      {/* Toolbar */}
+      <div className={`flex justify-between items-center px-3 py-1.5 border-b ${theme === 'light' ? 'border-zinc-500' : 'border-black'} bg-opacity-80 backdrop-blur-sm z-10`}>
+        <div className="flex gap-5 text-[9px] font-black text-zinc-500 uppercase tracking-widest">
+          <span className="flex items-center gap-1.5"><Wifi size={10} className={isConnected ? 'text-emerald-500' : 'text-red-500'}/> {isConnected ? 'Link_Established' : 'Offline'}</span>
+          <button className="hover:text-blue-500 flex items-center gap-1.5" onClick={() => setIsSetup(false)}>
+            <UserCircle size={10}/> Change_Alias
+          </button>
+        </div>
+        
+        <div className="flex items-center gap-3">
+          <span className="text-[8px] font-black text-zinc-500 uppercase tracking-widest">{theme}_Mode</span>
+          <button 
+            onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
+            className={`w-10 h-5 rounded-full p-0.5 transition-all relative ${theme === 'light' ? 'bg-zinc-400' : 'bg-emerald-900'} border border-black/20`}
+          >
+            <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center transition-all ${theme === 'light' ? 'translate-x-0 bg-white' : 'translate-x-5 bg-emerald-400'}`}>
+              {theme === 'light' ? <Sun size={8} className="text-orange-500" /> : <Moon size={8} className="text-emerald-950" />}
+            </div>
+          </button>
         </div>
       </div>
 
-      {!isSetup ? (
-        <div className="flex-1 bg-[#000000] flex flex-col items-center justify-center p-6 text-green-500 font-mono">
-            <User size={48} className="text-green-500 mb-4 animate-pulse"/>
-            <p className="mb-2 text-green-400 tracking-widest text-xs">ENTER ALIAS</p>
-            <input autoFocus className="bg-[#111] border-2 border-green-700 text-green-400 p-2 w-full max-w-[200px] text-center outline-none uppercase font-bold text-lg mb-4" placeholder="USERNAME" maxLength={12} value={username} onChange={e => setUsername(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSetUser()} />
-            <button onClick={handleSetUser} className="bg-green-700 text-black font-bold px-8 py-2 hover:bg-green-500 w-full max-w-[200px]">INITIALIZE</button>
+      {/* Dashboard */}
+      <div className={`p-3 border-b ${theme === 'light' ? 'border-zinc-400' : 'border-black'} flex justify-between items-center ${theme === 'light' ? 'bg-zinc-100' : 'bg-black/40'}`}>
+        <div className="flex gap-8">
+          <div className="flex flex-col">
+            <span className="text-[7px] font-black text-zinc-500 uppercase tracking-widest leading-none mb-1">Source</span>
+            <span className="text-xs font-black italic tracking-tighter" style={{ color: userColor }}>&lt;{username}&gt;</span>
+          </div>
+          <div className="flex flex-col">
+            <span className="text-[7px] font-black text-zinc-500 uppercase tracking-widest leading-none mb-1">Protocol</span>
+            <div className="flex items-center gap-1.5">
+              <Activity size={12} className={`${isConnected ? 'text-emerald-500' : 'text-zinc-600'} animate-pulse`} />
+              <span className="text-[9px] font-black text-zinc-500">AES_GOD_V5</span>
+            </div>
+          </div>
         </div>
-      ) : (
-        <>
-            <div className="flex-1 bg-white border-2 border-gray-500 m-1 overflow-hidden relative flex flex-col shadow-inner">
-                <div ref={scrollRef} className="flex-1 overflow-y-auto p-2 space-y-1 font-mono text-sm">
-                    {displayMessages.map((msg) => {
-                        const isMe = msg.user === username;
-                        return (
-                            <div key={msg.id} className={`flex gap-2 ${msg.pending ? 'opacity-50' : ''}`}>
-                                <span className="text-gray-400 text-[10px] min-w-[42px] pt-1 select-none font-sans">{formatTime(msg._normalizedTs)}</span>
-                                <div className="flex-1 break-words leading-tight py-0.5">
-                                    <span className={`font-bold mr-1 cursor-pointer hover:underline text-xs ${isMe ? 'text-blue-700' : 'text-purple-800'}`}>&lt;{msg.user}&gt;</span>
-                                    <span className="text-[#222]">{msg.text}</span>
-                                </div>
-                            </div>
-                        );
-                    })}
+        <div className="flex gap-1">
+          <div className="w-8 h-5 bg-black/20 border border-white/5 flex items-center justify-center">
+            <Database size={10} className="text-zinc-500" />
+          </div>
+        </div>
+      </div>
+
+      {/* Message Stream */}
+      <div 
+        ref={scrollRef}
+        className={`flex-1 ${style.windowBg} border-t-2 border-l-2 ${theme === 'light' ? 'border-zinc-700' : 'border-black'} m-1.5 p-4 overflow-y-auto scrollbar-classic space-y-4 relative`}
+      >
+        <div className="absolute inset-0 pointer-events-none bg-scanlines opacity-[0.03]" />
+        
+        {messages.map((msg, i) => {
+          const mColor = msg.color || '#3b82f6';
+          return (
+            <div key={msg.id || i} className="flex gap-3 animate-in slide-in-from-bottom-2 duration-200">
+              <div className="w-8 h-8 rounded-sm overflow-hidden border border-black/20 shrink-0 bg-zinc-900 shadow-sm">
+                <img src={msg.avatar || '/pfps/mask.jpg'} alt="" className="w-full h-full object-cover" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-0.5">
+                  <span className="text-[10px] font-black uppercase px-1.5 py-0.5" style={{ backgroundColor: mColor, color: '#fff' }}>
+                    {msg.user}
+                  </span>
+                  <span className="text-[8px] font-bold text-zinc-500 opacity-60">
+                    {msg._sortTs ? new Date(msg._sortTs).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : "--:--"}
+                  </span>
                 </div>
+                <div className={`p-2.5 text-xs font-bold border-l-4 leading-relaxed break-words shadow-sm transition-all duration-300`} 
+                     style={{ borderLeftColor: mColor, backgroundColor: `${mColor}08`, color: theme === 'light' ? '#333' : '#d1d1d1' }}>
+                  {msg.text}
+                </div>
+              </div>
             </div>
-            {sendError && <div className="bg-red-100 text-red-700 px-4 py-1 text-xs">{sendError}</div>}
-            <div className="h-10 bg-[#d4d0c8] p-1 flex gap-1 border-t border-white shadow-md">
-                <input className="flex-1 border-2 border-gray-500 px-2 font-mono outline-none text-sm" placeholder={cooldown > 0 ? `Wait ${cooldown}s...` : "Message..."} value={inputText} onChange={e => setInputText(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSend(e)} disabled={cooldown > 0} maxLength={140} />
-                <button onClick={handleSend} disabled={cooldown > 0 || !inputText.trim()} className="w-12 bg-[#c0c0c0] border-2 border-gray-400 border-l-white border-t-white flex items-center justify-center">
-                    {cooldown > 0 ? <span className="text-red-600 font-bold">{cooldown}</span> : <Send size={16} className="text-blue-700"/>}
-                </button>
-            </div>
-            <div className="bg-[#c0c0c0] px-2 py-0.5 text-[10px] flex justify-between text-gray-600 border-t border-gray-400">
-                <span>USER: {username}</span>
-                <button onClick={handleResetUser} className="hover:text-red-600">LOGOUT</button>
-            </div>
-        </>
-      )}
+          );
+        })}
+
+        {error && (
+          <div className="sticky bottom-0 bg-red-600 text-white px-3 py-1 text-[9px] font-black uppercase tracking-[0.3em] flex items-center gap-2 z-10">
+            <ShieldCheck size={12} /> {error}
+          </div>
+        )}
+      </div>
+
+      {/* Input Console */}
+      <div className={`p-1.5 ${style.bg} border-t ${theme === 'light' ? 'border-zinc-500' : 'border-black'}`}>
+        <form onSubmit={handleSend} className="flex gap-1.5 h-12">
+          <div className="flex-1 relative">
+            <div className="absolute left-4 top-1/2 -translate-y-1/2 opacity-20"><Binary size={16} className={style.text} /></div>
+            <input 
+              value={inputText}
+              onChange={(e) => setInputText(e.target.value)}
+              disabled={cooldown > 0}
+              placeholder={cooldown > 0 ? `LINK_THROTTLED: ${cooldown}S` : "Enter transmission data..."}
+              className={`w-full h-full border-t-2 border-l-2 border-zinc-800 border-b border-r border-white px-12 text-sm font-black outline-none transition-all ${style.input} focus:shadow-[inset_0_0_10px_rgba(0,0,0,0.3)]`}
+            />
+          </div>
+          <button 
+            type="submit"
+            disabled={!inputText.trim() || cooldown > 0}
+            className={`w-16 h-full border-t-2 border-l-2 border-white border-b-2 border-r-2 border-black flex items-center justify-center bg-[#c0c0c0] hover:brightness-110 active:scale-95 disabled:opacity-50 transition-all`}
+          >
+            <Send size={22} className="text-blue-900" />
+          </button>
+        </form>
+      </div>
+
+      {/* Footer Hardware Stats */}
+      <div className={`h-7 ${style.bg} border-t border-white flex items-center justify-between px-4 text-[8px] font-black ${style.text} opacity-40 uppercase tracking-widest`}>
+        <div className="flex gap-6 items-center">
+          <span className="flex items-center gap-1.5"><Cpu size={10}/> Sync_Status: Nominal</span>
+          <span className="flex items-center gap-1.5"><Hash size={10}/> 0x{appId.slice(0, 4)}</span>
+        </div>
+        <span>Network_Terminal_v5.0</span>
+      </div>
+
+      <style>{`
+        .scrollbar-classic::-webkit-scrollbar { width: 10px; background: #000; }
+        .scrollbar-classic::-webkit-scrollbar-thumb { background: #333; border: 1px solid #555; }
+        .bg-packet-stream { background-size: 80px 80px; background-image: linear-gradient(to right, rgba(255,255,255,0.05) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.05) 1px, transparent 1px); animation: stream 60s linear infinite; }
+        .bg-scanlines { background: repeating-linear-gradient(0deg, rgba(0,0,0,0.3), rgba(0,0,0,0.3) 1px, transparent 1px, transparent 2px); }
+        @keyframes stream { from { background-position: 0 0; } to { background-position: 1000px 1000px; } }
+      `}</style>
     </div>
   );
 };
+
 
 
 
