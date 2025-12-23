@@ -19,7 +19,8 @@ import {
   Send, User, AlertCircle, XCircle, AlertTriangle,
   Lightbulb, TrendingUp, Sparkles, RefreshCw, Trophy, Info, Flame, Share2, Joystick, VolumeX,
   TrendingDown, ShieldAlert, Cpu, BarChart3, Binary, Grid, ZoomIn, FileImage,
-  Wifi, Hash, Lock, Sun, Moon, Database, Radio, Command, Palette, UserCircle
+  Wifi, Hash, Lock, Sun, Moon, Database, Radio, Command, Palette, UserCircle,
+  ShieldCheck, Shield,
 } from 'lucide-react';
 
 
@@ -2882,7 +2883,7 @@ const AVATAR_LIST = [
   { id: 'doge', name: 'DOGE', url: '/pfps/doge.jpg' },
   { id: 'wif', name: 'WIF', url: '/pfps/wif.jpg' },
   { id: 'wojak', name: 'WOJAK', url: '/pfps/wojak.jpg' },
-  { id: 'bonk', name: 'BONK', url: '/pfps/detective.jpg' },
+  { id: 'bonk', name: 'BONK', url: '/pfps/bonk.jpg' },
   { id: 'mask', name: 'MASK', url: '/pfps/mask.jpg' },
 ];
 
@@ -2908,16 +2909,32 @@ const ChatApp = () => {
   const [error, setError] = useState(null);
   const [theme, setTheme] = useState('dark');
   const [booting, setBooting] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
   
   const scrollRef = useRef(null);
+  const audioRef = useRef(null);
 
   const style = useMemo(() => ({
     bg: theme === 'light' ? 'bg-[#c0c0c0]' : 'bg-[#121212]',
     windowBg: theme === 'light' ? 'bg-white' : 'bg-[#080808]',
     text: theme === 'light' ? 'text-black' : 'text-[#e0e0e0]',
-    bevel: theme === 'light' ? 'border-t-2 border-l-2 border-white border-b-2 border-r-2 border-black' : 'border-t-2 border-l-2 border-[#333] border-b-2 border-r-2 border-black',
     input: theme === 'light' ? 'bg-white text-black' : 'bg-[#111] text-white',
   }), [theme]);
+
+  // --- AUDIO LOGIC (TUNES_PLAYLIST) ---
+  useEffect(() => {
+    if (isSetup && !isMuted && typeof TUNES_PLAYLIST !== 'undefined' && TUNES_PLAYLIST.length > 0) {
+      if (!audioRef.current) {
+        audioRef.current = new Audio(TUNES_PLAYLIST[0].file);
+        audioRef.current.loop = true;
+        audioRef.current.volume = 0.3;
+      }
+      audioRef.current.play().catch(e => console.warn("Audio interaction pending."));
+    } else if (audioRef.current) {
+      audioRef.current.pause();
+    }
+    return () => { if (audioRef.current) audioRef.current.pause(); };
+  }, [isSetup, isMuted]);
 
   // --- AUTH (RULE 3) ---
   useEffect(() => {
@@ -2928,9 +2945,7 @@ const ChatApp = () => {
         } else {
           await signInAnonymously(auth);
         }
-      } catch (e) { 
-        setError("AUTH_FAIL: NODE_REJECTED"); 
-      }
+      } catch (e) { setError("AUTH_FAIL: NODE_REJECTED"); }
     };
     initAuth();
     const unsubscribe = onAuthStateChanged(auth, setUser);
@@ -2955,9 +2970,6 @@ const ChatApp = () => {
   // --- FIRESTORE SYNC (RULE 1 & 2) ---
   useEffect(() => {
     if (!user) return;
-    
-    // RULE 2 FIX: We fetch the whole collection without orderBy or limit to avoid index errors.
-    // We then sort and limit locally in memory.
     const chatRef = collection(db, 'artifacts', appId, 'public', 'data', 'trollbox_messages');
 
     const unsubscribe = onSnapshot(chatRef, (snapshot) => {
@@ -2967,27 +2979,16 @@ const ChatApp = () => {
         if (data.timestamp) {
             ts = data.timestamp.toDate ? data.timestamp.toDate().getTime() : data.timestamp;
         }
-        return {
-            id: doc.id,
-            ...data,
-            _sortTs: ts
-        };
+        return { id: doc.id, ...data, _sortTs: ts };
       });
-
-      // Sort by timestamp and take the last 50
-      const finalMsgs = msgs
-        .sort((a, b) => a._sortTs - b._sortTs)
-        .slice(-50);
-
+      const finalMsgs = msgs.sort((a, b) => a._sortTs - b._sortTs).slice(-50);
       setMessages(finalMsgs);
       setIsConnected(true);
       setError(null);
     }, (err) => { 
-      console.error("Firestore error:", err);
       setIsConnected(false); 
       setError("NET_SYNC_ERR: Re-linking..."); 
     });
-
     return () => unsubscribe();
   }, [user]);
 
@@ -3015,7 +3016,7 @@ const ChatApp = () => {
 
     const text = inputText.trim().slice(0, 240);
     setInputText("");
-    setCooldown(3); // Standard tactical cooldown
+    setCooldown(3);
 
     try {
       await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'trollbox_messages'), {
@@ -3026,72 +3027,49 @@ const ChatApp = () => {
         timestamp: serverTimestamp(),
         uid: user.uid
       });
-    } catch (err) { 
-        console.error("Send Error:", err);
-        setError("PACKET_LOSS: Retry Transmission"); 
-    }
+    } catch (err) { setError("PACKET_LOSS: Retry Transmission"); }
 
     let t = 3;
     const inv = setInterval(() => { t--; setCooldown(t); if (t <= 0) clearInterval(inv); }, 1000);
   };
 
-  // --- SETUP UI ---
   if (!isSetup) {
     return (
-      <div className={`h-full ${style.bg} flex items-center justify-center p-4 font-mono transition-all duration-500 overflow-y-auto`}>
-        <div className={`w-full max-w-lg border-t-2 border-l-2 border-white border-b-2 border-r-2 border-black bg-[#c0c0c0] shadow-2xl overflow-hidden transform transition-all ${booting ? 'scale-110 blur-xl opacity-0' : 'scale-100'}`}>
-          <div className="bg-[#000080] text-white p-2 flex items-center gap-2 font-bold italic border-b border-white">
+      <div className={`h-full ${style.bg} flex items-center justify-center p-4 font-mono overflow-y-auto`}>
+        <div className={`w-full max-w-lg border-2 border-black bg-[#c0c0c0] shadow-2xl transition-all ${booting ? 'scale-110 blur-xl opacity-0' : 'scale-100'}`}>
+          <div className="bg-[#000080] text-white p-2 flex items-center gap-2 font-bold italic border-b-2 border-white">
             <Terminal size={16} /> INITIALIZE_IDENTITY.EXE
           </div>
           <div className="bg-black p-6 space-y-6">
-            
             <div className="space-y-2">
               <label className="text-[9px] text-emerald-700 font-black tracking-widest uppercase block text-center">Assign Alias</label>
               <input 
                 autoFocus
                 value={username}
                 onChange={(e) => setUsername(e.target.value.toUpperCase())}
-                className="w-full bg-[#0a0a0a] border-b-2 border-emerald-900 text-emerald-400 p-3 text-center text-xl font-black outline-none focus:border-emerald-500"
+                className="w-full bg-black border-b-2 border-emerald-900 text-emerald-400 p-3 text-center text-xl font-black outline-none"
                 placeholder="USER_ID"
               />
             </div>
-
             <div className="space-y-2">
-              <label className="text-[9px] text-emerald-700 font-black tracking-widest uppercase block text-center">Select Faction Avatar</label>
+              <label className="text-[9px] text-emerald-700 font-black tracking-widest uppercase block text-center">Select Avatar</label>
               <div className="grid grid-cols-6 gap-2">
                 {AVATAR_LIST.map((av) => (
-                  <button 
-                    key={av.id}
-                    onClick={() => setUserAvatar(av.url)}
-                    className={`aspect-square border-2 transition-all p-1 bg-zinc-900 overflow-hidden ${userAvatar === av.url ? 'border-emerald-500 scale-110' : 'border-zinc-800 grayscale hover:grayscale-0'}`}
-                  >
+                  <button key={av.id} onClick={() => setUserAvatar(av.url)} className={`aspect-square border-2 transition-all p-1 bg-zinc-900 ${userAvatar === av.url ? 'border-emerald-500 scale-110' : 'border-zinc-800 grayscale opacity-40 hover:opacity-100'}`}>
                     <img src={av.url} alt={av.name} className="w-full h-full object-cover" />
                   </button>
                 ))}
               </div>
             </div>
-
             <div className="space-y-2">
-              <label className="text-[9px] text-emerald-700 font-black tracking-widest uppercase block text-center">Frequency Color</label>
+              <label className="text-[9px] text-emerald-700 font-black tracking-widest uppercase block text-center">Uplink Color</label>
               <div className="flex justify-center gap-2">
                 {COLOR_LIST.map((col) => (
-                  <button 
-                    key={col.id}
-                    onClick={() => setUserColor(col.hex)}
-                    className={`w-8 h-8 rounded-sm border-2 transition-all ${userColor === col.hex ? 'border-white scale-110' : 'border-black/40'}`}
-                    style={{ backgroundColor: col.hex }}
-                  />
+                  <button key={col.id} onClick={() => setUserColor(col.hex)} className={`w-8 h-8 rounded-sm border-2 transition-all ${userColor === col.hex ? 'border-white scale-110' : 'border-black/40'}`} style={{ backgroundColor: col.hex }} />
                 ))}
               </div>
             </div>
-
-            <button 
-              onClick={handleInitialize}
-              disabled={username.length < 2}
-              className={`w-full py-4 font-black text-sm active:translate-y-1 shadow-[4px_4px_0_rgba(0,0,0,0.5)] border-t-2 border-l-2
-                ${username.length >= 2 ? 'bg-[#c0c0c0] border-white border-b-2 border-r-2 border-black' : 'bg-gray-400 border-gray-500 text-gray-600 cursor-not-allowed'}
-              `}
-            >
+            <button onClick={handleInitialize} disabled={username.length < 2} className="w-full bg-[#c0c0c0] border-2 border-gray-400 border-l-white border-t-white py-4 font-black text-sm active:translate-y-1">
               ESTABLISH_UPLINK
             </button>
           </div>
@@ -3100,26 +3078,22 @@ const ChatApp = () => {
     );
   }
 
-  // --- MAIN CHAT VIEW ---
   return (
-    <div className={`h-full ${style.bg} flex flex-col font-mono select-none overflow-hidden relative transition-colors duration-500`}>
-      <div className="absolute inset-0 bg-packet-stream opacity-[0.03] pointer-events-none" />
-
-      {/* Toolbar */}
-      <div className={`flex justify-between items-center px-3 py-1.5 border-b ${theme === 'light' ? 'border-zinc-500' : 'border-black'} bg-opacity-80 backdrop-blur-sm z-10`}>
+    <div className={`h-full ${style.bg} flex flex-col font-mono select-none overflow-hidden relative`}>
+      {/* Navbar */}
+      <div className={`flex justify-between items-center px-3 py-1.5 border-b ${theme === 'light' ? 'border-zinc-400' : 'border-black'} bg-opacity-80 backdrop-blur-sm z-10`}>
         <div className="flex gap-5 text-[9px] font-black text-zinc-500 uppercase tracking-widest">
-          <span className="flex items-center gap-1.5"><Wifi size={10} className={isConnected ? 'text-emerald-500' : 'text-red-500'}/> {isConnected ? 'Link_Established' : 'Offline'}</span>
+          <span className="flex items-center gap-1.5"><Wifi size={10} className={isConnected ? 'text-emerald-500' : 'text-red-500'}/> {isConnected ? 'Link_Live' : 'Offline'}</span>
           <button className="hover:text-blue-500 flex items-center gap-1.5" onClick={() => setIsSetup(false)}>
-            <UserCircle size={10}/> Change_Alias
+            <UserCircle size={10}/> Change_ID
           </button>
         </div>
-        
         <div className="flex items-center gap-3">
-          <span className="text-[8px] font-black text-zinc-500 uppercase tracking-widest">{theme}_Mode</span>
-          <button 
-            onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
-            className={`w-10 h-5 rounded-full p-0.5 transition-all relative ${theme === 'light' ? 'bg-zinc-400' : 'bg-emerald-900'} border border-black/20`}
-          >
+          <button onClick={() => setIsMuted(!isMuted)} className={`p-1 transition-all ${isMuted ? 'text-red-500' : 'text-emerald-500'}`}>
+            {isMuted ? <VolumeX size={14}/> : <Volume2 size={14}/>}
+          </button>
+          <div className="w-px h-3 bg-zinc-700" />
+          <button onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')} className={`w-10 h-5 rounded-full p-0.5 transition-all relative ${theme === 'light' ? 'bg-zinc-400' : 'bg-emerald-900'}`}>
             <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center transition-all ${theme === 'light' ? 'translate-x-0 bg-white' : 'translate-x-5 bg-emerald-400'}`}>
               {theme === 'light' ? <Sun size={8} className="text-orange-500" /> : <Moon size={8} className="text-emerald-950" />}
             </div>
@@ -3127,69 +3101,43 @@ const ChatApp = () => {
         </div>
       </div>
 
-      {/* Dashboard */}
-      <div className={`p-3 border-b ${theme === 'light' ? 'border-zinc-400' : 'border-black'} flex justify-between items-center ${theme === 'light' ? 'bg-zinc-100' : 'bg-black/40'}`}>
-        <div className="flex gap-8">
-          <div className="flex flex-col">
-            <span className="text-[7px] font-black text-zinc-500 uppercase tracking-widest leading-none mb-1">Source</span>
-            <span className="text-xs font-black italic tracking-tighter" style={{ color: userColor }}>&lt;{username}&gt;</span>
-          </div>
-          <div className="flex flex-col">
-            <span className="text-[7px] font-black text-zinc-500 uppercase tracking-widest leading-none mb-1">Protocol</span>
-            <div className="flex items-center gap-1.5">
-              <Activity size={12} className={`${isConnected ? 'text-emerald-500' : 'text-zinc-600'} animate-pulse`} />
-              <span className="text-[9px] font-black text-zinc-500">Trollbox_v2.7</span>
-            </div>
-          </div>
+      {/* Main Stream */}
+      <div ref={scrollRef} className={`flex-1 ${style.windowBg} m-1 p-4 overflow-y-auto scrollbar-classic space-y-4`}>
+        <div className="flex flex-col items-center py-4 border-b border-dashed border-zinc-700 mb-6 opacity-30">
+          <ShieldCheck size={16} className={theme === 'light' ? 'text-blue-900' : 'text-emerald-500'} />
+          <span className="text-[6px] font-black uppercase tracking-[0.4em] mt-1">Neural_Bridge_Active</span>
         </div>
-        <div className="flex gap-1">
-          <div className="w-8 h-5 bg-black/20 border border-white/5 flex items-center justify-center">
-            <Database size={10} className="text-zinc-500" />
-          </div>
-        </div>
-      </div>
 
-      {/* Message Stream */}
-      <div 
-        ref={scrollRef}
-        className={`flex-1 ${style.windowBg} border-t-2 border-l-2 ${theme === 'light' ? 'border-zinc-700' : 'border-black'} m-1.5 p-4 overflow-y-auto scrollbar-classic space-y-4 relative`}
-      >
-        <div className="absolute inset-0 pointer-events-none bg-scanlines opacity-[0.03]" />
-        
         {messages.map((msg, i) => {
+          const isMe = msg.uid === user?.uid || msg.user === username;
           const mColor = msg.color || '#3b82f6';
           return (
-            <div key={msg.id || i} className="flex gap-3 animate-in slide-in-from-bottom-2 duration-200">
-              <div className="w-8 h-8 rounded-sm overflow-hidden border border-black/20 shrink-0 bg-zinc-900 shadow-sm">
+            <div key={msg.id || i} className={`flex gap-3 animate-in fade-in duration-300 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
+              <div className="w-8 h-8 rounded-sm overflow-hidden border border-black shrink-0 bg-zinc-900">
                 <img src={msg.avatar || '/pfps/mask.jpg'} alt="" className="w-full h-full object-cover" />
               </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-0.5">
+              <div className={`flex-1 min-w-0 max-w-[80%] ${isMe ? 'items-end' : 'items-start'} flex flex-col`}>
+                <div className={`flex items-center gap-2 mb-0.5 ${isMe ? 'flex-row-reverse' : ''}`}>
                   <span className="text-[10px] font-black uppercase px-1.5 py-0.5" style={{ backgroundColor: mColor, color: '#fff' }}>
                     {msg.user}
                   </span>
-                  <span className="text-[8px] font-bold text-zinc-500 opacity-60">
+                  <span className="text-[7px] font-bold text-zinc-500 opacity-60">
                     {msg._sortTs ? new Date(msg._sortTs).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : "--:--"}
                   </span>
                 </div>
-                <div className={`p-2.5 text-xs font-bold border-l-4 leading-relaxed break-words shadow-sm transition-all duration-300`} 
-                     style={{ borderLeftColor: mColor, backgroundColor: `${mColor}08`, color: theme === 'light' ? '#333' : '#d1d1d1' }}>
+                <div className={`p-2.5 text-xs font-bold border-l-4 leading-relaxed break-words shadow-sm transition-all duration-300 ${isMe ? 'text-right' : 'text-left'}`} 
+                     style={{ borderLeftColor: mColor, backgroundColor: isMe ? `${mColor}15` : `${mColor}08`, color: theme === 'light' ? '#333' : '#d1d1d1' }}>
                   {msg.text}
                 </div>
               </div>
             </div>
           );
         })}
-
-        {error && (
-          <div className="sticky bottom-0 bg-red-600 text-white px-3 py-1 text-[9px] font-black uppercase tracking-[0.3em] flex items-center gap-2 z-10">
-            <ShieldCheck size={12} /> {error}
-          </div>
-        )}
       </div>
 
-      {/* Input Console */}
+      {/* Input */}
       <div className={`p-1.5 ${style.bg} border-t ${theme === 'light' ? 'border-zinc-500' : 'border-black'}`}>
+        {error && <div className="text-[8px] text-red-500 font-bold mb-1 px-1">{error}</div>}
         <form onSubmit={handleSend} className="flex gap-1.5 h-12">
           <div className="flex-1 relative">
             <div className="absolute left-4 top-1/2 -translate-y-1/2 opacity-20"><Binary size={16} className={style.text} /></div>
@@ -3197,40 +3145,25 @@ const ChatApp = () => {
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
               disabled={cooldown > 0}
-              placeholder={cooldown > 0 ? `LINK_THROTTLED: ${cooldown}S` : "Write IT..."}
-              className={`w-full h-full border-t-2 border-l-2 border-zinc-800 border-b border-r border-white px-12 text-sm font-black outline-none transition-all ${style.input} focus:shadow-[inset_0_0_10px_rgba(0,0,0,0.3)]`}
+              placeholder={cooldown > 0 ? `LINK_THROTTLED: ${cooldown}S` : "Enter transmission..."}
+              className={`w-full h-full border-2 border-gray-400 border-l-black border-t-black px-12 text-sm font-black outline-none ${style.input}`}
             />
           </div>
-          <button 
-            type="submit"
-            disabled={!inputText.trim() || cooldown > 0}
-            className={`w-16 h-full border-t-2 border-l-2 border-white border-b-2 border-r-2 border-black flex items-center justify-center bg-[#c0c0c0] hover:brightness-110 active:scale-95 disabled:opacity-50 transition-all`}
-          >
+          <button type="submit" disabled={!inputText.trim() || cooldown > 0} className="w-16 h-full border-2 border-gray-400 border-l-white border-t-white bg-[#c0c0c0] flex items-center justify-center active:translate-y-1">
             <Send size={22} className="text-blue-900" />
           </button>
         </form>
-      </div>
-
-      {/* Footer Hardware Stats */}
-      <div className={`h-7 ${style.bg} border-t border-white flex items-center justify-between px-4 text-[8px] font-black ${style.text} opacity-40 uppercase tracking-widest`}>
-        <div className="flex gap-6 items-center">
-          <span className="flex items-center gap-1.5"><Cpu size={10}/> Sync_Status: Nominal</span>
-          <span className="flex items-center gap-1.5"><Hash size={10}/> 0x{appId.slice(0, 4)}</span>
-        </div>
-        <span>Network_Terminal_v5.0</span>
       </div>
 
       <style>{`
         .scrollbar-classic::-webkit-scrollbar { width: 10px; background: #000; }
         .scrollbar-classic::-webkit-scrollbar-thumb { background: #333; border: 1px solid #555; }
         .bg-packet-stream { background-size: 80px 80px; background-image: linear-gradient(to right, rgba(255,255,255,0.05) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.05) 1px, transparent 1px); animation: stream 60s linear infinite; }
-        .bg-scanlines { background: repeating-linear-gradient(0deg, rgba(0,0,0,0.3), rgba(0,0,0,0.3) 1px, transparent 1px, transparent 2px); }
         @keyframes stream { from { background-position: 0 0; } to { background-position: 1000px 1000px; } }
       `}</style>
     </div>
   );
 };
-
 
 
 
