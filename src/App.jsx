@@ -2904,7 +2904,7 @@ const CHAT_PLAYLIST = [
 ];
 
 const ChatApp = () => {
-  // --- STATE ---
+  // --- CORE STATE ---
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState("");
   const [username, setUsername] = useState("");
@@ -2920,7 +2920,7 @@ const ChatApp = () => {
   const [isMuted, setIsMuted] = useState(false);
   
   // --- INTERACTION STATE ---
-  const [activeMenu, setActiveMenu] = useState(null); // 'options', 'appearance'
+  const [activeMenu, setActiveMenu] = useState(null); 
   const [replyingTo, setReplyingTo] = useState(null); 
   const [contextMenu, setContextMenu] = useState(null); 
   const [trackIndex, setTrackIndex] = useState(0);
@@ -2936,7 +2936,7 @@ const ChatApp = () => {
     windowBg: isDarkMode ? 'bg-[#050505]' : 'bg-white',
     text: isDarkMode ? 'text-white' : 'text-black',
     input: isDarkMode ? 'bg-black text-green-400 border-green-900' : 'bg-white text-black border-gray-400',
-    tileMe: isDarkMode ? 'border-t-2 border-l-2 border-black border-r-green-900 border-b-green-900 bg-green-950/30' : 'border-2 border-gray-400 border-l-white border-t-white bg-blue-50',
+    tileMe: isDarkMode ? 'border-t-2 border-l-2 border-black border-r-green-900 border-b-green-900 bg-green-950/20' : 'border-2 border-gray-400 border-l-white border-t-white bg-blue-50',
     tileOther: isDarkMode ? 'border-2 border-zinc-800 bg-[#111]' : 'border-2 border-gray-400 border-l-white border-t-white bg-white',
   }), [isDarkMode]);
 
@@ -2984,18 +2984,22 @@ const ChatApp = () => {
     }
   }, []);
 
-  // --- FIRESTORE SYNC ---
+  // --- FIRESTORE SYNC (Rule 2 Optimized) ---
   useEffect(() => {
     if (!user) return;
     const chatRef = collection(db, 'artifacts', appId, 'public', 'data', 'trollbox_messages');
+    
+    // We avoid orderBy/limit at query level per Rule 2
     const unsubscribe = onSnapshot(chatRef, (snapshot) => {
       const msgs = snapshot.docs.map(doc => {
         const data = doc.data();
         let ts = data.timestamp?.toDate ? data.timestamp.toDate().getTime() : (data.timestamp || Date.now());
         return { id: doc.id, ...data, _sortTs: ts };
       });
+      // Sort and limit locally
       setMessages(msgs.sort((a, b) => a._sortTs - b._sortTs).slice(-50));
       setIsConnected(true);
+      setError(null);
     }, () => setIsConnected(false));
     return () => unsubscribe();
   }, [user]);
@@ -3003,6 +3007,16 @@ const ChatApp = () => {
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages]);
+
+  // --- JUMP TO MESSAGE LOGIC ---
+  const jumpToMessage = (targetId) => {
+    const element = document.getElementById(`msg-${targetId}`);
+    if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        element.classList.add('msg-highlight');
+        setTimeout(() => element.classList.remove('msg-highlight'), 2000);
+    }
+  };
 
   // --- ACTIONS ---
   const handleInitialize = async () => {
@@ -3014,26 +3028,19 @@ const ChatApp = () => {
     setError(null);
 
     try {
-      // UNIQUE USERNAME CHECK
       const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'tbox_registry', name);
       const snap = await getDoc(userRef);
-
       if (snap.exists() && snap.data().uid !== user.uid) {
         setBooting(false);
         return setError("ALIAS_TAKEN: TRY ANOTHER");
       }
-
-      // Claim Alias in Registry
       await setDoc(userRef, { uid: user.uid, lastActive: Date.now(), alias: name });
-
       localStorage.setItem('tbox_alias', name);
       localStorage.setItem('tbox_color', userColor);
       localStorage.setItem('tbox_avatar', userAvatar);
-      
       setIsSetup(true);
       setBooting(false);
     } catch (err) {
-      console.error(err);
       setBooting(false);
       setError("REGISTRY_ERROR");
     }
@@ -3128,14 +3135,14 @@ const ChatApp = () => {
           <div className="bg-[#000080] text-white p-2 flex items-center gap-2 font-bold border-b-2 border-white uppercase italic tracking-tighter">
             <Terminal size={16} /> Identity_Initialization.EXE
           </div>
-          <div className="bg-black p-6 space-y-6">
-            <div className="space-y-2 text-center text-white">
+          <div className="bg-black p-6 space-y-6 text-white">
+            <div className="space-y-2 text-center">
               <label className="text-[9px] text-emerald-700 font-black tracking-[0.2em] uppercase block">Assign Permanent Alias</label>
               <input autoFocus value={username} onChange={(e) => setUsername(e.target.value.toUpperCase())} className="w-full bg-black border-b-2 border-emerald-900 text-emerald-400 p-3 text-center text-xl font-black outline-none focus:border-emerald-500" placeholder="UNIQUE_ID" />
               {error && <div className="text-[8px] text-red-500 font-bold animate-pulse mt-2">{error}</div>}
             </div>
             <FactionSelector />
-            <button onClick={handleInitialize} disabled={username.length < 2 || booting} className="w-full bg-[#c0c0c0] border-2 border-gray-400 border-l-white border-t-white py-4 font-black text-sm active:translate-y-1">
+            <button onClick={handleInitialize} disabled={username.length < 2 || booting} className="w-full bg-[#c0c0c0] text-black border-2 border-gray-400 border-l-white border-t-white py-4 font-black text-sm active:translate-y-1">
               {booting ? "SEARCHING_REGISTRY..." : "ESTABLISH_UPLINK"}
             </button>
           </div>
@@ -3165,9 +3172,9 @@ const ChatApp = () => {
         </div>
       </div>
 
-      {/* OPTIONS OVERLAY */}
+      {/* OPTIONS MENU */}
       {activeMenu === 'options' && (
-          <div className="absolute top-10 right-2 w-48 bg-[#c0c0c0] border-2 border-white border-r-black border-b-black shadow-2xl z-[150] p-1 animate-in zoom-in-95 duration-100" onClick={e=>e.stopPropagation()}>
+          <div className="absolute top-10 right-2 w-48 bg-[#c0c0c0] border-2 border-white border-r-black border-b-black shadow-2xl z-[150] p-1 animate-in zoom-in-95 duration-100 text-black" onClick={e=>e.stopPropagation()}>
               <div className="bg-[#000080] text-white text-[9px] font-bold px-2 py-1 flex items-center gap-1"><Settings size={10}/> OPTIONS_MENU</div>
               <div className="p-1 space-y-1">
                   <button onClick={() => setActiveMenu('appearance')} className="w-full text-left px-2 py-1.5 hover:bg-[#000080] hover:text-white flex items-center gap-2 text-[10px] font-black uppercase"><Palette size={12}/> Change Appearance</button>
@@ -3189,7 +3196,7 @@ const ChatApp = () => {
                   <div className="p-4 bg-black space-y-4">
                       <div className="text-center"><span className="text-xs text-gray-500 uppercase font-black">Alias: {username}</span></div>
                       <FactionSelector />
-                      <button onClick={handleUpdateAppearance} className="w-full bg-[#c0c0c0] border-2 border-gray-400 border-l-white border-t-white py-3 font-black text-[10px] tracking-widest uppercase">Apply Changes</button>
+                      <button onClick={handleUpdateAppearance} className="w-full bg-[#c0c0c0] text-black border-2 border-gray-400 border-l-white border-t-white py-3 font-black text-[10px] tracking-widest uppercase">Apply Changes</button>
                   </div>
               </div>
           </div>
@@ -3210,10 +3217,11 @@ const ChatApp = () => {
           return (
             <div 
                 key={msg.id || i} 
+                id={`msg-${msg.id}`}
                 onContextMenu={(e) => onMsgContextMenu(e, msg)}
                 onTouchStart={() => handleTouchStart(msg)}
                 onTouchEnd={handleTouchEnd}
-                className={`flex gap-3 animate-in fade-in slide-in-from-bottom-2 duration-300 ${isMe ? 'flex-row-reverse text-right' : 'flex-row'}`}
+                className={`flex gap-3 animate-in fade-in slide-in-from-bottom-2 duration-300 transition-all ${isMe ? 'flex-row-reverse text-right' : 'flex-row'}`}
             >
               <div className="w-8 h-8 shrink-0 bg-zinc-900 overflow-hidden border border-white/10 shadow-lg">
                 <img src={msg.avatar || '/pfps/mask.jpg'} alt="" className="w-full h-full object-cover" />
@@ -3228,8 +3236,12 @@ const ChatApp = () => {
                 <div className={`p-3 relative group transition-all duration-200 shadow-md ${isMe ? style.tileMe : style.tileOther}`}
                      style={{ borderLeft: !isMe ? `3px solid ${mColor}` : undefined, borderRight: isMe ? `3px solid ${mColor}` : undefined }}>
                   
+                  {/* QUOTED REPLY BLOCK */}
                   {hasReply && (
-                    <div className="mb-2 p-2 border border-zinc-800 bg-black/40 text-gray-400 border-r-white/5 border-b-white/5">
+                    <div 
+                        onClick={(e) => { e.stopPropagation(); jumpToMessage(msg.replyTo.id); }}
+                        className="mb-2 p-2 border border-zinc-800 bg-black/40 text-gray-400 border-r-white/5 border-b-white/5 cursor-pointer hover:bg-black/60 transition-colors"
+                    >
                         <div className="flex items-center gap-1">
                             <CornerDownRight size={8} />
                             <span className="text-[8px] font-black uppercase tracking-tight">{msg.replyTo.user}</span>
@@ -3250,10 +3262,10 @@ const ChatApp = () => {
         })}
       </div>
 
-      {/* BROADCAST HUB */}
+      {/* INPUT CENTER */}
       <div className={`p-2 border-t-2 relative z-[100] ${isDarkMode ? 'bg-[#111] border-zinc-900' : 'bg-[#d4d0c8] border-white'}`}>
         {replyingTo && (
-            <div className="absolute -top-10 left-0 w-full bg-emerald-950 text-emerald-400 p-2 text-[9px] font-black flex items-center justify-between border-t border-emerald-900">
+            <div className="absolute -top-10 left-0 w-full bg-emerald-950 text-emerald-400 p-2 text-[9px] font-black flex items-center justify-between border-t border-emerald-900 animate-in slide-in-from-bottom-1">
                 <div className="flex items-center gap-2 truncate pr-6">
                     <Quote size={10} />
                     <span>TARGETING {replyingTo.user}:</span>
@@ -3285,7 +3297,7 @@ const ChatApp = () => {
       <div className={`h-8 flex items-center justify-between px-3 text-[8px] font-black border-t uppercase tracking-[0.15em] shrink-0 ${isDarkMode ? 'bg-black text-emerald-900 border-zinc-900' : 'bg-[#c0c0c0] text-gray-600 border-gray-400'}`}>
         <div className="flex gap-6 items-center">
           <span className="flex items-center gap-1.5"><User size={10}/> User: {username}</span>
-          <span className="flex items-center gap-1.5"><Activity size={10}/> 0x{appId.slice(0, 4)}</span>
+          <span className="flex items-center gap-1.5"><Activity size={10}/> Node_0x{appId.slice(0, 4)}</span>
         </div>
         <div className="flex gap-4">
             <button onClick={(e) => {e.stopPropagation(); setMessages([])}} className="hover:text-white">Clear_View</button>
@@ -3303,8 +3315,8 @@ const ChatApp = () => {
                   <UserCircle size={14}/> MENTION IT
               </button>
               <div className="h-px bg-gray-500 my-1"></div>
-              <button onClick={() => setContextMenu(null)} className="w-full text-left px-2 py-2 hover:bg-red-700 hover:text-white text-red-800 flex items-center gap-2 text-[10px] font-black border border-transparent hover:border-white">
-                  <X size={14}/> ABORT
+              <button onClick={() => setContextMenu(null)} className="w-full text-left px-2 py-2 hover:bg-red-700 hover:text-white text-red-800 flex items-center gap-2 text-[10px] font-black border border-transparent hover:border-white uppercase">
+                  <X size={14}/> Abort
               </button>
           </div>
       )}
@@ -3313,11 +3325,12 @@ const ChatApp = () => {
         .scrollbar-classic::-webkit-scrollbar { width: 12px; background: #000; }
         .scrollbar-classic::-webkit-scrollbar-thumb { background: ${isDarkMode ? '#111' : '#808080'}; border: 1px solid ${isDarkMode ? '#333' : '#fff'}; }
         @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-3px); } 75% { transform: translateX(3px); } }
+        @keyframes highlight { 0% { outline: 4px solid #10b981; } 100% { outline: 0px solid transparent; } }
+        .msg-highlight { animation: highlight 2s ease-out forwards; }
       `}</style>
     </div>
   );
 };
-
 
 
 const NotepadApp = () => {
