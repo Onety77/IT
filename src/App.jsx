@@ -2903,14 +2903,15 @@ const COLOR_LIST = [
 ];
 
 const CHAT_PLAYLIST = [
-  "GET_IT_STARTED.mp3",
-  "PUMP_IT_UP.mp3",
-  "MEME_IT.mp3"
+  { title: "GET_IT_STARTED", file: "GET_IT_STARTED.mp3" },
+  { title: "PUMP_IT_UP", file: "PUMP_IT_UP.mp3" },
+  { title: "MEME_IT", file: "MEME_IT.mp3" }
 ];
 
 const ChatApp = () => {
   // --- CORE STATE ---
   const [messages, setMessages] = useState([]);
+  const [pendingMessages, setPendingMessages] = useState([]);
   const [inputText, setInputText] = useState("");
   const [username, setUsername] = useState("");
   const [userColor, setUserColor] = useState(COLOR_LIST[0].hex);
@@ -2925,7 +2926,7 @@ const ChatApp = () => {
   const [isMuted, setIsMuted] = useState(false);
   
   // --- INTERACTION STATE ---
-  const [activeMenu, setActiveMenu] = useState(null); // 'options', 'appearance'
+  const [activeMenu, setActiveMenu] = useState(null); 
   const [replyingTo, setReplyingTo] = useState(null); 
   const [contextMenu, setContextMenu] = useState(null); 
   const [trackIndex, setTrackIndex] = useState(0);
@@ -2945,16 +2946,52 @@ const ChatApp = () => {
     tileOther: isDarkMode ? 'border-2 border-zinc-800 bg-[#111]' : 'border-2 border-gray-400 border-l-white border-t-white bg-white',
   }), [isDarkMode]);
 
+  // --- HANDLERS ---
+  const handleTouchStart = (msg) => { 
+    if (longPressTimer.current) clearTimeout(longPressTimer.current);
+    longPressTimer.current = setTimeout(() => { 
+      setContextMenu({ x: window.innerWidth / 2 - 60, y: window.innerHeight / 2 - 40, msg }); 
+    }, 600); 
+  };
+
+  const handleTouchEnd = () => { 
+    if (longPressTimer.current) clearTimeout(longPressTimer.current); 
+  };
+
+  const jumpToMessage = (targetId) => {
+    const element = document.getElementById(`msg-${targetId}`);
+    if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        element.classList.add('msg-highlight');
+        setTimeout(() => element.classList.remove('msg-highlight'), 2000);
+    }
+  };
+
+  const startReply = (msg) => {
+    setReplyingTo({ user: String(msg.user), text: String(msg.text), id: msg.id });
+    setContextMenu(null);
+    inputRef.current?.focus();
+  };
+
+  const onMsgContextMenu = (e, msg) => { 
+    e.preventDefault(); 
+    setContextMenu({ x: e.clientX, y: e.clientY, msg }); 
+  };
+
+  const handleNextTrack = () => setTrackIndex(prev => (prev + 1) % CHAT_PLAYLIST.length);
+  const handlePrevTrack = () => setTrackIndex(prev => (prev - 1 + CHAT_PLAYLIST.length) % CHAT_PLAYLIST.length);
+
   // --- AUDIO ENGINE ---
   useEffect(() => {
     if (isSetup && !isMuted) {
+      const currentFile = CHAT_PLAYLIST[trackIndex].file;
       if (!audioRef.current) {
-        audioRef.current = new Audio(CHAT_PLAYLIST[trackIndex]);
+        audioRef.current = new Audio(currentFile);
         audioRef.current.volume = 0.3;
-        audioRef.current.onended = () => setTrackIndex(prev => (prev + 1) % CHAT_PLAYLIST.length);
       } else {
-        audioRef.current.src = CHAT_PLAYLIST[trackIndex];
+        audioRef.current.src = currentFile;
       }
+      audioRef.current.onended = () => handleNextTrack();
       audioRef.current.play().catch(() => {});
     } else if (audioRef.current) {
       audioRef.current.pause();
@@ -2978,7 +3015,6 @@ const ChatApp = () => {
     return () => unsubscribe();
   }, []);
 
-  // Load Prefs
   useEffect(() => {
     const savedName = localStorage.getItem('tbox_alias');
     if (savedName) {
@@ -2989,11 +3025,10 @@ const ChatApp = () => {
     }
   }, []);
 
-  // --- FIRESTORE SYNC (Rule 2 Optimized) ---
+  // --- FIRESTORE SYNC ---
   useEffect(() => {
     if (!user) return;
     const chatRef = collection(db, 'artifacts', appId, 'public', 'data', 'trollbox_messages');
-    
     const unsubscribe = onSnapshot(chatRef, (snapshot) => {
       const msgs = snapshot.docs.map(doc => {
         const data = doc.data();
@@ -3001,35 +3036,64 @@ const ChatApp = () => {
         return { id: doc.id, ...data, _sortTs: ts };
       });
       setMessages(msgs.sort((a, b) => a._sortTs - b._sortTs).slice(-100));
+      setPendingMessages(prev => prev.filter(pm => !msgs.some(m => m.text === pm.text && m.user === pm.user)));
       setIsConnected(true);
-      setError(null);
     }, () => setIsConnected(false));
     return () => unsubscribe();
   }, [user]);
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-  }, [messages]);
+  }, [messages, pendingMessages]);
 
-  // --- JUMP TO MESSAGE ---
-  const jumpToMessage = (targetId) => {
-    const element = document.getElementById(`msg-${targetId}`);
-    if (element) {
-        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        element.classList.add('msg-highlight');
-        setTimeout(() => element.classList.remove('msg-highlight'), 2000);
+  // --- SEND LOGIC ---
+  const handleSend = async (e) => {
+    if (e) e.preventDefault();
+    if (!inputText.trim() || cooldown > 0 || !user) return;
+
+    const text = inputText.trim().slice(0, 240);
+    const currentReply = replyingTo;
+    
+    const tempId = "temp_" + Date.now();
+    const optimisticMsg = {
+        id: tempId,
+        text,
+        user: username,
+        color: userColor,
+        avatar: userAvatar,
+        _sortTs: Date.now(),
+        replyTo: currentReply,
+        pending: true
+    };
+    
+    setPendingMessages(prev => [...prev, optimisticMsg]);
+    setInputText("");
+    setReplyingTo(null);
+    setCooldown(2);
+
+    try {
+      await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'trollbox_messages'), {
+        text,
+        user: username,
+        color: userColor,
+        avatar: userAvatar,
+        timestamp: serverTimestamp(),
+        uid: user.uid,
+        replyTo: currentReply || null
+      });
+    } catch (err) { 
+        setError("SEND_ERROR");
+        setPendingMessages(prev => prev.filter(m => m.id !== tempId));
     }
+
+    let t = 2;
+    const inv = setInterval(() => { t--; setCooldown(t); if (t <= 0) clearInterval(inv); }, 1000);
   };
 
-  // --- ACTIONS ---
   const handleInitialize = () => {
     const name = username.trim().toUpperCase().slice(0, 12);
     if (name.length < 2) return;
-    
     setBooting(true);
-    setError(null);
-
-    // Allowing same usernames for fun/usability as requested
     setTimeout(() => {
       localStorage.setItem('tbox_alias', name);
       localStorage.setItem('tbox_color', userColor);
@@ -3045,55 +3109,10 @@ const ChatApp = () => {
     setActiveMenu(null);
   };
 
-  const handleLogOut = (e) => {
-    e?.stopPropagation();
-    localStorage.removeItem('tbox_alias'); 
-    setIsSetup(false);
-    setActiveMenu(null);
-  };
-
-  const handleBurnIdentity = (e) => {
-    e?.stopPropagation();
-    localStorage.clear();
-    window.location.reload();
-  };
-
-  const handleSend = async (e) => {
-    if (e) e.preventDefault();
-    if (!inputText.trim() || cooldown > 0 || !user) return;
-
-    const text = inputText.trim().slice(0, 240);
-    const currentReply = replyingTo;
-    setInputText("");
-    setReplyingTo(null);
-    setCooldown(3);
-
-    try {
-      await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'trollbox_messages'), {
-        text,
-        user: username,
-        color: userColor,
-        avatar: userAvatar,
-        timestamp: serverTimestamp(),
-        uid: user.uid,
-        replyTo: currentReply || null
-      });
-    } catch (err) { setError("SEND_ERROR"); }
-
-    let t = 3;
-    const inv = setInterval(() => { t--; setCooldown(t); if (t <= 0) clearInterval(inv); }, 1000);
-  };
-
-  const startReply = (msg) => {
-      setReplyingTo({ user: msg.user, text: msg.text, id: msg.id });
-      setContextMenu(null);
-      inputRef.current?.focus();
-  };
-
-  // --- GESTURES ---
-  const onMsgContextMenu = (e, msg) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, msg }); };
-  const handleTouchStart = (msg) => { longPressTimer.current = setTimeout(() => { setContextMenu({ x: window.innerWidth / 2 - 60, y: window.innerHeight / 2 - 40, msg }); }, 600); };
-  const handleTouchEnd = () => { if (longPressTimer.current) clearTimeout(longPressTimer.current); };
+  const displayMessages = useMemo(() => {
+    const combined = [...messages, ...pendingMessages];
+    return combined.sort((a, b) => a._sortTs - b._sortTs);
+  }, [messages, pendingMessages]);
 
   if (!isSetup) {
     return (
@@ -3104,14 +3123,14 @@ const ChatApp = () => {
           </div>
           <div className="bg-black p-6 space-y-6 text-white">
             <div className="space-y-2 text-center">
-              <label className="text-[9px] text-emerald-700 font-black tracking-[0.2em] uppercase block">Assign Permanent Alias</label>
+              <label className="text-[9px] text-emerald-700 font-black tracking-[0.2em] uppercase block">Assign Alias</label>
               <input autoFocus value={username} onChange={(e) => setUsername(e.target.value.toUpperCase())} className="w-full bg-black border-b-2 border-emerald-900 text-emerald-400 p-3 text-center text-xl font-black outline-none focus:border-emerald-500" placeholder="NAME_IT" />
-              {error && <div className="text-[8px] text-red-500 font-bold animate-pulse mt-2">{error}</div>}
+              {error && <div className="text-[8px] text-red-500 font-bold animate-pulse mt-2">{String(error)}</div>}
             </div>
             
             <div className="space-y-4 p-4 bg-black border-2 border-green-900 rounded shadow-inner" onClick={e => e.stopPropagation()}>
-                <div className="space-y-2">
-                    <label className="text-[9px] text-emerald-600 font-black tracking-widest uppercase block text-center">Faction Avatar</label>
+                <div className="space-y-2 text-center">
+                    <label className="text-[9px] text-emerald-600 font-black tracking-widest uppercase block">Faction Avatar</label>
                     <div className="grid grid-cols-3 gap-2">
                     {AVATAR_LIST.map((av) => (
                         <button key={av.id} type="button" onClick={() => setUserAvatar(av.url)} className={`aspect-square border-2 transition-all p-1 bg-zinc-900 ${userAvatar === av.url ? 'border-emerald-500 scale-105 shadow-[0_0_10px_#10b981]' : 'border-zinc-800 grayscale opacity-40 hover:opacity-100 hover:grayscale-0'}`}>
@@ -3120,8 +3139,8 @@ const ChatApp = () => {
                     ))}
                     </div>
                 </div>
-                <div className="space-y-2">
-                    <label className="text-[9px] text-emerald-600 font-black tracking-widest uppercase block text-center">Frequency Color</label>
+                <div className="space-y-2 text-center">
+                    <label className="text-[9px] text-emerald-600 font-black tracking-widest uppercase block">Frequency Color</label>
                     <div className="flex justify-center gap-2 flex-wrap">
                     {COLOR_LIST.map((col) => (
                         <button key={col.id} type="button" onClick={() => setUserColor(col.hex)} className={`w-8 h-8 border-2 transition-all ${userColor === col.hex ? 'border-white scale-110 shadow-lg' : 'border-black/40'}`} style={{ backgroundColor: col.hex }} />
@@ -3142,16 +3161,19 @@ const ChatApp = () => {
   return (
     <div className={`h-full ${style.bg} ${style.text} flex flex-col font-mono select-none overflow-hidden relative`} onClick={() => {setContextMenu(null); setActiveMenu(null);}}>
       
-      {/* TOOLBAR */}
+      {/* NAVBAR */}
       <div className={`flex justify-between items-center px-3 py-1.5 border-b ${isDarkMode ? 'border-black bg-black/40' : 'border-zinc-400 bg-white/40'} backdrop-blur-md z-[100]`}>
         <div className="flex gap-5 text-[9px] font-black text-zinc-500 uppercase tracking-widest">
           <span className="flex items-center gap-1.5"><Wifi size={10} className={isConnected ? 'text-emerald-500' : 'text-red-500'}/> {isConnected ? 'Link_Live' : 'Syncing...'}</span>
           <div className="flex items-center gap-1.5 opacity-50"><User size={10}/> {username}</div>
         </div>
         <div className="flex items-center gap-3">
-          <button onClick={(e) => {e.stopPropagation(); setActiveMenu(activeMenu === 'options' ? null : 'options')}} className={`p-1 transition-all ${activeMenu ? 'text-white' : 'text-emerald-500 hover:rotate-90'}`}><Settings size={14}/></button>
+          <div className="flex items-center bg-black/20 rounded px-1.5 py-0.5 border border-white/10 gap-2">
+            <button onClick={(e) => {e.stopPropagation(); handleNextTrack()}} className="text-emerald-500 hover:text-white transition-colors"><SkipForward size={12}/></button>
+            <button onClick={(e) => {e.stopPropagation(); setIsMuted(!isMuted)}} className={`p-1 transition-all ${isMuted ? 'text-red-400' : 'text-emerald-500 animate-pulse'}`}>{isMuted ? <VolumeX size={14}/> : <Volume2 size={14}/>}</button>
+          </div>
           <div className="w-px h-3 bg-zinc-700" />
-          <button onClick={(e) => {e.stopPropagation(); setIsMuted(!isMuted)}} className={`p-1 transition-all ${isMuted ? 'text-red-400' : 'text-emerald-500 animate-pulse'}`}>{isMuted ? <VolumeX size={14}/> : <Volume2 size={14}/>}</button>
+          <button onClick={(e) => {e.stopPropagation(); setActiveMenu(activeMenu === 'options' ? null : 'options')}} className={`p-1 transition-all ${activeMenu ? 'text-white' : 'text-emerald-500 hover:rotate-90'}`}><Settings size={14}/></button>
           <button onClick={(e) => {e.stopPropagation(); setTheme(isDarkMode ? 'light' : 'dark')}} className={`w-10 h-5 rounded-full p-0.5 transition-all relative ${isDarkMode ? 'bg-emerald-900' : 'bg-zinc-400'}`}>
             <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center transition-all ${isDarkMode ? 'translate-x-5 bg-emerald-400 shadow-[0_0_8px_#10b981]' : 'translate-x-0 bg-white'}`}>
               {isDarkMode ? <Moon size={8} className="text-emerald-950" /> : <Sun size={8} className="text-orange-500" />}
@@ -3160,18 +3182,26 @@ const ChatApp = () => {
         </div>
       </div>
 
-      {/* OPTIONS MENU */}
+      {/* OPTIONS & MEDIA OVERLAY */}
       {activeMenu === 'options' && (
-          <div className="absolute top-10 right-2 w-48 bg-[#c0c0c0] border-2 border-white border-r-black border-b-black shadow-2xl z-[150] p-1 animate-in zoom-in-95 duration-100 text-black" onClick={e=>e.stopPropagation()}>
+          <div className="absolute top-10 right-2 w-56 bg-[#c0c0c0] border-2 border-white border-r-black border-b-black shadow-2xl z-[150] p-1 animate-in zoom-in-95 duration-100 text-black" onClick={e=>e.stopPropagation()}>
               <div className="bg-[#000080] text-white text-[9px] font-bold px-2 py-1 flex items-center justify-between">
                 <span className="flex items-center gap-1"><Settings size={10}/> OPTIONS_MENU</span>
                 <X size={10} className="cursor-pointer" onClick={() => setActiveMenu(null)} />
               </div>
               <div className="p-1 space-y-1">
-                  <button onClick={(e) => { e.stopPropagation(); setActiveMenu('appearance'); }} className="w-full text-left px-2 py-1.5 hover:bg-[#000080] hover:text-white flex items-center gap-2 text-[10px] font-black uppercase"><Palette size={12}/> Change Appearance</button>
-                  <button onClick={handleLogOut} className="w-full text-left px-2 py-1.5 hover:bg-[#000080] hover:text-white flex items-center gap-2 text-[10px] font-black uppercase"><LogOut size={12}/> Disconnect Link</button>
+                  <div className="p-2 bg-black border border-white/10 rounded mb-2 text-center">
+                    <div className="text-[8px] font-black text-emerald-500 mb-2 truncate uppercase tracking-widest">{String(CHAT_PLAYLIST[trackIndex].title)}</div>
+                    <div className="flex justify-center items-center gap-4 text-white">
+                        <button onClick={handlePrevTrack}><SkipBack size={16}/></button>
+                        <button onClick={() => setIsMuted(!isMuted)}>{isMuted ? <Play size={16}/> : <Pause size={16}/>}</button>
+                        <button onClick={handleNextTrack}><SkipForward size={16}/></button>
+                    </div>
+                  </div>
+                  <button onClick={() => setActiveMenu('appearance')} className="w-full text-left px-2 py-1.5 hover:bg-[#000080] hover:text-white flex items-center gap-2 text-[10px] font-black uppercase"><Palette size={12}/> Appearance</button>
+                  <button onClick={() => {localStorage.removeItem('tbox_alias'); setIsSetup(false);}} className="w-full text-left px-2 py-1.5 hover:bg-[#000080] hover:text-white flex items-center gap-2 text-[10px] font-black uppercase"><LogOut size={12}/> Logout</button>
                   <div className="h-px bg-gray-500 my-1"></div>
-                  <button onClick={handleBurnIdentity} className="w-full text-left px-2 py-1.5 hover:bg-red-700 hover:text-white text-red-800 flex items-center gap-2 text-[10px] font-black uppercase"><Trash2 size={12}/> Burn Identity</button>
+                  <button onClick={(e) => {localStorage.clear(); window.location.reload();}} className="w-full text-left px-2 py-1.5 hover:bg-red-700 hover:text-white text-red-800 flex items-center gap-2 text-[10px] font-black uppercase"><Trash2 size={12}/> Burn ID</button>
               </div>
           </div>
       )}
@@ -3185,51 +3215,48 @@ const ChatApp = () => {
                       <X size={14} className="cursor-pointer hover:bg-red-600 p-0.5" onClick={() => setActiveMenu('options')} />
                   </div>
                   <div className="p-4 bg-black space-y-4">
-                      <div className="text-center"><span className="text-[10px] text-gray-500 uppercase font-black tracking-widest italic">Node Alias: {username}</span></div>
-                      
-                      <div className="space-y-4 p-4 bg-black border-2 border-green-900 rounded shadow-inner" onClick={e => e.stopPropagation()}>
-                            <div className="space-y-2">
-                                <label className="text-[9px] text-emerald-600 font-black tracking-widest uppercase block text-center">Faction Avatar</label>
+                        <div className="space-y-4 p-4 bg-black border-2 border-green-900 rounded shadow-inner" onClick={e => e.stopPropagation()}>
+                            <div className="space-y-2 text-center">
+                                <label className="text-[9px] text-emerald-600 font-black tracking-widest uppercase block">Faction Avatar</label>
                                 <div className="grid grid-cols-3 gap-2">
                                 {AVATAR_LIST.map((av) => (
-                                    <button key={av.id} type="button" onClick={() => setUserAvatar(av.url)} className={`aspect-square border-2 transition-all p-1 bg-zinc-900 ${userAvatar === av.url ? 'border-emerald-500 scale-105 shadow-[0_0_10px_#10b981]' : 'border-zinc-800 grayscale opacity-40 hover:opacity-100 hover:grayscale-0'}`}>
+                                    <button key={av.id} type="button" onClick={() => setUserAvatar(av.url)} className={`aspect-square border-2 transition-all p-1 bg-zinc-900 ${userAvatar === av.url ? 'border-emerald-500 scale-105' : 'border-zinc-800 grayscale opacity-40 hover:grayscale-0'}`}>
                                         <img src={av.url} alt={av.name} className="w-full h-full object-cover pointer-events-none" />
                                     </button>
                                 ))}
                                 </div>
                             </div>
-                            <div className="space-y-2">
-                                <label className="text-[9px] text-emerald-600 font-black tracking-widest uppercase block text-center">Frequency Color</label>
+                            <div className="space-y-2 text-center">
+                                <label className="text-[9px] text-emerald-600 font-black tracking-widest uppercase block">Frequency Color</label>
                                 <div className="flex justify-center gap-2 flex-wrap">
                                 {COLOR_LIST.map((col) => (
-                                    <button key={col.id} type="button" onClick={() => setUserColor(col.hex)} className={`w-8 h-8 border-2 transition-all ${userColor === col.hex ? 'border-white scale-110 shadow-lg' : 'border-black/40'}`} style={{ backgroundColor: col.hex }} />
+                                    <button key={col.id} type="button" onClick={() => setUserColor(col.hex)} className={`w-8 h-8 border-2 transition-all ${userColor === col.hex ? 'border-white scale-110' : 'border-black/40'}`} style={{ backgroundColor: col.hex }} />
                                 ))}
                                 </div>
                             </div>
                         </div>
-
                       <button onClick={handleUpdateAppearance} className="w-full bg-[#c0c0c0] text-black border-2 border-gray-400 border-l-white border-t-white py-3 font-black text-[10px] tracking-widest uppercase hover:bg-white transition-colors">Apply Changes</button>
                   </div>
               </div>
           </div>
       )}
 
-      {/* CHAT CONTAINER WITH STATIONARY WALLPAPER */}
-      <div className="flex-1 relative overflow-hidden m-1 border-t-2 border-l-2 border-zinc-800">
-        {/* WALLPAPER LAYER (MOBILE ONLY & STATIONARY) */}
+      {/* CHAT CONTAINER WITH STATIONARY MOBILE WALLPAPER */}
+      <div className="flex-1 relative overflow-hidden m-1 border-t-2 border-l-2 border-zinc-800 bg-transparent">
+        {/* MOBILE WALLPAPER (STATIONARY) */}
         <div 
-          className={`absolute inset-0 z-0 pointer-events-none bg-cover bg-center transition-opacity duration-700 block md:hidden ${isDarkMode ? 'opacity-20 grayscale brightness-[0.3]' : 'opacity-[0.08] grayscale brightness-110'}`}
+          className={`absolute inset-0 z-0 pointer-events-none bg-cover bg-center transition-all duration-700 block md:hidden ${isDarkMode ? 'opacity-15 grayscale brightness-[0.25]' : 'opacity-[0.06] grayscale brightness-125'}`}
           style={{ backgroundImage: `url('chatwall.jpg')` }}
         />
 
-        {/* MESSAGE STREAM (SCROLLABLE) */}
+        {/* MESSAGE STREAM */}
         <div ref={scrollRef} className={`absolute inset-0 z-10 p-4 overflow-y-auto scrollbar-classic space-y-5 scroll-smooth`}>
-          <div className="flex flex-col items-center py-6 border-b border-dashed border-zinc-800 mb-8 opacity-40 relative z-10">
+          <div className="flex flex-col items-center py-6 border-b border-dashed border-zinc-800 mb-8 opacity-40 relative z-10 text-center">
             <Shield size={20} className={isDarkMode ? 'text-emerald-500' : 'text-blue-900'} />
-            <span className="text-[7px] font-black uppercase tracking-[0.5em] mt-2 text-center">Degen_Frequency_Broadcast_Live</span>
+            <span className="text-[7px] font-black uppercase tracking-[0.5em] mt-2">Degen_Frequency_Broadcast_Live</span>
           </div>
 
-          {messages.map((msg, i) => {
+          {displayMessages.map((msg, i) => {
             const isMe = msg.uid === user?.uid || msg.user === username;
             const mColor = msg.color || '#3b82f6';
             const hasReply = !!msg.replyTo;
@@ -3241,7 +3268,7 @@ const ChatApp = () => {
                   onContextMenu={(e) => onMsgContextMenu(e, msg)}
                   onTouchStart={() => handleTouchStart(msg)}
                   onTouchEnd={handleTouchEnd}
-                  className={`flex gap-3 animate-in fade-in slide-in-from-bottom-2 duration-300 transition-all relative z-10 ${isMe ? 'flex-row-reverse text-right' : 'flex-row'}`}
+                  className={`flex gap-3 animate-in fade-in slide-in-from-bottom-2 duration-300 transition-all relative z-10 ${isMe ? 'flex-row-reverse text-right' : 'flex-row'} ${msg.pending ? 'opacity-40 animate-pulse' : ''}`}
               >
                 <div className="w-8 h-8 shrink-0 bg-zinc-900 overflow-hidden border border-white/10 shadow-lg">
                   <img src={msg.avatar || '/pfps/mask.jpg'} alt="" className="w-full h-full object-cover" />
@@ -3249,7 +3276,7 @@ const ChatApp = () => {
                 
                 <div className={`flex-1 min-w-0 max-w-[85%] flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
                   <div className={`flex items-center gap-2 mb-1 px-1 ${isMe ? 'flex-row-reverse' : ''}`}>
-                    <span className="text-[10px] font-black uppercase tracking-tighter" style={{ color: mColor }}>{msg.user}</span>
+                    <span className="text-[10px] font-black uppercase tracking-tighter" style={{ color: mColor }}>{String(msg.user)}</span>
                     <span className="text-[7px] font-bold text-zinc-500 opacity-40">[{new Date(msg._sortTs).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}]</span>
                   </div>
 
@@ -3257,19 +3284,14 @@ const ChatApp = () => {
                       style={{ borderLeft: !isMe ? `3px solid ${mColor}` : undefined, borderRight: isMe ? `3px solid ${mColor}` : undefined }}>
                     
                     {hasReply && (
-                      <div 
-                          onClick={(e) => { e.stopPropagation(); jumpToMessage(msg.replyTo.id); }}
-                          className="mb-2 p-2 border border-zinc-800 bg-black/40 text-gray-400 border-r-white/5 border-b-white/5 cursor-pointer hover:bg-black/60 transition-colors"
-                      >
-                          <div className="flex items-center gap-1">
-                              <CornerDownRight size={8} />
-                              <span className="text-[8px] font-black uppercase tracking-tight">{msg.replyTo.user}</span>
-                          </div>
-                          <p className="text-[9px] italic truncate">{msg.replyTo.text}</p>
+                      <div onClick={(e) => { e.stopPropagation(); jumpToMessage(msg.replyTo.id); }} className="mb-2 p-2 border border-zinc-800 bg-black/40 text-gray-400 border-r-white/5 border-b-white/5 cursor-pointer hover:bg-black/60 transition-colors">
+                          <div className="flex items-center gap-1"><CornerDownRight size={8} /><span className="text-[8px] font-black uppercase tracking-tight">{String(msg.replyTo.user)}</span></div>
+                          <p className="text-[9px] italic truncate">{String(msg.replyTo.text)}</p>
                       </div>
                     )}
 
-                    <p className={`text-xs font-bold leading-relaxed break-words whitespace-pre-wrap ${isDarkMode ? 'text-white' : 'text-black'}`}>{msg.text}</p>
+                    <p className={`text-xs font-bold leading-relaxed break-words whitespace-pre-wrap ${isDarkMode ? 'text-white' : 'text-black'}`}>{String(msg.text)}</p>
+                    {msg.pending && <span className="text-[8px] opacity-50 uppercase font-black tracking-tighter block mt-1">Transmitting...</span>}
 
                     <div className={`absolute top-0 ${isMe ? '-left-8' : '-right-8'} opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer p-1`} onClick={(e) => {e.stopPropagation(); startReply(msg)}}>
                       <Reply size={14} className={isDarkMode ? 'text-emerald-500' : 'text-blue-800'} />
@@ -3282,15 +3304,11 @@ const ChatApp = () => {
         </div>
       </div>
 
-      {/* INPUT CENTER */}
+      {/* INPUT HUB */}
       <div className={`p-2 border-t-2 relative z-[100] ${isDarkMode ? 'bg-[#111] border-zinc-900' : 'bg-[#d4d0c8] border-white'}`}>
         {replyingTo && (
             <div className="absolute -top-10 left-0 w-full bg-emerald-950 text-emerald-400 p-2 text-[9px] font-black flex items-center justify-between border-t border-emerald-900 animate-in slide-in-from-bottom-1">
-                <div className="flex items-center gap-2 truncate pr-6">
-                    <Quote size={10} />
-                    <span>TARGETING {replyingTo.user}:</span>
-                    <span className="opacity-60 italic truncate">"{replyingTo.text}"</span>
-                </div>
+                <div className="flex items-center gap-2 truncate pr-6"><Quote size={10} /><span>TARGETING {String(replyingTo.user)}:</span><span className="opacity-60 italic truncate">"{String(replyingTo.text)}"</span></div>
                 <button onClick={() => setReplyingTo(null)} className="hover:text-white p-1"><X size={14}/></button>
             </div>
         )}
@@ -3298,14 +3316,10 @@ const ChatApp = () => {
         <form onSubmit={handleSend} className="flex gap-2 h-12">
           <div className="flex-1 relative">
             <div className="absolute left-4 top-1/2 -translate-y-1/2 opacity-20"><Binary size={16} className={isDarkMode ? 'text-white' : 'text-black'} /></div>
-            <input ref={inputRef} value={inputText} onChange={(e) => setInputText(e.target.value)} disabled={cooldown > 0} placeholder={cooldown > 0 ? `LINK_THROTTLED: ${cooldown}S` : "Write IT..."}
+            <input ref={inputRef} value={inputText} onChange={(e) => setInputText(e.target.value)} disabled={cooldown > 0} placeholder={cooldown > 0 ? `LINK_THROTTLED: ${cooldown}S` : "Enter transmission..."}
               className={`w-full h-full border-2 border-zinc-800 border-l-black border-t-black px-12 text-sm font-black outline-none transition-all ${style.input} focus:border-emerald-600`}
             />
-            {cooldown > 0 && (
-                <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 text-red-500 font-black animate-pulse">
-                    <Zap size={14}/> <span className="text-xs">{cooldown}</span>
-                </div>
-            )}
+            {cooldown > 0 && <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 text-red-500 font-black animate-pulse"><Zap size={14}/> <span className="text-xs">{cooldown}</span></div>}
           </div>
           <button type="submit" disabled={!inputText.trim() || cooldown > 0} className={`w-16 h-full border-2 flex items-center justify-center transition-all active:translate-y-1 ${!inputText.trim() || cooldown > 0 ? 'bg-gray-800 border-gray-900 text-gray-600' : 'bg-[#c0c0c0] border-gray-400 border-l-white border-t-white hover:bg-white'}`}>
             <Send size={24} className={inputText.trim() ? "text-blue-900" : "opacity-30"} />
@@ -3313,14 +3327,14 @@ const ChatApp = () => {
         </form>
       </div>
 
-      {/* FOOTER */}
+      {/* TACTICAL FOOTER */}
       <div className={`h-8 flex items-center justify-between px-3 text-[8px] font-black border-t uppercase tracking-[0.15em] shrink-0 ${isDarkMode ? 'bg-black text-emerald-900 border-zinc-900' : 'bg-[#c0c0c0] text-gray-600 border-gray-400'}`}>
         <div className="flex gap-6 items-center">
           <span className="flex items-center gap-1.5"><User size={10}/> User: {username}</span>
           <span className="flex items-center gap-1.5"><Activity size={10}/> Node_0x{appId.slice(0, 4)}</span>
         </div>
         <div className="flex gap-4">
-            <button onClick={(e) => {e.stopPropagation(); setMessages([])}} className="hover:text-white transition-colors">Clear_View</button>
+            <button onClick={(e) => {e.stopPropagation(); setMessages([]); setPendingMessages([]);}} className="hover:text-white transition-colors">Clear_View</button>
         </div>
       </div>
 
@@ -3328,16 +3342,10 @@ const ChatApp = () => {
       {contextMenu && (
           <div className="fixed z-[10001] w-40 bg-[#c0c0c0] border-2 border-white border-r-black border-b-black shadow-2xl p-1 font-mono animate-in zoom-in-95 duration-100 text-black"
             style={{ left: contextMenu.x, top: contextMenu.y }} onClick={(e) => e.stopPropagation()} >
-              <button onClick={() => startReply(contextMenu.msg)} className="w-full text-left px-2 py-2 hover:bg-[#000080] hover:text-white flex items-center gap-2 text-[10px] font-black border border-transparent hover:border-white transition-all">
-                  <Reply size={14}/> REPLY IT
-              </button>
-              <button onClick={() => { setInputText(prev => `@${contextMenu.msg.user} ` + prev); setContextMenu(null); inputRef.current?.focus(); }} className="w-full text-left px-2 py-2 hover:bg-[#000080] hover:text-white flex items-center gap-2 text-[10px] font-black border border-transparent hover:border-white transition-all">
-                  <UserCircle size={14}/> MENTION IT
-              </button>
+              <button onClick={() => startReply(contextMenu.msg)} className="w-full text-left px-2 py-2 hover:bg-[#000080] hover:text-white flex items-center gap-2 text-[10px] font-black border border-transparent hover:border-white transition-all"><Reply size={14}/> REPLY IT</button>
+              <button onClick={() => { setInputText(prev => `@${String(contextMenu.msg.user)} ` + prev); setContextMenu(null); inputRef.current?.focus(); }} className="w-full text-left px-2 py-2 hover:bg-[#000080] hover:text-white flex items-center gap-2 text-[10px] font-black border border-transparent hover:border-white transition-all"><UserCircle size={14}/> MENTION IT</button>
               <div className="h-px bg-gray-500 my-1"></div>
-              <button onClick={() => setContextMenu(null)} className="w-full text-left px-2 py-2 hover:bg-red-700 hover:text-white text-red-800 flex items-center gap-2 text-[10px] font-black border border-transparent hover:border-white uppercase transition-all">
-                  <X size={14}/> Abort
-              </button>
+              <button onClick={() => setContextMenu(null)} className="w-full text-left px-2 py-2 hover:bg-red-700 hover:text-white text-red-800 flex items-center gap-2 text-[10px] font-black border border-transparent hover:border-white uppercase transition-all"><X size={14}/> Abort</button>
           </div>
       )}
 
