@@ -3323,7 +3323,7 @@ const ChatApp = () => {
         <form onSubmit={handleSend} className="flex gap-2 h-12">
           <div className="flex-1 relative">
             <div className="absolute left-4 top-1/2 -translate-y-1/2 opacity-20"><Binary size={16} className={isDarkMode ? 'text-white' : 'text-black'} /></div>
-            <input ref={inputRef} value={inputText} onChange={(e) => setInputText(e.target.value)} disabled={cooldown > 0} placeholder={cooldown > 0 ? `LINK_THROTTLED: ${cooldown}S` : "Enter transmission..."}
+            <input ref={inputRef} value={inputText} onChange={(e) => setInputText(e.target.value)} disabled={cooldown > 0} placeholder={cooldown > 0 ? `LINK_THROTTLED: ${cooldown}S` : "Write IT..."}
               className={`w-full h-full border-2 border-zinc-800 border-l-black border-t-black px-12 text-sm font-black outline-none transition-all ${style.input} focus:border-emerald-600`}
             />
             {cooldown > 0 && <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 text-red-500 font-black animate-pulse"><Zap size={14}/> <span className="text-xs">{cooldown}</span></div>}
