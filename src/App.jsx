@@ -2904,8 +2904,14 @@ const COLOR_LIST = [
 
 const CHAT_PLAYLIST = [
   { title: "GET_IT_STARTED", file: "GET_IT_STARTED.mp3" },
+  { title: "PUMP_IT", file: "https://firebasestorage.googleapis.com/v0/b/it-token.firebasestorage.app/o/music%2Fpump_it.mp3?alt=media&token=050c599d-1894-494d-b380-d14b51405d6c" },
   { title: "PUMP_IT_UP", file: "PUMP_IT_UP.mp3" },
-  { title: "MEME_IT", file: "MEME_IT.mp3" }
+  { title: "LA_LA_LA", file: "https://firebasestorage.googleapis.com/v0/b/it-token.firebasestorage.app/o/music%2FLALALA.mp3?alt=media&token=11a3bc8c-8498-458a-92b8-140d18575228" },
+  { title: "BIG_DAWGS", file: "https://firebasestorage.googleapis.com/v0/b/it-token.firebasestorage.app/o/music%2Fbig_dawgs.mp3?alt=media&token=69bdcaa4-8283-4379-9516-93323bd61f43" },
+  { title: "DILIH", file: "https://firebasestorage.googleapis.com/v0/b/it-token.firebasestorage.app/o/music%2FDILIH.mp3?alt=media&token=3694cbb2-0da0-42af-9c90-7c7457b890e9" },
+  { title: "BEAT_IT", file: "https://firebasestorage.googleapis.com/v0/b/it-token.firebasestorage.app/o/music%2Fbeat_it.mp3?alt=media&token=9069b2e4-44bc-4f8d-b119-e5b324b24700" },
+   { title: "CANT_HOLD_US", file: "https://firebasestorage.googleapis.com/v0/b/it-token.firebasestorage.app/o/music%2Fcant_hold_us.mp3?alt=media&token=e20bbdc8-df20-41a3-b1aa-4ab9bf59019b" },
+    { title: "MEME_IT", file: "MEME_IT.mp3" }
 ];
 
 const ChatApp = () => {
