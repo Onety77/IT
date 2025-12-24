@@ -2906,6 +2906,7 @@ const CHAT_PLAYLIST = [
   { title: "GET_IT_STARTED", file: "GET_IT_STARTED.mp3" },
   { title: "PUMP_IT", file: "https://firebasestorage.googleapis.com/v0/b/it-token.firebasestorage.app/o/music%2Fpump_it.mp3?alt=media&token=050c599d-1894-494d-b380-d14b51405d6c" },
   { title: "PUMP_IT_UP", file: "PUMP_IT_UP.mp3" },
+   { title: "PUMP_IT_UP_00", file: "https://firebasestorage.googleapis.com/v0/b/it-token.firebasestorage.app/o/music%2Fpump_it_up2.mp3?alt=media&token=d14da2fe-ba13-40bc-8fc2-055b7a46b23c" },
   { title: "LA_LA_LA", file: "https://firebasestorage.googleapis.com/v0/b/it-token.firebasestorage.app/o/music%2FLALALA.mp3?alt=media&token=11a3bc8c-8498-458a-92b8-140d18575228" },
   { title: "BIG_DAWGS", file: "https://firebasestorage.googleapis.com/v0/b/it-token.firebasestorage.app/o/music%2Fbig_dawgs.mp3?alt=media&token=69bdcaa4-8283-4379-9516-93323bd61f43" },
   { title: "DILIH", file: "https://firebasestorage.googleapis.com/v0/b/it-token.firebasestorage.app/o/music%2FDILIH.mp3?alt=media&token=3694cbb2-0da0-42af-9c90-7c7457b890e9" },
