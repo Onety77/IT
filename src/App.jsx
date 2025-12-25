@@ -2921,7 +2921,7 @@ const SOUNDS = {
 };
 
 const ChatApp = () => {
-  // --- CORE STATE ---
+  // --- STATE ---
   const [messages, setMessages] = useState([]);
   const [pendingMessages, setPendingMessages] = useState([]);
   const [inputText, setInputText] = useState("");
@@ -2938,7 +2938,7 @@ const ChatApp = () => {
   
   // Audio Controls
   const [isMuted, setIsMuted] = useState(false);
-  const [isNotiMuted, setIsNotiMuted] = useState(false); // Independent Notification Mute
+  const [isNotiMuted, setIsNotiMuted] = useState(false);
   
   const [activeMenu, setActiveMenu] = useState(null); 
   const [replyingTo, setReplyingTo] = useState(null); 
@@ -2954,6 +2954,7 @@ const ChatApp = () => {
   const inputRef = useRef(null);
   const longPressTimer = useRef(null);
   const lastMsgCount = useRef(-1); 
+  const touchStartPos = useRef({ x: 0, y: 0 });
 
   const style = useMemo(() => ({
     bg: isDarkMode ? 'bg-[#0a0a0a]' : 'bg-[#c0c0c0]',
@@ -2964,7 +2965,7 @@ const ChatApp = () => {
     tileOther: isDarkMode ? 'border-2 border-zinc-800 bg-[#111]' : 'border-2 border-gray-400 border-l-white border-t-white bg-white',
   }), [isDarkMode]);
 
-  // Initialize SFX Objects
+  // Audio Init
   useEffect(() => {
     sfxInRef.current = new Audio(SOUNDS.in);
     sfxOutRef.current = new Audio(SOUNDS.out);
@@ -3000,7 +3001,7 @@ const ChatApp = () => {
   };
 
   const playSfx = (type) => {
-    if (isNotiMuted) return; // CHECK INDEPENDENT MUTE
+    if (isNotiMuted) return;
     const sound = type === 'in' ? sfxInRef.current : sfxOutRef.current;
     if (sound) {
         sound.currentTime = 0;
@@ -3021,7 +3022,6 @@ const ChatApp = () => {
                 reactions: { heart: 0, up: 0, down: 0 }
             });
         }
-
         const storageKey = `reacted_${msgId}_${emojiKey}`;
         const alreadyReacted = localStorage.getItem(storageKey);
         
@@ -3032,7 +3032,7 @@ const ChatApp = () => {
             await updateDoc(msgRef, { [`reactions.${emojiKey}`]: increment(1) });
             localStorage.setItem(storageKey, "true");
         }
-    } catch (e) { console.error("Reaction Sync Failed:", e); }
+    } catch (e) { console.error("Reaction failed:", e); }
   };
 
   const handleSend = async (e) => {
@@ -3077,7 +3077,6 @@ const ChatApp = () => {
         return; 
     }
     
-    // --- AUDIO WARM UP ---
     if (sfxInRef.current) { sfxInRef.current.volume = 0; sfxInRef.current.play().then(() => { sfxInRef.current.pause(); sfxInRef.current.volume = 0.4; }).catch(() => {}); }
     if (sfxOutRef.current) { sfxOutRef.current.volume = 0; sfxOutRef.current.play().then(() => { sfxOutRef.current.pause(); sfxOutRef.current.volume = 0.4; }).catch(() => {}); }
 
@@ -3131,13 +3130,11 @@ const ChatApp = () => {
       });
       const sorted = msgs.sort((a, b) => a._sortTs - b._sortTs).slice(-100);
       
-      if (lastMsgCount.current !== -1) {
-          if (sorted.length > lastMsgCount.current) {
-            const lastMsg = sorted[sorted.length - 1];
-            if (lastMsg && lastMsg.uid !== user.uid) {
-                playSfx('in');
-            }
-          }
+      if (lastMsgCount.current !== -1 && sorted.length > lastMsgCount.current) {
+        const lastMsg = sorted[sorted.length - 1];
+        if (lastMsg && lastMsg.uid !== user.uid) {
+            playSfx('in');
+        }
       }
       
       lastMsgCount.current = sorted.length;
@@ -3146,11 +3143,14 @@ const ChatApp = () => {
       setIsConnected(true);
     }, () => setIsConnected(false));
     return () => unsubscribe();
-  }, [user, isNotiMuted]); // Re-bind listener context if mute state changes
+  }, [user, isNotiMuted]);
 
+  // SMART SCROLL
   useEffect(() => {
-    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-  }, [messages, pendingMessages]);
+    if (scrollRef.current && lastMsgCount.current > messages.length) {
+        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [messages.length, pendingMessages.length]);
 
   useEffect(() => {
     if (isSetup && !isMuted) {
@@ -3166,17 +3166,49 @@ const ChatApp = () => {
   }, [isSetup, isMuted, trackIndex]);
 
   // --- GESTURES ---
-  const onMsgContextMenu = (e, msg) => { 
-    e.preventDefault(); 
-    setContextMenu({ x: e.clientX, y: e.clientY, msg }); 
-  };
-  const handleTouchStart = (msg) => { 
+  const onMsgContextMenu = (e, msg) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, msg }); };
+  
+  const handleTouchStart = (e, msg) => { 
+    touchStartPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
     if (longPressTimer.current) clearTimeout(longPressTimer.current);
     longPressTimer.current = setTimeout(() => { 
         setContextMenu({ x: window.innerWidth / 2 - 80, y: window.innerHeight / 2 - 100, msg }); 
-    }, 600); 
+    }, 800); 
   };
+
+  const handleTouchMove = (e) => {
+    const moveX = Math.abs(e.touches[0].clientX - touchStartPos.current.x);
+    const moveY = Math.abs(e.touches[0].clientY - touchStartPos.current.y);
+    if (moveX > 10 || moveY > 10) {
+        if (longPressTimer.current) clearTimeout(longPressTimer.current);
+    }
+  };
+
   const handleTouchEnd = () => { if (longPressTimer.current) clearTimeout(longPressTimer.current); };
+
+  // --- REUSABLE IDENTITY SELECTOR ---
+  const IdentitySelector = () => (
+    <div className="space-y-4 p-4 bg-black border-2 border-green-900 rounded shadow-inner" onClick={e => e.stopPropagation()}>
+        <div className="space-y-2 text-center">
+            <label className="text-[9px] text-emerald-600 font-black tracking-widest uppercase block text-center">Faction Avatar</label>
+            <div className="grid grid-cols-3 gap-2">
+            {AVATAR_LIST.map((av) => (
+                <button key={av.id} type="button" onClick={() => setUserAvatar(av.url)} className={`aspect-square border-2 transition-all p-1 bg-zinc-900 ${userAvatar === av.url ? 'border-emerald-500 scale-105 shadow-[0_0_10px_#10b981]' : 'border-zinc-800 grayscale opacity-40 hover:opacity-100 hover:grayscale-0'}`}>
+                    <img src={av.url} alt={av.name} className="w-full h-full object-cover pointer-events-none" />
+                </button>
+            ))}
+            </div>
+        </div>
+        <div className="space-y-2 text-center">
+            <label className="text-[9px] text-emerald-600 font-black tracking-widest uppercase block text-center">Frequency Color</label>
+            <div className="flex justify-center gap-2 flex-wrap">
+            {COLOR_LIST.map((col) => (
+                <button key={col.id} type="button" onClick={() => setUserColor(col.hex)} className={`w-8 h-8 border-2 transition-all ${userColor === col.hex ? 'border-white scale-110 shadow-lg' : 'border-black/40'}`} style={{ backgroundColor: col.hex }} />
+            ))}
+            </div>
+        </div>
+    </div>
+  );
 
   if (!isSetup) {
     return (
@@ -3189,30 +3221,9 @@ const ChatApp = () => {
             <div className="space-y-2 text-center">
               <label className="text-[9px] text-emerald-700 font-black tracking-[0.2em] uppercase block">Assign Alias</label>
               <input autoFocus value={username} onChange={(e) => setUsername(e.target.value.toUpperCase())} className="w-full bg-black border-b-2 border-emerald-900 text-emerald-400 p-3 text-center text-xl font-black outline-none focus:border-emerald-500" placeholder="NAME_IT" />
-              {error && <div className="text-[8px] text-red-500 font-bold animate-pulse mt-2 tracking-widest">{String(error)}</div>}
+              {error && <div className="text-[8px] text-red-500 font-bold animate-pulse mt-2 tracking-widest uppercase">{String(error)}</div>}
             </div>
-            
-            <div className="space-y-4 p-4 bg-black border-2 border-green-900 rounded shadow-inner" onClick={e => e.stopPropagation()}>
-                <div className="space-y-2 text-center">
-                    <label className="text-[9px] text-emerald-600 font-black tracking-widest uppercase block text-center">Faction Avatar</label>
-                    <div className="grid grid-cols-3 gap-2">
-                    {AVATAR_LIST.map((av) => (
-                        <button key={av.id} type="button" onClick={() => setUserAvatar(av.url)} className={`aspect-square border-2 transition-all p-1 bg-zinc-900 ${userAvatar === av.url ? 'border-emerald-500 scale-105 shadow-[0_0_10px_#10b981]' : 'border-zinc-800 grayscale opacity-40 hover:opacity-100 hover:grayscale-0'}`}>
-                            <img src={av.url} alt={av.name} className="w-full h-full object-cover pointer-events-none" />
-                        </button>
-                    ))}
-                    </div>
-                </div>
-                <div className="space-y-2 text-center">
-                    <label className="text-[9px] text-emerald-600 font-black tracking-widest uppercase block text-center">Frequency Color</label>
-                    <div className="flex justify-center gap-2 flex-wrap">
-                    {COLOR_LIST.map((col) => (
-                        <button key={col.id} type="button" onClick={() => setUserColor(col.hex)} className={`w-8 h-8 border-2 transition-all ${userColor === col.hex ? 'border-white scale-110 shadow-lg' : 'border-black/40'}`} style={{ backgroundColor: col.hex }} />
-                    ))}
-                    </div>
-                </div>
-            </div>
-
+            <IdentitySelector />
             <button onClick={handleInitialize} className="w-full bg-[#c0c0c0] text-black border-2 border-gray-400 border-l-white border-t-white py-4 font-black text-sm active:translate-y-1 hover:bg-white transition-colors uppercase">Establish Uplink</button>
           </div>
         </div>
@@ -3230,19 +3241,19 @@ const ChatApp = () => {
         </div>
         <div className="flex items-center gap-3">
           <div className="flex items-center bg-black/20 rounded px-1.5 py-0.5 border border-white/10 gap-2">
-            <button onClick={(e) => {e.stopPropagation(); setTrackIndex(prev => (prev + 1) % CHAT_PLAYLIST.length);}} className="text-emerald-500 hover:text-white transition-colors" title="Skip Song"><SkipForward size={14}/></button>
-            <button onClick={(e) => {e.stopPropagation(); setIsMuted(!isMuted)}} className={`p-1 transition-all ${isMuted ? 'text-red-400' : 'text-emerald-500 animate-pulse'}`} title="Toggle Music">{isMuted ? <VolumeX size={14}/> : <Volume2 size={14}/>}</button>
-            <button onClick={(e) => {e.stopPropagation(); setIsNotiMuted(!isNotiMuted)}} className={`p-1 transition-all ${isNotiMuted ? 'text-red-400' : 'text-emerald-500'}`} title="Toggle Notis">{isNotiMuted ? <BellOff size={14}/> : <Bell size={14}/>}</button>
+            <button onClick={(e) => {e.stopPropagation(); setTrackIndex(prev => (prev + 1) % CHAT_PLAYLIST.length);}} className="text-emerald-500 hover:text-white transition-colors"><SkipForward size={14}/></button>
+            <button onClick={(e) => {e.stopPropagation(); setIsMuted(!isMuted)}} className={`p-1 transition-all ${isMuted ? 'text-red-400' : 'text-emerald-500 animate-pulse'}`}>{isMuted ? <VolumeX size={14}/> : <Volume2 size={14}/>}</button>
+            <button onClick={(e) => {e.stopPropagation(); setIsNotiMuted(!isNotiMuted)}} className={`p-1 transition-all ${isNotiMuted ? 'text-red-400' : 'text-emerald-500'}`}>{isNotiMuted ? <BellOff size={14}/> : <Bell size={14}/>}</button>
           </div>
           <div className="w-px h-3 bg-zinc-700" />
-          <button onClick={(e) => {e.stopPropagation(); setActiveMenu(activeMenu === 'options' ? null : 'options')}} className={`p-1 transition-all ${activeMenu ? 'text-white scale-125' : 'text-emerald-500 hover:rotate-90'}`}><Settings size={16}/></button>
+          <button onClick={(e) => {e.stopPropagation(); setActiveMenu(activeMenu === 'options' ? null : 'options')}} className={`p-1 transition-all ${activeMenu === 'options' ? 'text-white scale-125' : 'text-emerald-500 hover:rotate-90'}`}><Settings size={16}/></button>
           <button onClick={(e) => {e.stopPropagation(); setTheme(isDarkMode ? 'light' : 'dark')}} className={`w-10 h-5 rounded-full p-0.5 relative transition-colors ${isDarkMode ? 'bg-emerald-900' : 'bg-zinc-400'}`}>
             <div className={`w-3.5 h-3.5 rounded-full transition-all ${isDarkMode ? 'translate-x-5 bg-emerald-400 shadow-[0_0_8px_#10b981]' : 'translate-x-0 bg-white'}`} />
           </button>
         </div>
       </div>
 
-      {/* OPTIONS OVERLAY */}
+      {/* OPTIONS OVERLAY (RESTORED) */}
       {activeMenu === 'options' && (
           <div className="absolute top-10 right-2 w-56 bg-[#c0c0c0] border-2 border-white border-r-black border-b-black shadow-2xl z-[150] p-1 animate-in zoom-in-95 duration-100 text-black" onClick={e=>e.stopPropagation()}>
               <div className="bg-[#000080] text-white text-[9px] font-bold px-2 py-1 flex items-center justify-between">
@@ -3258,46 +3269,27 @@ const ChatApp = () => {
                         <button onClick={() => setTrackIndex(p => (p+1)%CHAT_PLAYLIST.length)}><SkipForward size={16}/></button>
                     </div>
                   </div>
-                  <button onClick={() => setIsNotiMuted(!isNotiMuted)} className="w-full text-left px-2 py-1.5 hover:bg-[#000080] hover:text-white flex items-center gap-2 text-[10px] font-black uppercase">
-                    {isNotiMuted ? <Bell size={12}/> : <BellOff size={12}/>} {isNotiMuted ? "Unmute Notis" : "Mute Notis"}
+                  <button onClick={() => setIsNotiMuted(!isNotiMuted)} className="w-full text-left px-2 py-1.5 hover:bg-[#000080] hover:text-white flex items-center gap-2 text-[10px] font-black uppercase border border-transparent hover:border-white transition-all">
+                    {isNotiMuted ? <Bell size={12}/> : <BellOff size={12}/>} {isNotiMuted ? "Unmute Notifications" : "Mute Notifications"}
                   </button>
-                  <button onClick={() => setActiveMenu('appearance')} className="w-full text-left px-2 py-1.5 hover:bg-[#000080] hover:text-white flex items-center gap-2 text-[10px] font-black uppercase"><Palette size={12}/> Appearance</button>
-                  <button onClick={() => {localStorage.removeItem('tbox_alias'); setIsSetup(false);}} className="w-full text-left px-2 py-1.5 hover:bg-[#000080] hover:text-white flex items-center gap-2 text-[10px] font-black uppercase"><LogOut size={12}/> Logout</button>
+                  <button onClick={() => setActiveMenu('appearance')} className="w-full text-left px-2 py-1.5 hover:bg-[#000080] hover:text-white flex items-center gap-2 text-[10px] font-black uppercase border border-transparent hover:border-white transition-all"><Palette size={12}/> Identity Settings</button>
+                  <button onClick={() => {localStorage.removeItem('tbox_alias'); setIsSetup(false);}} className="w-full text-left px-2 py-1.5 hover:bg-[#000080] hover:text-white flex items-center gap-2 text-[10px] font-black uppercase border border-transparent hover:border-white transition-all"><LogOut size={12}/> Logout</button>
                   <div className="h-px bg-gray-500 my-1"></div>
-                  <button onClick={(e) => {localStorage.clear(); window.location.reload();}} className="w-full text-left px-2 py-1.5 hover:bg-red-700 hover:text-white text-red-800 flex items-center gap-2 text-[10px] font-black uppercase"><Trash2 size={12}/> Burn ID</button>
+                  <button onClick={(e) => {localStorage.clear(); window.location.reload();}} className="w-full text-left px-2 py-1.5 hover:bg-red-700 hover:text-white text-red-800 flex items-center gap-2 text-[10px] font-black uppercase border border-transparent hover:border-white transition-all"><Trash2 size={12}/> Burn Data</button>
               </div>
           </div>
       )}
 
-      {/* APPEARANCE MODAL */}
+      {/* APPEARANCE MODAL (RESTORED) */}
       {activeMenu === 'appearance' && (
           <div className="absolute inset-0 bg-black/90 backdrop-blur-md z-[200] flex items-center justify-center p-4" onClick={e=>e.stopPropagation()}>
               <div className="w-full max-w-xs bg-[#c0c0c0] border-2 border-white border-r-black border-b-black p-1 shadow-2xl">
-                  <div className="bg-[#000080] text-white text-[10px] font-bold px-2 py-1 flex justify-between items-center">
-                      <span>UPDATE_APPEARANCE.EXE</span>
+                  <div className="bg-[#000080] text-white text-[10px] font-bold px-2 py-1 flex justify-between items-center font-mono">
+                      <span>UPDATE_IDENTITY.EXE</span>
                       <X size={14} className="cursor-pointer hover:bg-red-600 p-0.5" onClick={() => setActiveMenu('options')} />
                   </div>
                   <div className="p-4 bg-black space-y-4">
-                        <div className="space-y-4 p-4 bg-black border-2 border-green-900 rounded shadow-inner" onClick={e => e.stopPropagation()}>
-                            <div className="space-y-2 text-center">
-                                <label className="text-[9px] text-emerald-600 font-black tracking-widest uppercase block text-center">Faction Avatar</label>
-                                <div className="grid grid-cols-3 gap-2">
-                                {AVATAR_LIST.map((av) => (
-                                    <button key={av.id} type="button" onClick={() => setUserAvatar(av.url)} className={`aspect-square border-2 transition-all p-1 bg-zinc-900 ${userAvatar === av.url ? 'border-emerald-500 scale-105 shadow-[0_0_10px_#10b981]' : 'border-zinc-800 grayscale opacity-40 hover:opacity-100 hover:grayscale-0'}`}>
-                                        <img src={av.url} alt={av.name} className="w-full h-full object-cover pointer-events-none" />
-                                    </button>
-                                ))}
-                                </div>
-                            </div>
-                            <div className="space-y-2 text-center">
-                                <label className="text-[9px] text-emerald-600 font-black tracking-widest uppercase block text-center">Frequency Color</label>
-                                <div className="flex justify-center gap-2 flex-wrap">
-                                {COLOR_LIST.map((col) => (
-                                    <button key={col.id} type="button" onClick={() => setUserColor(col.hex)} className={`w-8 h-8 border-2 transition-all ${userColor === col.hex ? 'border-white scale-110 shadow-lg' : 'border-black/40'}`} style={{ backgroundColor: col.hex }} />
-                                ))}
-                                </div>
-                            </div>
-                        </div>
+                        <IdentitySelector />
                         <button onClick={() => {localStorage.setItem('tbox_color', userColor); localStorage.setItem('tbox_avatar', userAvatar); setActiveMenu(null);}} className="w-full bg-[#c0c0c0] text-black border-2 border-gray-400 border-l-white border-t-white py-3 font-black text-[10px] tracking-widest uppercase hover:bg-white transition-colors">Apply Changes</button>
                   </div>
               </div>
@@ -3307,22 +3299,14 @@ const ChatApp = () => {
       {/* CHAT CONTAINER */}
       <div className="flex-1 relative overflow-hidden m-1 border-t-2 border-l-2 border-zinc-800 bg-transparent flex flex-col w-full">
         <div className={`absolute inset-0 z-0 pointer-events-none bg-cover bg-center transition-all duration-700 block md:hidden ${isDarkMode ? 'opacity-15 grayscale brightness-[0.25]' : 'opacity-[0.06] grayscale brightness-125'}`} style={{ backgroundImage: `url('chatwall.jpg')` }} />
-
+        
         {/* STICKY ALPHA PIN BAR */}
-        <div 
-            onClick={() => jumpToMessage('pinned-ca')}
-            className={`sticky top-0 z-[60] w-full px-4 py-1.5 flex items-center justify-between cursor-pointer transition-colors border-b shadow-md backdrop-blur-sm ${isDarkMode ? 'bg-black/60 border-green-900/40 hover:bg-green-950/20' : 'bg-white/80 border-blue-100 hover:bg-blue-50'}`}
-        >
-            <div className="flex items-center gap-1.5 text-[#10b981] font-black text-[7px] uppercase tracking-[0.2em] italic">
-                PINNED MESSAGE:
-            </div>
+        <div onClick={() => jumpToMessage('pinned-ca')} className={`sticky top-0 z-[60] w-full px-4 py-1.5 flex items-center justify-between cursor-pointer transition-colors border-b shadow-md backdrop-blur-sm ${isDarkMode ? 'bg-black/60 border-green-900/40 hover:bg-green-950/20' : 'bg-white/80 border-blue-100 hover:bg-blue-50'}`}>
+            <div className="flex items-center gap-1.5 text-[#10b981] font-black text-[7px] uppercase tracking-[0.2em] italic">PINNED MESSAGE:</div>
             <div className={`text-[7px] font-mono font-bold truncate flex-1 px-4 ${isDarkMode ? 'text-green-500/60' : 'text-blue-900/60'}`}>{CA_ADDRESS}</div>
-            <div onClick={handleCopyCA} className="flex items-center gap-1 text-[7px] font-black opacity-40 hover:opacity-100 transition-opacity">
-                {copiedCA ? <Check size={8} className="text-green-500"/> : <Copy size={8}/>} {copiedCA ? 'COPIED' : 'COPY'}
-            </div>
+            <div onClick={handleCopyCA} className="flex items-center gap-1 text-[7px] font-black opacity-40 hover:opacity-100 transition-opacity">{copiedCA ? <Check size={8} className="text-green-500"/> : <Copy size={8}/>} {copiedCA ? 'COPIED' : 'COPY'}</div>
         </div>
 
-        {/* MESSAGE STREAM */}
         <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden p-4 scrollbar-classic space-y-6 scroll-smooth z-10 w-full box-border text-xs">
           <div className="flex flex-col items-center py-6 border-b border-dashed border-zinc-800 mb-8 opacity-40 relative z-10 text-center">
             <Shield size={20} className={isDarkMode ? 'text-emerald-500' : 'text-blue-900'} />
@@ -3338,7 +3322,8 @@ const ChatApp = () => {
             return (
               <div key={msg.id} id={`msg-${msg.id}`} 
                   onContextMenu={(e) => onMsgContextMenu(e, msg)} 
-                  onTouchStart={() => handleTouchStart(msg)} 
+                  onTouchStart={(e) => handleTouchStart(e, msg)} 
+                  onTouchMove={handleTouchMove}
                   onTouchEnd={handleTouchEnd}
                   onDoubleClick={(e) => { e.preventDefault(); handleReaction(msg.id, 'heart'); }}
                   className={`flex gap-3 animate-in fade-in slide-in-from-bottom-2 duration-300 transition-all max-w-full relative group ${isMe ? 'flex-row-reverse text-right' : 'flex-row'} ${msg.pending ? 'opacity-40 animate-pulse' : ''}`}
@@ -3346,13 +3331,12 @@ const ChatApp = () => {
                 <div className="w-8 h-8 shrink-0 bg-zinc-900 overflow-hidden border border-white/10 shadow-lg">
                   <img src={msg.avatar || '/pfps/mask.jpg'} alt="" className="w-full h-full object-cover" />
                 </div>
-                
                 <div className={`flex flex-col min-w-0 max-w-[80vw] md:max-w-[70%] ${isMe ? 'items-end' : 'items-start'}`}>
                   <div className={`flex items-center gap-2 mb-1 px-1 truncate ${isMe ? 'flex-row-reverse' : ''}`}>
                     {isSystem ? (
                         <div className="flex items-center gap-1.5 bg-green-950/40 px-2 py-0.5 rounded-sm border border-green-500/30 animate-pulse">
                             <Crown size={10} className="text-emerald-400" />
-                            <span className="text-[10px] font-black text-emerald-400 tracking-widest drop-shadow-[0_0_5px_#10b981] uppercase">ADMIN</span>
+                            <span className="text-[10px] font-black text-emerald-400 tracking-widest drop-shadow-[0_0_5px_#10b981] uppercase px-1">ADMIN</span>
                         </div>
                     ) : (
                         <>
@@ -3361,26 +3345,20 @@ const ChatApp = () => {
                         </>
                     )}
                   </div>
-
                   <div className={`p-3 relative group transition-all duration-200 shadow-md w-fit max-w-full break-words ${isMe ? style.tileMe : style.tileOther} ${isSystem ? 'cursor-pointer border-emerald-500/50 bg-green-950/10' : ''}`}
                       style={{ borderLeft: !isMe ? `3px solid ${mColor}` : undefined, borderRight: isMe ? `3px solid ${mColor}` : undefined }}
-                      onClick={isSystem ? handleCopyCA : undefined}
-                  >
-                    
+                      onClick={isSystem ? handleCopyCA : undefined} >
                     {msg.replyTo && (
                       <div onClick={(e) => { e.stopPropagation(); jumpToMessage(msg.replyTo.id); }} className="mb-2 p-2 border border-zinc-800 bg-black/40 text-gray-400 text-[9px] italic truncate cursor-pointer">
                         <span className="font-bold uppercase text-[7px]">{String(msg.replyTo.user)}:</span> {String(msg.replyTo.text)}
                       </div>
                     )}
-
                     <p className={`text-xs font-bold leading-relaxed break-words whitespace-pre-wrap ${isDarkMode ? 'text-white' : 'text-black'} ${isSystem ? 'text-emerald-400 font-black italic' : ''}`}>{String(msg.text)}</p>
-                    
                     {!isSystem && (
                         <div className={`absolute top-0 ${isMe ? '-left-8' : '-right-8'} opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer p-1 hidden md:block`} onClick={(e) => {e.stopPropagation(); startReply(msg)}}>
                             <Reply size={16} className={isDarkMode ? 'text-emerald-500' : 'text-blue-800'} />
                         </div>
                     )}
-
                     {(reactions.heart > 0 || reactions.up > 0 || reactions.down > 0) && (
                         <div className={`flex flex-wrap gap-1 mt-2 ${isMe ? 'justify-end' : 'justify-start'}`}>
                             {Object.entries(reactions).map(([key, count]) => count > 0 && (
@@ -3399,7 +3377,7 @@ const ChatApp = () => {
         </div>
       </div>
 
-      {/* INPUT HUB */}
+      {/* INPUT CENTER */}
       <div className={`p-2 border-t-2 relative z-[100] shrink-0 ${isDarkMode ? 'bg-[#111] border-zinc-900' : 'bg-[#d4d0c8] border-white'}`}>
         {replyingTo && (
             <div className="absolute -top-10 left-0 w-full bg-emerald-950 text-emerald-400 p-2 text-[9px] font-black flex items-center justify-between border-t border-emerald-900 animate-in slide-in-from-bottom-1">
@@ -3407,7 +3385,6 @@ const ChatApp = () => {
                 <button onClick={() => setReplyingTo(null)} className="hover:text-white p-1"><X size={14}/></button>
             </div>
         )}
-
         <form onSubmit={handleSend} className="flex gap-2 h-12 w-full max-w-full overflow-hidden">
           <input ref={inputRef} value={inputText} onChange={(e) => setInputText(e.target.value)} disabled={cooldown > 0} placeholder={cooldown > 0 ? `LINK_THROTTLED: ${cooldown}S` : "Write IT..."}
             className={`flex-1 min-w-0 h-full border-2 border-zinc-800 border-l-black border-t-black px-4 text-sm font-black outline-none ${style.input} focus:border-emerald-600`}
@@ -3447,6 +3424,7 @@ const ChatApp = () => {
     </div>
   );
 };
+
 
 
 
