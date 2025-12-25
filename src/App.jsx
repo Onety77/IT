@@ -2916,8 +2916,8 @@ const CHAT_PLAYLIST = [
 ];
 
 const SOUNDS = {
-  in: "https://firebasestorage.googleapis.com/v0/b/it-token.appspot.com/o/sounds%2Fmsg_in.mp3?alt=media",
-  out: "https://firebasestorage.googleapis.com/v0/b/it-token.appspot.com/o/sounds%2Fmsg_out.mp3?alt=media"
+  in: "notis/msg_in.mp3",
+  out: "notis/msg_out.mp3"
 };
 
 const ChatApp = () => {
