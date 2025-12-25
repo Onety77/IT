@@ -2916,8 +2916,8 @@ const CHAT_PLAYLIST = [
 ];
 
 const SOUNDS = {
-  in: "notis/msg_in.mp3",
-  out: "notis/msg_out.mp3"
+  in: "/notis/msg_in.mp3",
+  out: "/notis/msg_out.mp3"
 };
 
 const ChatApp = () => {
