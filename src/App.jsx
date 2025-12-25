@@ -20,7 +20,7 @@ import {
   Lightbulb, TrendingUp, Sparkles, RefreshCw, Trophy, Info, Flame, Share2, Joystick, VolumeX,
   TrendingDown, ShieldAlert, Cpu, BarChart3, Binary, Grid, ZoomIn, FileImage,
   Wifi, Hash, Lock, Sun, Moon, Database, Radio, Command, Palette, UserCircle,
-  ShieldCheck, Shield, Reply, Quote, CornerDownRight, Heart, ThumbsUp, ThumbsDown, Anchor, Crown, Bell, BellOff
+  ShieldCheck, Shield, Reply, Quote, CornerDownRight, Heart, ThumbsUp, ThumbsDown, Anchor, Crown, Bell, BellOff, ChevronDown
 } from 'lucide-react';
 
 
@@ -2940,6 +2940,9 @@ const ChatApp = () => {
   const [isMuted, setIsMuted] = useState(false);
   const [isNotiMuted, setIsNotiMuted] = useState(false);
   
+  // Navigation State
+  const [showScrollArrow, setShowScrollArrow] = useState(false);
+  
   const [activeMenu, setActiveMenu] = useState(null); 
   const [replyingTo, setReplyingTo] = useState(null); 
   const [contextMenu, setContextMenu] = useState(null); 
@@ -2985,6 +2988,7 @@ const ChatApp = () => {
     return combined.sort((a, b) => a._sortTs - b._sortTs);
   }, [messages, pendingMessages]);
 
+  // --- HANDLERS ---
   const handleCopyCA = (e) => {
     e?.stopPropagation();
     const textArea = document.createElement("textarea");
@@ -3006,19 +3010,9 @@ const ChatApp = () => {
     }
   };
 
-  const jumpToMessage = (targetId) => {
-    const element = document.getElementById(`msg-${targetId}`);
-    if (element) {
-        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        element.classList.add('msg-highlight');
-        setTimeout(() => element.classList.remove('msg-highlight'), 2000);
-    }
-  };
-
   const handleReaction = async (msgId, emojiKey) => {
     setContextMenu(null);
     if (!user) return;
-    
     const msgRef = doc(db, 'artifacts', appId, 'public', 'data', 'trollbox_messages', msgId);
     try {
         const snap = await getDoc(msgRef);
@@ -3028,10 +3022,8 @@ const ChatApp = () => {
                 reactions: { heart: 0, up: 0, down: 0 }
             });
         }
-
         const storageKey = `reacted_${msgId}_${emojiKey}`;
         const alreadyReacted = localStorage.getItem(storageKey);
-        
         if (alreadyReacted) {
             await updateDoc(msgRef, { [`reactions.${emojiKey}`]: increment(-1) });
             localStorage.removeItem(storageKey);
@@ -3039,31 +3031,20 @@ const ChatApp = () => {
             await updateDoc(msgRef, { [`reactions.${emojiKey}`]: increment(1) });
             localStorage.setItem(storageKey, "true");
         }
-    } catch (e) { console.error("Reaction Sync Failed:", e); }
+    } catch (e) {}
   };
 
   const handleSend = async (e) => {
     if (e) e.preventDefault();
     if (!inputText.trim() || cooldown > 0 || !user) return;
-
     const text = inputText.trim().slice(0, 240);
     const currentReply = replyingTo;
     const tempId = "temp_" + Date.now();
-    
     setPendingMessages(prev => [...prev, {
         id: tempId, text, user: username, color: userColor, avatar: userAvatar, _sortTs: Date.now(), replyTo: currentReply, pending: true, reactions: { heart:0, up:0, down:0 }
     }]);
-
-    setInputText(""); 
-    setReplyingTo(null); 
-    setCooldown(2); 
-    playSfx('out');
-
-    // FIX: Re-focus the input box immediately so the user can keep typing
-    setTimeout(() => {
-        inputRef.current?.focus();
-    }, 10);
-
+    setInputText(""); setReplyingTo(null); setCooldown(2); playSfx('out');
+    setTimeout(() => inputRef.current?.focus(), 10);
     try {
       await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'trollbox_messages'), {
         text, user: username, color: userColor, avatar: userAvatar, timestamp: serverTimestamp(), uid: user.uid, replyTo: currentReply || null,
@@ -3087,18 +3068,28 @@ const ChatApp = () => {
     const name = username.trim().toUpperCase();
     const forbidden = ["ADMIN", "SYSTEM", "KERNEL", "IT_OS", "MOD"];
     if (name.length < 2) { setError("ALIAS_TOO_SHORT"); return; }
-    if (forbidden.some(word => name.includes(word))) { 
-        setError("RESERVED_IDENTITY_BLOCK"); 
-        return; 
-    }
-    
+    if (forbidden.some(word => name.includes(word))) { setError("RESERVED_IDENTITY_BLOCK"); return; }
     if (sfxInRef.current) { sfxInRef.current.volume = 0; sfxInRef.current.play().then(() => { sfxInRef.current.pause(); sfxInRef.current.volume = 0.4; }).catch(() => {}); }
     if (sfxOutRef.current) { sfxOutRef.current.volume = 0; sfxOutRef.current.play().then(() => { sfxOutRef.current.pause(); sfxOutRef.current.volume = 0.4; }).catch(() => {}); }
-
     localStorage.setItem('tbox_alias', name);
     localStorage.setItem('tbox_color', userColor);
     localStorage.setItem('tbox_avatar', userAvatar);
     setIsSetup(true);
+  };
+
+  const jumpToMessage = (targetId) => {
+    const element = document.getElementById(`msg-${targetId}`);
+    if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        element.classList.add('msg-highlight');
+        setTimeout(() => element.classList.remove('msg-highlight'), 2000);
+    }
+  };
+
+  const scrollToLive = () => {
+    if (scrollRef.current) {
+        scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
+    }
   };
 
   // --- FIREBASE SYNC ---
@@ -3135,18 +3126,14 @@ const ChatApp = () => {
         return { id: doc.id, ...data, _sortTs: ts };
       });
       const sorted = msgs.sort((a, b) => a._sortTs - b._sortTs).slice(-100);
-      
       if (!isInitialLoad.current) {
           snapshot.docChanges().forEach(change => {
             if (change.type === 'added') {
                 const addedData = change.doc.data();
-                if (addedData.uid !== user.uid) {
-                    playSfx('in');
-                }
+                if (addedData.uid !== user.uid) playSfx('in');
             }
           });
       }
-      
       isInitialLoad.current = false;
       setMessages(sorted);
       setPendingMessages(prev => prev.filter(pm => !msgs.some(m => m.text === pm.text && m.user === pm.user)));
@@ -3155,7 +3142,15 @@ const ChatApp = () => {
     return () => unsubscribe();
   }, [user, isNotiMuted]);
 
-  // SMART AUTO SCROLL
+  // SMART AUTO SCROLL & ARROW TOGGLE
+  const handleOnScroll = () => {
+    if (scrollRef.current) {
+        const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
+        const isUp = scrollHeight - scrollTop - clientHeight > 300;
+        setShowScrollArrow(isUp);
+    }
+  };
+
   useEffect(() => {
     if (scrollRef.current) {
         const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
@@ -3193,20 +3188,21 @@ const ChatApp = () => {
   const handleTouchMove = (e) => {
     const moveX = Math.abs(e.touches[0].clientX - touchStartPos.current.x);
     const moveY = Math.abs(e.touches[0].clientY - touchStartPos.current.y);
-    if (moveX > 10 || moveY > 10) {
-        if (longPressTimer.current) clearTimeout(longPressTimer.current);
-    }
+    if (moveX > 10 || moveY > 10) { if (longPressTimer.current) clearTimeout(longPressTimer.current); }
   };
 
   const handleTouchEnd = () => { if (longPressTimer.current) clearTimeout(longPressTimer.current); };
 
-  const IdentitySelector = () => (
+  // FIX: Stable Identity Selector Block
+  const identitySection = (
     <div className="space-y-4 p-4 bg-black border-2 border-green-900 rounded shadow-inner" onClick={e => e.stopPropagation()}>
         <div className="space-y-2 text-center">
             <label className="text-[9px] text-emerald-600 font-black tracking-widest uppercase block text-center">Faction Avatar</label>
             <div className="grid grid-cols-3 gap-2">
             {AVATAR_LIST.map((av) => (
-                <button key={av.id} type="button" onClick={() => setUserAvatar(av.url)} className={`aspect-square border-2 transition-all p-1 bg-zinc-900 ${userAvatar === av.url ? 'border-emerald-500 scale-105 shadow-[0_0_10px_#10b981]' : 'border-zinc-800 grayscale opacity-40 hover:opacity-100 hover:grayscale-0'}`}>
+                <button key={av.id} type="button" 
+                  onPointerDown={(e) => { e.stopPropagation(); setUserAvatar(av.url); }} 
+                  className={`aspect-square border-2 transition-all p-1 bg-zinc-900 ${userAvatar === av.url ? 'border-emerald-500 scale-105 shadow-[0_0_10px_#10b981]' : 'border-zinc-800 grayscale opacity-40 hover:opacity-100 hover:grayscale-0'}`}>
                     <img src={av.url} alt={av.name} className="w-full h-full object-cover pointer-events-none" />
                 </button>
             ))}
@@ -3216,7 +3212,9 @@ const ChatApp = () => {
             <label className="text-[9px] text-emerald-600 font-black tracking-widest uppercase block text-center">Frequency Color</label>
             <div className="flex justify-center gap-2 flex-wrap">
             {COLOR_LIST.map((col) => (
-                <button key={col.id} type="button" onClick={() => setUserColor(col.hex)} className={`w-8 h-8 border-2 transition-all ${userColor === col.hex ? 'border-white scale-110 shadow-lg' : 'border-black/40'}`} style={{ backgroundColor: col.hex }} />
+                <button key={col.id} type="button" 
+                  onPointerDown={(e) => { e.stopPropagation(); setUserColor(col.hex); }} 
+                  className={`w-8 h-8 border-2 transition-all ${userColor === col.hex ? 'border-white scale-110 shadow-lg' : 'border-black/40'}`} style={{ backgroundColor: col.hex }} />
             ))}
             </div>
         </div>
@@ -3236,7 +3234,7 @@ const ChatApp = () => {
               <input autoFocus value={username} onChange={(e) => setUsername(e.target.value.toUpperCase())} className="w-full bg-black border-b-2 border-emerald-900 text-emerald-400 p-3 text-center text-xl font-black outline-none focus:border-emerald-500" placeholder="NAME_IT" />
               {error && <div className="text-[8px] text-red-500 font-bold animate-pulse mt-2 tracking-widest uppercase">{String(error)}</div>}
             </div>
-            <IdentitySelector />
+            {identitySection}
             <button onClick={handleInitialize} className="w-full bg-[#c0c0c0] text-black border-2 border-gray-400 border-l-white border-t-white py-4 font-black text-sm active:translate-y-1 hover:bg-white transition-colors uppercase">Establish Uplink</button>
           </div>
         </div>
@@ -3247,7 +3245,6 @@ const ChatApp = () => {
   return (
     <div className={`h-full ${style.bg} ${style.text} flex flex-col font-mono select-none overflow-hidden relative w-full`} onClick={() => {setContextMenu(null); setActiveMenu(null);}}>
       
-      {/* NAVBAR */}
       <div className={`flex justify-between items-center px-3 py-1.5 border-b shrink-0 ${isDarkMode ? 'border-black bg-black/40' : 'border-zinc-400 bg-white/40'} backdrop-blur-md z-[100]`}>
         <div className="flex gap-5 text-[9px] font-black text-zinc-500 uppercase tracking-widest truncate">
           <span className="flex items-center gap-1.5"><Wifi size={10} className={isConnected ? 'text-emerald-500' : 'text-red-500'}/> {isConnected ? 'Link_Live' : 'Syncing...'}</span>
@@ -3266,7 +3263,6 @@ const ChatApp = () => {
         </div>
       </div>
 
-      {/* OPTIONS OVERLAY */}
       {activeMenu === 'options' && (
           <div className="absolute top-10 right-2 w-56 bg-[#c0c0c0] border-2 border-white border-r-black border-b-black shadow-2xl z-[150] p-1 animate-in zoom-in-95 duration-100 text-black" onClick={e=>e.stopPropagation()}>
               <div className="bg-[#000080] text-white text-[9px] font-bold px-2 py-1 flex items-center justify-between font-mono">
@@ -3288,12 +3284,11 @@ const ChatApp = () => {
                   <button onClick={() => setActiveMenu('appearance')} className="w-full text-left px-2 py-1.5 hover:bg-[#000080] hover:text-white flex items-center gap-2 text-[10px] font-black uppercase border border-transparent hover:border-white transition-all"><Palette size={12}/> Appearance Settings</button>
                   <button onClick={() => {localStorage.removeItem('tbox_alias'); setIsSetup(false);}} className="w-full text-left px-2 py-1.5 hover:bg-[#000080] hover:text-white flex items-center gap-2 text-[10px] font-black uppercase border border-transparent hover:border-white transition-all"><LogOut size={12}/> Logout Link</button>
                   <div className="h-px bg-gray-500 my-1"></div>
-                  <button onClick={(e) => {localStorage.clear(); window.location.reload();}} className="w-full text-left px-2 py-1.5 hover:bg-red-700 hover:text-white text-red-800 flex items-center gap-2 text-[10px] font-black uppercase border border-transparent hover:border-white transition-all"><Trash2 size={12}/> Burn Identity</button>
+                  <button onClick={(e) => {localStorage.clear(); window.location.reload();}} className="w-full text-left px-2 py-1.5 hover:bg-red-700 hover:text-white text-red-800 flex items-center gap-2 text-[10px] font-black border border-transparent hover:border-white transition-all"><Trash2 size={12}/> Burn Identity</button>
               </div>
           </div>
       )}
 
-      {/* APPEARANCE MODAL */}
       {activeMenu === 'appearance' && (
           <div className="absolute inset-0 bg-black/90 backdrop-blur-md z-[200] flex items-center justify-center p-4" onClick={e=>e.stopPropagation()}>
               <div className="w-full max-w-xs bg-[#c0c0c0] border-2 border-white border-r-black border-b-black p-1 shadow-2xl">
@@ -3302,25 +3297,23 @@ const ChatApp = () => {
                       <X size={14} className="cursor-pointer hover:bg-red-600 p-0.5" onClick={() => setActiveMenu('options')} />
                   </div>
                   <div className="p-4 bg-black space-y-4">
-                        <IdentitySelector />
+                        {identitySection}
                         <button onClick={() => {localStorage.setItem('tbox_color', userColor); localStorage.setItem('tbox_avatar', userAvatar); setActiveMenu(null);}} className="w-full bg-[#c0c0c0] text-black border-2 border-gray-400 border-l-white border-t-white py-3 font-black text-[10px] tracking-widest uppercase hover:bg-white transition-colors">Apply Changes</button>
                   </div>
               </div>
           </div>
       )}
 
-      {/* CHAT CONTAINER */}
       <div className="flex-1 relative overflow-hidden m-1 border-t-2 border-l-2 border-zinc-800 bg-transparent flex flex-col w-full">
         <div className={`absolute inset-0 z-0 pointer-events-none bg-cover bg-center transition-all duration-700 block md:hidden ${isDarkMode ? 'opacity-15 grayscale brightness-[0.25]' : 'opacity-[0.06] grayscale brightness-125'}`} style={{ backgroundImage: `url('chatwall.jpg')` }} />
         
-        {/* STICKY ALPHA PIN BAR */}
         <div onClick={() => jumpToMessage('pinned-ca')} className={`sticky top-0 z-[60] w-full px-4 py-1.5 flex items-center justify-between cursor-pointer transition-colors border-b shadow-md backdrop-blur-sm ${isDarkMode ? 'bg-black/60 border-green-900/40 hover:bg-green-950/20' : 'bg-white/80 border-blue-100 hover:bg-blue-50'}`}>
             <div className="flex items-center gap-1.5 text-[#10b981] font-black text-[7px] uppercase tracking-[0.2em] italic">PINNED MESSAGE:</div>
             <div className={`text-[7px] font-mono font-bold truncate flex-1 px-4 ${isDarkMode ? 'text-green-500/60' : 'text-blue-900/60'}`}>{CA_ADDRESS}</div>
             <div onClick={handleCopyCA} className="flex items-center gap-1 text-[7px] font-black opacity-40 hover:opacity-100 transition-opacity">{copiedCA ? <Check size={8} className="text-green-500"/> : <Copy size={8}/>} {copiedCA ? 'COPIED' : 'COPY'}</div>
         </div>
 
-        <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden p-4 scrollbar-classic space-y-6 scroll-smooth z-10 w-full box-border text-xs">
+        <div ref={scrollRef} onScroll={handleOnScroll} className="flex-1 overflow-y-auto overflow-x-hidden p-4 scrollbar-classic space-y-6 scroll-smooth z-10 w-full box-border text-xs relative">
           <div className="flex flex-col items-center py-6 border-b border-dashed border-zinc-800 mb-8 opacity-40 relative z-10 text-center">
             <Shield size={20} className={isDarkMode ? 'text-emerald-500' : 'text-blue-900'} />
             <span className="text-[7px] font-black uppercase tracking-[0.5em] mt-2 italic">Degen_Frequency_Broadcast_Live</span>
@@ -3388,9 +3381,18 @@ const ChatApp = () => {
             );
           })}
         </div>
+
+        {/* JUMP TO BOTTOM BUTTON */}
+        {showScrollArrow && (
+            <button 
+                onClick={scrollToLive}
+                className="absolute bottom-6 right-6 z-[70] p-2 rounded-full bg-emerald-500 text-black shadow-[0_0_15px_#10b981] animate-bounce hover:bg-white transition-all active:scale-90"
+            >
+                <ChevronDown size={20} strokeWidth={3}/>
+            </button>
+        )}
       </div>
 
-      {/* INPUT CENTER */}
       <div className={`p-2 border-t-2 relative z-[100] shrink-0 ${isDarkMode ? 'bg-[#111] border-zinc-900' : 'bg-[#d4d0c8] border-white'}`}>
         {replyingTo && (
             <div className="absolute -top-10 left-0 w-full bg-emerald-950 text-emerald-400 p-2 text-[9px] font-black flex items-center justify-between border-t border-emerald-900 animate-in slide-in-from-bottom-1">
@@ -3408,11 +3410,9 @@ const ChatApp = () => {
         </form>
       </div>
 
-      {/* CONTEXT MENU */}
       {contextMenu && (
           <div className="fixed z-[10001] w-48 bg-[#c0c0c0] border-2 border-white border-r-black border-b-black shadow-2xl p-1 font-mono animate-in zoom-in-95 duration-100 text-black flex flex-col"
             style={{ left: Math.min(contextMenu.x, window.innerWidth - 200), top: Math.min(contextMenu.y, window.innerHeight - 250) }} onClick={(e) => e.stopPropagation()} >
-              {/* REACT ROW */}
               <div className="flex justify-around p-2 bg-black mb-1">
                   <button onClick={() => handleReaction(contextMenu.msg.id, 'heart')} className="p-2 hover:bg-white/20 transition-all active:scale-150"><Heart size={20} fill="#ec4899" color="#ec4899" /></button>
                   <button onClick={() => handleReaction(contextMenu.msg.id, 'up')} className="p-2 hover:bg-white/20 transition-all active:scale-150"><ThumbsUp size={20} color="#3b82f6" /></button>
