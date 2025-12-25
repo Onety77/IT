@@ -20,7 +20,7 @@ import {
   Lightbulb, TrendingUp, Sparkles, RefreshCw, Trophy, Info, Flame, Share2, Joystick, VolumeX,
   TrendingDown, ShieldAlert, Cpu, BarChart3, Binary, Grid, ZoomIn, FileImage,
   Wifi, Hash, Lock, Sun, Moon, Database, Radio, Command, Palette, UserCircle,
-  ShieldCheck, Shield, Reply, Quote, CornerDownRight, Heart, ThumbsUp, ThumbsDown, Anchor, Crown
+  ShieldCheck, Shield, Reply, Quote, CornerDownRight, Heart, ThumbsUp, ThumbsDown, Anchor, Crown, Bell, BellOff
 } from 'lucide-react';
 
 
@@ -2935,7 +2935,11 @@ const ChatApp = () => {
   const [error, setError] = useState(null);
   const [theme, setTheme] = useState('dark');
   const [booting, setBooting] = useState(false);
+  
+  // Audio Controls
   const [isMuted, setIsMuted] = useState(false);
+  const [isNotiMuted, setIsNotiMuted] = useState(false); // Independent Notification Mute
+  
   const [activeMenu, setActiveMenu] = useState(null); 
   const [replyingTo, setReplyingTo] = useState(null); 
   const [contextMenu, setContextMenu] = useState(null); 
@@ -2945,10 +2949,11 @@ const ChatApp = () => {
   const isDarkMode = theme === 'dark';
   const scrollRef = useRef(null);
   const audioRef = useRef(null);
-  const sfxRef = useRef({ in: new Audio(SOUNDS.in), out: new Audio(SOUNDS.out) });
+  const sfxInRef = useRef(null);
+  const sfxOutRef = useRef(null);
   const inputRef = useRef(null);
   const longPressTimer = useRef(null);
-  const lastMsgCount = useRef(0);
+  const lastMsgCount = useRef(-1); 
 
   const style = useMemo(() => ({
     bg: isDarkMode ? 'bg-[#0a0a0a]' : 'bg-[#c0c0c0]',
@@ -2958,6 +2963,12 @@ const ChatApp = () => {
     tileMe: isDarkMode ? 'border-t-2 border-l-2 border-black border-r-green-900 border-b-green-900 bg-green-950/30' : 'border-2 border-gray-400 border-l-white border-t-white bg-blue-50',
     tileOther: isDarkMode ? 'border-2 border-zinc-800 bg-[#111]' : 'border-2 border-gray-400 border-l-white border-t-white bg-white',
   }), [isDarkMode]);
+
+  // Initialize SFX Objects
+  useEffect(() => {
+    sfxInRef.current = new Audio(SOUNDS.in);
+    sfxOutRef.current = new Audio(SOUNDS.out);
+  }, []);
 
   // --- DERIVED MESSAGES ---
   const combinedMessages = useMemo(() => {
@@ -2989,13 +3000,13 @@ const ChatApp = () => {
   };
 
   const playSfx = (type) => {
-    if (isMuted) return;
-    const sound = sfxRef.current[type];
-    if (sound) { sound.currentTime = 0; sound.play().catch(() => {}); }
+    if (isNotiMuted) return; // CHECK INDEPENDENT MUTE
+    const sound = type === 'in' ? sfxInRef.current : sfxOutRef.current;
+    if (sound) {
+        sound.currentTime = 0;
+        sound.play().catch(() => {});
+    }
   };
-
-  const handleNextTrack = () => setTrackIndex(prev => (prev + 1) % CHAT_PLAYLIST.length);
-  const handlePrevTrack = () => setTrackIndex(prev => (prev - 1 + CHAT_PLAYLIST.length) % CHAT_PLAYLIST.length);
 
   const handleReaction = async (msgId, emojiKey) => {
     setContextMenu(null);
@@ -3066,6 +3077,10 @@ const ChatApp = () => {
         return; 
     }
     
+    // --- AUDIO WARM UP ---
+    if (sfxInRef.current) { sfxInRef.current.volume = 0; sfxInRef.current.play().then(() => { sfxInRef.current.pause(); sfxInRef.current.volume = 0.4; }).catch(() => {}); }
+    if (sfxOutRef.current) { sfxOutRef.current.volume = 0; sfxOutRef.current.play().then(() => { sfxOutRef.current.pause(); sfxOutRef.current.volume = 0.4; }).catch(() => {}); }
+
     localStorage.setItem('tbox_alias', name);
     localStorage.setItem('tbox_color', userColor);
     localStorage.setItem('tbox_avatar', userAvatar);
@@ -3115,17 +3130,23 @@ const ChatApp = () => {
         return { id: doc.id, ...data, _sortTs: ts };
       });
       const sorted = msgs.sort((a, b) => a._sortTs - b._sortTs).slice(-100);
-      if (sorted.length > lastMsgCount.current) {
-        const lastMsg = sorted[sorted.length - 1];
-        if (lastMsg && lastMsg.uid !== user.uid) playSfx('in');
+      
+      if (lastMsgCount.current !== -1) {
+          if (sorted.length > lastMsgCount.current) {
+            const lastMsg = sorted[sorted.length - 1];
+            if (lastMsg && lastMsg.uid !== user.uid) {
+                playSfx('in');
+            }
+          }
       }
+      
       lastMsgCount.current = sorted.length;
       setMessages(sorted);
       setPendingMessages(prev => prev.filter(pm => !msgs.some(m => m.text === pm.text && m.user === pm.user)));
       setIsConnected(true);
     }, () => setIsConnected(false));
     return () => unsubscribe();
-  }, [user]);
+  }, [user, isNotiMuted]); // Re-bind listener context if mute state changes
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -3209,8 +3230,9 @@ const ChatApp = () => {
         </div>
         <div className="flex items-center gap-3">
           <div className="flex items-center bg-black/20 rounded px-1.5 py-0.5 border border-white/10 gap-2">
-            <button onClick={(e) => {e.stopPropagation(); setTrackIndex(prev => (prev + 1) % CHAT_PLAYLIST.length);}} className="text-emerald-500 hover:text-white transition-colors"><SkipForward size={14}/></button>
-            <button onClick={(e) => {e.stopPropagation(); setIsMuted(!isMuted)}} className={`p-1 transition-all ${isMuted ? 'text-red-400' : 'text-emerald-500 animate-pulse'}`}>{isMuted ? <VolumeX size={14}/> : <Volume2 size={14}/>}</button>
+            <button onClick={(e) => {e.stopPropagation(); setTrackIndex(prev => (prev + 1) % CHAT_PLAYLIST.length);}} className="text-emerald-500 hover:text-white transition-colors" title="Skip Song"><SkipForward size={14}/></button>
+            <button onClick={(e) => {e.stopPropagation(); setIsMuted(!isMuted)}} className={`p-1 transition-all ${isMuted ? 'text-red-400' : 'text-emerald-500 animate-pulse'}`} title="Toggle Music">{isMuted ? <VolumeX size={14}/> : <Volume2 size={14}/>}</button>
+            <button onClick={(e) => {e.stopPropagation(); setIsNotiMuted(!isNotiMuted)}} className={`p-1 transition-all ${isNotiMuted ? 'text-red-400' : 'text-emerald-500'}`} title="Toggle Notis">{isNotiMuted ? <BellOff size={14}/> : <Bell size={14}/>}</button>
           </div>
           <div className="w-px h-3 bg-zinc-700" />
           <button onClick={(e) => {e.stopPropagation(); setActiveMenu(activeMenu === 'options' ? null : 'options')}} className={`p-1 transition-all ${activeMenu ? 'text-white scale-125' : 'text-emerald-500 hover:rotate-90'}`}><Settings size={16}/></button>
@@ -3236,6 +3258,9 @@ const ChatApp = () => {
                         <button onClick={() => setTrackIndex(p => (p+1)%CHAT_PLAYLIST.length)}><SkipForward size={16}/></button>
                     </div>
                   </div>
+                  <button onClick={() => setIsNotiMuted(!isNotiMuted)} className="w-full text-left px-2 py-1.5 hover:bg-[#000080] hover:text-white flex items-center gap-2 text-[10px] font-black uppercase">
+                    {isNotiMuted ? <Bell size={12}/> : <BellOff size={12}/>} {isNotiMuted ? "Unmute Notis" : "Mute Notis"}
+                  </button>
                   <button onClick={() => setActiveMenu('appearance')} className="w-full text-left px-2 py-1.5 hover:bg-[#000080] hover:text-white flex items-center gap-2 text-[10px] font-black uppercase"><Palette size={12}/> Appearance</button>
                   <button onClick={() => {localStorage.removeItem('tbox_alias'); setIsSetup(false);}} className="w-full text-left px-2 py-1.5 hover:bg-[#000080] hover:text-white flex items-center gap-2 text-[10px] font-black uppercase"><LogOut size={12}/> Logout</button>
                   <div className="h-px bg-gray-500 my-1"></div>
@@ -3283,7 +3308,7 @@ const ChatApp = () => {
       <div className="flex-1 relative overflow-hidden m-1 border-t-2 border-l-2 border-zinc-800 bg-transparent flex flex-col w-full">
         <div className={`absolute inset-0 z-0 pointer-events-none bg-cover bg-center transition-all duration-700 block md:hidden ${isDarkMode ? 'opacity-15 grayscale brightness-[0.25]' : 'opacity-[0.06] grayscale brightness-125'}`} style={{ backgroundImage: `url('chatwall.jpg')` }} />
 
-        {/* STICKY ALPHA PIN BAR (MINIMALIST) */}
+        {/* STICKY ALPHA PIN BAR */}
         <div 
             onClick={() => jumpToMessage('pinned-ca')}
             className={`sticky top-0 z-[60] w-full px-4 py-1.5 flex items-center justify-between cursor-pointer transition-colors border-b shadow-md backdrop-blur-sm ${isDarkMode ? 'bg-black/60 border-green-900/40 hover:bg-green-950/20' : 'bg-white/80 border-blue-100 hover:bg-blue-50'}`}
@@ -3350,14 +3375,12 @@ const ChatApp = () => {
 
                     <p className={`text-xs font-bold leading-relaxed break-words whitespace-pre-wrap ${isDarkMode ? 'text-white' : 'text-black'} ${isSystem ? 'text-emerald-400 font-black italic' : ''}`}>{String(msg.text)}</p>
                     
-                    {/* DESKTOP HOVER QUICK REPLY ARROW */}
                     {!isSystem && (
                         <div className={`absolute top-0 ${isMe ? '-left-8' : '-right-8'} opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer p-1 hidden md:block`} onClick={(e) => {e.stopPropagation(); startReply(msg)}}>
                             <Reply size={16} className={isDarkMode ? 'text-emerald-500' : 'text-blue-800'} />
                         </div>
                     )}
 
-                    {/* REACTION PILLS (FIXED VISIBILITY) */}
                     {(reactions.heart > 0 || reactions.up > 0 || reactions.down > 0) && (
                         <div className={`flex flex-wrap gap-1 mt-2 ${isMe ? 'justify-end' : 'justify-start'}`}>
                             {Object.entries(reactions).map(([key, count]) => count > 0 && (
