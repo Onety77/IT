@@ -2921,7 +2921,7 @@ const SOUNDS = {
 };
 
 const ChatApp = () => {
-  // --- STATE ---
+  // --- CORE STATE ---
   const [messages, setMessages] = useState([]);
   const [pendingMessages, setPendingMessages] = useState([]);
   const [inputText, setInputText] = useState("");
@@ -2953,7 +2953,7 @@ const ChatApp = () => {
   const sfxOutRef = useRef(null);
   const inputRef = useRef(null);
   const longPressTimer = useRef(null);
-  const lastMsgCount = useRef(-1); 
+  const isInitialLoad = useRef(true); // Flag for skipping history notification
   const touchStartPos = useRef({ x: 0, y: 0 });
 
   const style = useMemo(() => ({
@@ -3009,6 +3009,15 @@ const ChatApp = () => {
     }
   };
 
+  const jumpToMessage = (targetId) => {
+    const element = document.getElementById(`msg-${targetId}`);
+    if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        element.classList.add('msg-highlight');
+        setTimeout(() => element.classList.remove('msg-highlight'), 2000);
+    }
+  };
+
   const handleReaction = async (msgId, emojiKey) => {
     setContextMenu(null);
     if (!user) return;
@@ -3022,6 +3031,7 @@ const ChatApp = () => {
                 reactions: { heart: 0, up: 0, down: 0 }
             });
         }
+
         const storageKey = `reacted_${msgId}_${emojiKey}`;
         const alreadyReacted = localStorage.getItem(storageKey);
         
@@ -3032,7 +3042,7 @@ const ChatApp = () => {
             await updateDoc(msgRef, { [`reactions.${emojiKey}`]: increment(1) });
             localStorage.setItem(storageKey, "true");
         }
-    } catch (e) { console.error("Reaction failed:", e); }
+    } catch (e) { console.error("Reaction Sync Failed:", e); }
   };
 
   const handleSend = async (e) => {
@@ -3077,6 +3087,7 @@ const ChatApp = () => {
         return; 
     }
     
+    // --- AUDIO WARM UP ---
     if (sfxInRef.current) { sfxInRef.current.volume = 0; sfxInRef.current.play().then(() => { sfxInRef.current.pause(); sfxInRef.current.volume = 0.4; }).catch(() => {}); }
     if (sfxOutRef.current) { sfxOutRef.current.volume = 0; sfxOutRef.current.play().then(() => { sfxOutRef.current.pause(); sfxOutRef.current.volume = 0.4; }).catch(() => {}); }
 
@@ -3084,15 +3095,6 @@ const ChatApp = () => {
     localStorage.setItem('tbox_color', userColor);
     localStorage.setItem('tbox_avatar', userAvatar);
     setIsSetup(true);
-  };
-
-  const jumpToMessage = (targetId) => {
-    const element = document.getElementById(`msg-${targetId}`);
-    if (element) {
-        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        element.classList.add('msg-highlight');
-        setTimeout(() => element.classList.remove('msg-highlight'), 2000);
-    }
   };
 
   // --- FIREBASE SYNC ---
@@ -3130,14 +3132,19 @@ const ChatApp = () => {
       });
       const sorted = msgs.sort((a, b) => a._sortTs - b._sortTs).slice(-100);
       
-      if (lastMsgCount.current !== -1 && sorted.length > lastMsgCount.current) {
-        const lastMsg = sorted[sorted.length - 1];
-        if (lastMsg && lastMsg.uid !== user.uid) {
-            playSfx('in');
-        }
+      // NOTIFICATION LOGIC
+      if (!isInitialLoad.current) {
+          snapshot.docChanges().forEach(change => {
+            if (change.type === 'added') {
+                const addedData = change.doc.data();
+                if (addedData.uid !== user.uid) {
+                    playSfx('in');
+                }
+            }
+          });
       }
       
-      lastMsgCount.current = sorted.length;
+      isInitialLoad.current = false;
       setMessages(sorted);
       setPendingMessages(prev => prev.filter(pm => !msgs.some(m => m.text === pm.text && m.user === pm.user)));
       setIsConnected(true);
@@ -3145,12 +3152,17 @@ const ChatApp = () => {
     return () => unsubscribe();
   }, [user, isNotiMuted]);
 
-  // SMART SCROLL
+  // SMART AUTO SCROLL
   useEffect(() => {
-    if (scrollRef.current && lastMsgCount.current > messages.length) {
-        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    if (scrollRef.current) {
+        const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
+        const isAtBottom = scrollHeight - scrollTop - clientHeight < 150; // Threshold
+        // Scroll if it's the very first load OR if we're currently at the bottom
+        if (isAtBottom || messages.length <= 1) {
+            scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+        }
     }
-  }, [messages.length, pendingMessages.length]);
+  }, [combinedMessages, pendingMessages]);
 
   useEffect(() => {
     if (isSetup && !isMuted) {
@@ -3186,7 +3198,6 @@ const ChatApp = () => {
 
   const handleTouchEnd = () => { if (longPressTimer.current) clearTimeout(longPressTimer.current); };
 
-  // --- REUSABLE IDENTITY SELECTOR ---
   const IdentitySelector = () => (
     <div className="space-y-4 p-4 bg-black border-2 border-green-900 rounded shadow-inner" onClick={e => e.stopPropagation()}>
         <div className="space-y-2 text-center">
@@ -3253,11 +3264,11 @@ const ChatApp = () => {
         </div>
       </div>
 
-      {/* OPTIONS OVERLAY (RESTORED) */}
+      {/* OPTIONS OVERLAY */}
       {activeMenu === 'options' && (
           <div className="absolute top-10 right-2 w-56 bg-[#c0c0c0] border-2 border-white border-r-black border-b-black shadow-2xl z-[150] p-1 animate-in zoom-in-95 duration-100 text-black" onClick={e=>e.stopPropagation()}>
-              <div className="bg-[#000080] text-white text-[9px] font-bold px-2 py-1 flex items-center justify-between">
-                <span className="flex items-center gap-1"><Settings size={10}/> OPTIONS_MENU</span>
+              <div className="bg-[#000080] text-white text-[9px] font-bold px-2 py-1 flex items-center justify-between font-mono">
+                <span className="flex items-center gap-1 uppercase tracking-widest"><Settings size={10}/> OPTIONS_MENU</span>
                 <X size={10} className="cursor-pointer" onClick={() => setActiveMenu(null)} />
               </div>
               <div className="p-1 space-y-1">
@@ -3272,15 +3283,15 @@ const ChatApp = () => {
                   <button onClick={() => setIsNotiMuted(!isNotiMuted)} className="w-full text-left px-2 py-1.5 hover:bg-[#000080] hover:text-white flex items-center gap-2 text-[10px] font-black uppercase border border-transparent hover:border-white transition-all">
                     {isNotiMuted ? <Bell size={12}/> : <BellOff size={12}/>} {isNotiMuted ? "Unmute Notifications" : "Mute Notifications"}
                   </button>
-                  <button onClick={() => setActiveMenu('appearance')} className="w-full text-left px-2 py-1.5 hover:bg-[#000080] hover:text-white flex items-center gap-2 text-[10px] font-black uppercase border border-transparent hover:border-white transition-all"><Palette size={12}/> Identity Settings</button>
-                  <button onClick={() => {localStorage.removeItem('tbox_alias'); setIsSetup(false);}} className="w-full text-left px-2 py-1.5 hover:bg-[#000080] hover:text-white flex items-center gap-2 text-[10px] font-black uppercase border border-transparent hover:border-white transition-all"><LogOut size={12}/> Logout</button>
+                  <button onClick={() => setActiveMenu('appearance')} className="w-full text-left px-2 py-1.5 hover:bg-[#000080] hover:text-white flex items-center gap-2 text-[10px] font-black uppercase border border-transparent hover:border-white transition-all"><Palette size={12}/> Appearance Settings</button>
+                  <button onClick={() => {localStorage.removeItem('tbox_alias'); setIsSetup(false);}} className="w-full text-left px-2 py-1.5 hover:bg-[#000080] hover:text-white flex items-center gap-2 text-[10px] font-black uppercase border border-transparent hover:border-white transition-all"><LogOut size={12}/> Logout Link</button>
                   <div className="h-px bg-gray-500 my-1"></div>
-                  <button onClick={(e) => {localStorage.clear(); window.location.reload();}} className="w-full text-left px-2 py-1.5 hover:bg-red-700 hover:text-white text-red-800 flex items-center gap-2 text-[10px] font-black uppercase border border-transparent hover:border-white transition-all"><Trash2 size={12}/> Burn Data</button>
+                  <button onClick={(e) => {localStorage.clear(); window.location.reload();}} className="w-full text-left px-2 py-1.5 hover:bg-red-700 hover:text-white text-red-800 flex items-center gap-2 text-[10px] font-black uppercase border border-transparent hover:border-white transition-all"><Trash2 size={12}/> Burn Identity</button>
               </div>
           </div>
       )}
 
-      {/* APPEARANCE MODAL (RESTORED) */}
+      {/* APPEARANCE MODAL */}
       {activeMenu === 'appearance' && (
           <div className="absolute inset-0 bg-black/90 backdrop-blur-md z-[200] flex items-center justify-center p-4" onClick={e=>e.stopPropagation()}>
               <div className="w-full max-w-xs bg-[#c0c0c0] border-2 border-white border-r-black border-b-black p-1 shadow-2xl">
