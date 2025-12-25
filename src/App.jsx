@@ -2963,7 +2963,7 @@ const ChatApp = () => {
   const combinedMessages = useMemo(() => {
     const pinnedMsg = {
         id: 'pinned-ca',
-        user: 'SYSTEM_ADMIN',
+        user: 'KERNEL_SYSTEM',
         text: CA_ADDRESS,
         color: '#10b981',
         avatar: '/pfps/mask.jpg',
@@ -2977,7 +2977,7 @@ const ChatApp = () => {
 
   // --- HANDLERS ---
   const handleCopyCA = (e) => {
-    e?.stopPropagation();
+    e?.stopPropagation(); // CRITICAL: Stop propagation so it doesn't trigger scroll
     const textArea = document.createElement("textarea");
     textArea.value = CA_ADDRESS;
     document.body.appendChild(textArea);
@@ -2994,8 +2994,14 @@ const ChatApp = () => {
     if (sound) { sound.currentTime = 0; sound.play().catch(() => {}); }
   };
 
-  const handleNextTrack = () => setTrackIndex(prev => (prev + 1) % CHAT_PLAYLIST.length);
-  const handlePrevTrack = () => setTrackIndex(prev => (prev - 1 + CHAT_PLAYLIST.length) % CHAT_PLAYLIST.length);
+  const jumpToMessage = (targetId) => {
+    const element = document.getElementById(`msg-${targetId}`);
+    if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        element.classList.add('msg-highlight');
+        setTimeout(() => element.classList.remove('msg-highlight'), 2000);
+    }
+  };
 
   const handleReaction = async (msgId, emojiKey) => {
     setContextMenu(null);
@@ -3006,7 +3012,7 @@ const ChatApp = () => {
         const snap = await getDoc(msgRef);
         if (!snap.exists() && msgId === 'pinned-ca') {
             await setDoc(msgRef, {
-                user: 'SYSTEM_ADMIN', text: CA_ADDRESS, _sortTs: -1,
+                user: 'KERNEL_SYSTEM', text: CA_ADDRESS, _sortTs: -1,
                 reactions: { heart: 0, up: 0, down: 0 }
             });
         }
@@ -3057,13 +3063,19 @@ const ChatApp = () => {
     setTimeout(() => inputRef.current?.focus(), 50);
   };
 
-  const jumpToMessage = (targetId) => {
-    const element = document.getElementById(`msg-${targetId}`);
-    if (element) {
-        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        element.classList.add('msg-highlight');
-        setTimeout(() => element.classList.remove('msg-highlight'), 2000);
+  const handleInitialize = () => {
+    const name = username.trim().toUpperCase();
+    const forbidden = ["ADMIN", "SYSTEM", "KERNEL", "IT_OS", "MOD"];
+    if (name.length < 2) { setError("ALIAS_TOO_SHORT"); return; }
+    if (forbidden.some(word => name.includes(word))) { 
+        setError("RESERVED_IDENTITY_BLOCK"); 
+        return; 
     }
+    
+    localStorage.setItem('tbox_alias', name);
+    localStorage.setItem('tbox_color', userColor);
+    localStorage.setItem('tbox_avatar', userAvatar);
+    setIsSetup(true);
   };
 
   // --- FIREBASE SYNC ---
@@ -3153,6 +3165,7 @@ const ChatApp = () => {
             <div className="space-y-2 text-center">
               <label className="text-[9px] text-emerald-700 font-black tracking-[0.2em] uppercase block">Assign Alias</label>
               <input autoFocus value={username} onChange={(e) => setUsername(e.target.value.toUpperCase())} className="w-full bg-black border-b-2 border-emerald-900 text-emerald-400 p-3 text-center text-xl font-black outline-none focus:border-emerald-500" placeholder="NAME_IT" />
+              {error && <div className="text-[8px] text-red-500 font-bold animate-pulse mt-2">{String(error)}</div>}
             </div>
             
             <div className="space-y-4 p-4 bg-black border-2 border-green-900 rounded shadow-inner" onClick={e => e.stopPropagation()}>
@@ -3176,7 +3189,7 @@ const ChatApp = () => {
                 </div>
             </div>
 
-            <button onClick={() => { localStorage.setItem('tbox_alias', username); localStorage.setItem('tbox_color', userColor); localStorage.setItem('tbox_avatar', userAvatar); setIsSetup(true); }} className="w-full bg-[#c0c0c0] text-black border-2 border-gray-400 border-l-white border-t-white py-4 font-black text-sm active:translate-y-1 hover:bg-white transition-colors uppercase">Establish Uplink</button>
+            <button onClick={handleInitialize} className="w-full bg-[#c0c0c0] text-black border-2 border-gray-400 border-l-white border-t-white py-4 font-black text-sm active:translate-y-1 hover:bg-white transition-colors uppercase">Establish Uplink</button>
           </div>
         </div>
       </div>
@@ -3193,7 +3206,7 @@ const ChatApp = () => {
         </div>
         <div className="flex items-center gap-3">
           <div className="flex items-center bg-black/20 rounded px-1.5 py-0.5 border border-white/10 gap-2">
-            <button onClick={(e) => {e.stopPropagation(); handleNextTrack();}} className="text-emerald-500 hover:text-white transition-colors"><SkipForward size={14}/></button>
+            <button onClick={(e) => {e.stopPropagation(); setTrackIndex(prev => (prev + 1) % CHAT_PLAYLIST.length);}} className="text-emerald-500 hover:text-white transition-colors"><SkipForward size={14}/></button>
             <button onClick={(e) => {e.stopPropagation(); setIsMuted(!isMuted)}} className={`p-1 transition-all ${isMuted ? 'text-red-400' : 'text-emerald-500 animate-pulse'}`}>{isMuted ? <VolumeX size={14}/> : <Volume2 size={14}/>}</button>
           </div>
           <div className="w-px h-3 bg-zinc-700" />
@@ -3215,9 +3228,9 @@ const ChatApp = () => {
                   <div className="p-2 bg-black border border-white/10 rounded mb-2 text-center">
                     <div className="text-[8px] font-black text-emerald-500 mb-2 truncate uppercase tracking-widest">{CHAT_PLAYLIST[trackIndex].title}</div>
                     <div className="flex justify-center items-center gap-4 text-white">
-                        <button onClick={handlePrevTrack}><SkipBack size={16}/></button>
+                        <button onClick={() => setTrackIndex(p => (p-1+CHAT_PLAYLIST.length)%CHAT_PLAYLIST.length)}><SkipBack size={16}/></button>
                         <button onClick={() => setIsMuted(!isMuted)}>{isMuted ? <Play size={16}/> : <Pause size={16}/>}</button>
-                        <button onClick={handleNextTrack}><SkipForward size={16}/></button>
+                        <button onClick={() => setTrackIndex(p => (p+1)%CHAT_PLAYLIST.length)}><SkipForward size={16}/></button>
                     </div>
                   </div>
                   <button onClick={() => setActiveMenu('appearance')} className="w-full text-left px-2 py-1.5 hover:bg-[#000080] hover:text-white flex items-center gap-2 text-[10px] font-black uppercase"><Palette size={12}/> Appearance</button>
@@ -3269,14 +3282,14 @@ const ChatApp = () => {
 
         {/* STICKY ALPHA PIN BAR (MINIMALIST) */}
         <div 
-            onClick={handleCopyCA}
+            onClick={() => jumpToMessage('pinned-ca')}
             className={`sticky top-0 z-[60] w-full px-4 py-1.5 flex items-center justify-between cursor-pointer transition-colors border-b shadow-md backdrop-blur-sm ${isDarkMode ? 'bg-black/60 border-green-900/40 hover:bg-green-950/20' : 'bg-white/80 border-blue-100 hover:bg-blue-50'}`}
         >
             <div className="flex items-center gap-1.5 text-[#10b981] font-black text-[7px] uppercase tracking-[0.2em] italic">
                 PINNED MESSAGE:
             </div>
             <div className={`text-[7px] font-mono font-bold truncate flex-1 px-4 ${isDarkMode ? 'text-green-500/60' : 'text-blue-900/60'}`}>{CA_ADDRESS}</div>
-            <div className="flex items-center gap-1 text-[7px] font-black opacity-40">
+            <div onClick={handleCopyCA} className="flex items-center gap-1 text-[7px] font-black opacity-40 hover:opacity-100 transition-opacity">
                 {copiedCA ? <Check size={8} className="text-green-500"/> : <Copy size={8}/>} {copiedCA ? 'COPIED' : 'COPY'}
             </div>
         </div>
@@ -3290,7 +3303,7 @@ const ChatApp = () => {
 
           {combinedMessages.map((msg) => {
             const isMe = msg.uid === user?.uid || msg.user === username;
-            const isSystem = msg.user === 'SYSTEM_ADMIN';
+            const isSystem = msg.user === 'KERNEL_SYSTEM';
             const mColor = isSystem ? '#10b981' : (msg.color || '#3b82f6');
             const reactions = msg.reactions || { heart: 0, up: 0, down: 0 };
 
@@ -3397,7 +3410,6 @@ const ChatApp = () => {
     </div>
   );
 };
-
 
 
 
