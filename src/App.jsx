@@ -20,7 +20,7 @@ import {
   Lightbulb, TrendingUp, Sparkles, RefreshCw, Trophy, Info, Flame, Share2, Joystick, VolumeX,
   TrendingDown, ShieldAlert, Cpu, BarChart3, Binary, Grid, ZoomIn, FileImage,
   Wifi, Hash, Lock, Sun, Moon, Database, Radio, Command, Palette, UserCircle,
-  ShieldCheck, Shield, Reply, Quote, CornerDownRight, Heart, ThumbsUp, ThumbsDown, Anchor
+  ShieldCheck, Shield, Reply, Quote, CornerDownRight, Heart, ThumbsUp, ThumbsDown, Anchor, Crown
 } from 'lucide-react';
 
 
@@ -2977,7 +2977,7 @@ const ChatApp = () => {
 
   // --- HANDLERS ---
   const handleCopyCA = (e) => {
-    e?.stopPropagation(); // CRITICAL: Stop propagation so it doesn't trigger scroll
+    e?.stopPropagation();
     const textArea = document.createElement("textarea");
     textArea.value = CA_ADDRESS;
     document.body.appendChild(textArea);
@@ -2994,14 +2994,8 @@ const ChatApp = () => {
     if (sound) { sound.currentTime = 0; sound.play().catch(() => {}); }
   };
 
-  const jumpToMessage = (targetId) => {
-    const element = document.getElementById(`msg-${targetId}`);
-    if (element) {
-        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        element.classList.add('msg-highlight');
-        setTimeout(() => element.classList.remove('msg-highlight'), 2000);
-    }
-  };
+  const handleNextTrack = () => setTrackIndex(prev => (prev + 1) % CHAT_PLAYLIST.length);
+  const handlePrevTrack = () => setTrackIndex(prev => (prev - 1 + CHAT_PLAYLIST.length) % CHAT_PLAYLIST.length);
 
   const handleReaction = async (msgId, emojiKey) => {
     setContextMenu(null);
@@ -3076,6 +3070,15 @@ const ChatApp = () => {
     localStorage.setItem('tbox_color', userColor);
     localStorage.setItem('tbox_avatar', userAvatar);
     setIsSetup(true);
+  };
+
+  const jumpToMessage = (targetId) => {
+    const element = document.getElementById(`msg-${targetId}`);
+    if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        element.classList.add('msg-highlight');
+        setTimeout(() => element.classList.remove('msg-highlight'), 2000);
+    }
   };
 
   // --- FIREBASE SYNC ---
@@ -3165,7 +3168,7 @@ const ChatApp = () => {
             <div className="space-y-2 text-center">
               <label className="text-[9px] text-emerald-700 font-black tracking-[0.2em] uppercase block">Assign Alias</label>
               <input autoFocus value={username} onChange={(e) => setUsername(e.target.value.toUpperCase())} className="w-full bg-black border-b-2 border-emerald-900 text-emerald-400 p-3 text-center text-xl font-black outline-none focus:border-emerald-500" placeholder="NAME_IT" />
-              {error && <div className="text-[8px] text-red-500 font-bold animate-pulse mt-2">{String(error)}</div>}
+              {error && <div className="text-[8px] text-red-500 font-bold animate-pulse mt-2 tracking-widest">{String(error)}</div>}
             </div>
             
             <div className="space-y-4 p-4 bg-black border-2 border-green-900 rounded shadow-inner" onClick={e => e.stopPropagation()}>
@@ -3295,7 +3298,7 @@ const ChatApp = () => {
         </div>
 
         {/* MESSAGE STREAM */}
-        <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden p-4 scrollbar-classic space-y-6 scroll-smooth z-10 w-full box-border">
+        <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden p-4 scrollbar-classic space-y-6 scroll-smooth z-10 w-full box-border text-xs">
           <div className="flex flex-col items-center py-6 border-b border-dashed border-zinc-800 mb-8 opacity-40 relative z-10 text-center">
             <Shield size={20} className={isDarkMode ? 'text-emerald-500' : 'text-blue-900'} />
             <span className="text-[7px] font-black uppercase tracking-[0.5em] mt-2 italic">Degen_Frequency_Broadcast_Live</span>
@@ -3308,7 +3311,10 @@ const ChatApp = () => {
             const reactions = msg.reactions || { heart: 0, up: 0, down: 0 };
 
             return (
-              <div key={msg.id} id={`msg-${msg.id}`} onContextMenu={(e) => onMsgContextMenu(e, msg)} onTouchStart={() => handleTouchStart(msg)} onTouchEnd={handleTouchEnd}
+              <div key={msg.id} id={`msg-${msg.id}`} 
+                  onContextMenu={(e) => onMsgContextMenu(e, msg)} 
+                  onTouchStart={() => handleTouchStart(msg)} 
+                  onTouchEnd={handleTouchEnd}
                   onDoubleClick={(e) => { e.preventDefault(); handleReaction(msg.id, 'heart'); }}
                   className={`flex gap-3 animate-in fade-in slide-in-from-bottom-2 duration-300 transition-all max-w-full relative group ${isMe ? 'flex-row-reverse text-right' : 'flex-row'} ${msg.pending ? 'opacity-40 animate-pulse' : ''}`}
               >
@@ -3318,12 +3324,20 @@ const ChatApp = () => {
                 
                 <div className={`flex flex-col min-w-0 max-w-[80vw] md:max-w-[70%] ${isMe ? 'items-end' : 'items-start'}`}>
                   <div className={`flex items-center gap-2 mb-1 px-1 truncate ${isMe ? 'flex-row-reverse' : ''}`}>
-                    <span className="text-[10px] font-black uppercase tracking-tighter truncate" style={{ color: mColor }}>{String(msg.user)}</span>
-                    {!isSystem && <span className="text-[7px] opacity-30">[{new Date(msg._sortTs).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}]</span>}
-                    {isSystem && <span className="text-[7px] text-green-500 font-black animate-pulse uppercase px-1 border border-green-900/50">PINNED</span>}
+                    {isSystem ? (
+                        <div className="flex items-center gap-1.5 bg-green-950/40 px-2 py-0.5 rounded-sm border border-green-500/30 animate-pulse">
+                            <Crown size={10} className="text-emerald-400" />
+                            <span className="text-[10px] font-black text-emerald-400 tracking-widest drop-shadow-[0_0_5px_#10b981] uppercase">ADMIN</span>
+                        </div>
+                    ) : (
+                        <>
+                            <span className="text-[10px] font-black uppercase tracking-tighter truncate" style={{ color: mColor }}>{String(msg.user)}</span>
+                            <span className="text-[7px] opacity-30">[{new Date(msg._sortTs).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}]</span>
+                        </>
+                    )}
                   </div>
 
-                  <div className={`p-3 relative group transition-all duration-200 shadow-md w-fit max-w-full break-words ${isMe ? style.tileMe : style.tileOther} ${isSystem ? 'cursor-pointer hover:bg-green-950/20' : ''}`}
+                  <div className={`p-3 relative group transition-all duration-200 shadow-md w-fit max-w-full break-words ${isMe ? style.tileMe : style.tileOther} ${isSystem ? 'cursor-pointer border-emerald-500/50 bg-green-950/10' : ''}`}
                       style={{ borderLeft: !isMe ? `3px solid ${mColor}` : undefined, borderRight: isMe ? `3px solid ${mColor}` : undefined }}
                       onClick={isSystem ? handleCopyCA : undefined}
                   >
@@ -3334,7 +3348,7 @@ const ChatApp = () => {
                       </div>
                     )}
 
-                    <p className={`text-xs font-bold leading-relaxed break-words whitespace-pre-wrap ${isDarkMode ? 'text-white' : 'text-black'}`}>{String(msg.text)}</p>
+                    <p className={`text-xs font-bold leading-relaxed break-words whitespace-pre-wrap ${isDarkMode ? 'text-white' : 'text-black'} ${isSystem ? 'text-emerald-400 font-black italic' : ''}`}>{String(msg.text)}</p>
                     
                     {/* DESKTOP HOVER QUICK REPLY ARROW */}
                     {!isSystem && (
@@ -3410,6 +3424,7 @@ const ChatApp = () => {
     </div>
   );
 };
+
 
 
 
