@@ -2953,7 +2953,7 @@ const ChatApp = () => {
   const sfxOutRef = useRef(null);
   const inputRef = useRef(null);
   const longPressTimer = useRef(null);
-  const isInitialLoad = useRef(true); // Flag for skipping history notification
+  const isInitialLoad = useRef(true); 
   const touchStartPos = useRef({ x: 0, y: 0 });
 
   const style = useMemo(() => ({
@@ -2965,13 +2965,11 @@ const ChatApp = () => {
     tileOther: isDarkMode ? 'border-2 border-zinc-800 bg-[#111]' : 'border-2 border-gray-400 border-l-white border-t-white bg-white',
   }), [isDarkMode]);
 
-  // Audio Init
   useEffect(() => {
     sfxInRef.current = new Audio(SOUNDS.in);
     sfxOutRef.current = new Audio(SOUNDS.out);
   }, []);
 
-  // --- DERIVED MESSAGES ---
   const combinedMessages = useMemo(() => {
     const pinnedMsg = {
         id: 'pinned-ca',
@@ -2987,7 +2985,6 @@ const ChatApp = () => {
     return combined.sort((a, b) => a._sortTs - b._sortTs);
   }, [messages, pendingMessages]);
 
-  // --- HANDLERS ---
   const handleCopyCA = (e) => {
     e?.stopPropagation();
     const textArea = document.createElement("textarea");
@@ -3057,7 +3054,15 @@ const ChatApp = () => {
         id: tempId, text, user: username, color: userColor, avatar: userAvatar, _sortTs: Date.now(), replyTo: currentReply, pending: true, reactions: { heart:0, up:0, down:0 }
     }]);
 
-    setInputText(""); setReplyingTo(null); setCooldown(2); playSfx('out');
+    setInputText(""); 
+    setReplyingTo(null); 
+    setCooldown(2); 
+    playSfx('out');
+
+    // FIX: Re-focus the input box immediately so the user can keep typing
+    setTimeout(() => {
+        inputRef.current?.focus();
+    }, 10);
 
     try {
       await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'trollbox_messages'), {
@@ -3087,7 +3092,6 @@ const ChatApp = () => {
         return; 
     }
     
-    // --- AUDIO WARM UP ---
     if (sfxInRef.current) { sfxInRef.current.volume = 0; sfxInRef.current.play().then(() => { sfxInRef.current.pause(); sfxInRef.current.volume = 0.4; }).catch(() => {}); }
     if (sfxOutRef.current) { sfxOutRef.current.volume = 0; sfxOutRef.current.play().then(() => { sfxOutRef.current.pause(); sfxOutRef.current.volume = 0.4; }).catch(() => {}); }
 
@@ -3132,7 +3136,6 @@ const ChatApp = () => {
       });
       const sorted = msgs.sort((a, b) => a._sortTs - b._sortTs).slice(-100);
       
-      // NOTIFICATION LOGIC
       if (!isInitialLoad.current) {
           snapshot.docChanges().forEach(change => {
             if (change.type === 'added') {
@@ -3156,8 +3159,7 @@ const ChatApp = () => {
   useEffect(() => {
     if (scrollRef.current) {
         const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
-        const isAtBottom = scrollHeight - scrollTop - clientHeight < 150; // Threshold
-        // Scroll if it's the very first load OR if we're currently at the bottom
+        const isAtBottom = scrollHeight - scrollTop - clientHeight < 150; 
         if (isAtBottom || messages.length <= 1) {
             scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
         }
