@@ -42,7 +42,6 @@ const appId = 'it-token-os';
 const CA_ADDRESS = "9RgsMRGBjJMhppZEV77iDa83KwfZbTmnXSuas2G1pump";
 const ACCESS_THRESHOLD = 500000; // 500k IT tokens
 
-// High-priority RPCs for token account parsing
 const RPC_ENDPOINTS = [
   'https://api.mainnet-beta.solana.com',
   'https://solana-mainnet.rpc.extrnode.com',
@@ -115,9 +114,15 @@ const useWallet = () => {
 
     setConnecting(true);
     try {
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
       if (window.solana && window.solana.isPhantom) {
         const resp = await window.solana.connect();
         setWallet(resp.publicKey.toString());
+      } else if (isMobile) {
+        // MOBILE DEEP LINK FIX
+        const currentUrl = window.location.href;
+        window.location.href = `https://phantom.app/ul/browse/${encodeURIComponent(currentUrl)}`;
       } else {
         window.open("https://phantom.app/", "_blank");
       }
@@ -314,56 +319,90 @@ const StartMenu = ({ isOpen, onClose, onOpenApp }) => {
   );
 };
 
+// --- SYSTEM RESOURCE MONITOR (Adaptive Responsive Fix) ---
 const SystemResourceMonitor = ({ wallet, balance, hasAccess }) => {
+    const [isExpanded, setIsExpanded] = useState(false);
+    const monitorRef = useRef(null);
     const formattedBalance = balance ? balance.toLocaleString(undefined, { maximumFractionDigits: 0 }) : '0';
     const buyLink = `https://jup.ag/swap/SOL-${CA_ADDRESS}`;
 
+    // Auto-shrink when clicking away
+    useEffect(() => {
+        const handleClickAway = (e) => {
+            if (monitorRef.current && !monitorRef.current.contains(e.target)) {
+                setIsExpanded(false);
+            }
+        };
+        if (isExpanded) {
+            document.addEventListener('mousedown', handleClickAway);
+            document.addEventListener('touchstart', handleClickAway);
+        }
+        return () => {
+            document.removeEventListener('mousedown', handleClickAway);
+            document.removeEventListener('touchstart', handleClickAway);
+        };
+    }, [isExpanded]);
+
     return (
-        <div className="fixed top-4 right-4 z-[5] flex flex-col items-end pointer-events-none">
-            <div className="bg-black/60 backdrop-blur-md border-2 border-white border-r-gray-700 border-b-gray-700 p-3 w-64 shadow-[10px_10px_0px_rgba(0,0,0,0.5)] pointer-events-auto group hover:scale-[1.02] transition-transform font-mono">
-                <div className="flex justify-between items-center border-b border-white/20 pb-2 mb-2">
-                    <div className="flex items-center gap-2">
-                        <Cpu size={14} className="text-white animate-pulse" />
-                        <span className="text-[10px] font-black text-white uppercase tracking-widest leading-none">KERNEL_TELEMETRY</span>
-                    </div>
-                    <div className={`w-2 h-2 rounded-full border border-black/40 ${wallet ? 'bg-green-500 shadow-[0_0_8px_#22c55e] animate-pulse' : 'bg-red-500 shadow-[0_0_8px_#ef4444]'}`} />
+        <div 
+            ref={monitorRef}
+            onClick={() => setIsExpanded(!isExpanded)}
+            className={`fixed top-4 right-4 z-[5] flex flex-col items-end transition-all duration-300 pointer-events-auto cursor-pointer ${isExpanded ? 'w-64' : 'w-auto'}`}
+        >
+            {!isExpanded ? (
+                /* Compact View (Mobile Friendly) */
+                <div className="bg-black/80 backdrop-blur-md border border-white p-2 flex items-center gap-2 shadow-lg hover:bg-black transition-colors rounded-sm">
+                    <Cpu size={14} className="text-white animate-pulse" />
+                    <span className="text-[11px] font-bold text-white font-mono">
+                        {wallet ? `${formattedBalance} IT` : '[NO_LINK]'}
+                    </span>
+                    <div className={`w-1.5 h-1.5 rounded-full ${wallet ? 'bg-green-500 shadow-[0_0_5px_#22c55e]' : 'bg-red-500 shadow-[0_0_5px_#ef4444]'}`} />
                 </div>
-                <div className="space-y-3">
-                    <div className="flex flex-col">
-                        <div className="flex justify-between items-end">
-                            <span className="text-gray-400 text-[8px] uppercase tracking-tighter">Neural Reserves</span>
-                            <span className={`text-xs font-black tracking-tighter ${hasAccess ? 'text-blue-400' : 'text-yellow-500'}`}>
-                                {wallet ? `${formattedBalance} $IT` : 'N/A'}
-                            </span>
+            ) : (
+                /* Expanded View (Full Telemetry) */
+                <div className="bg-black/60 backdrop-blur-md border-2 border-white border-r-gray-700 border-b-gray-700 p-3 w-full shadow-[10px_10px_0px_rgba(0,0,0,0.5)] font-mono">
+                    <div className="flex justify-between items-center border-b border-white/20 pb-2 mb-2">
+                        <div className="flex items-center gap-2">
+                            <Cpu size={14} className="text-white animate-pulse" />
+                            <span className="text-[10px] font-black text-white uppercase tracking-widest leading-none">KERNEL_TELEMETRY</span>
                         </div>
-                        <div className="w-full h-2 bg-gray-900 border border-gray-700 mt-1 overflow-hidden p-[1px]">
-                            <div 
-                                className={`h-full transition-all duration-1000 ${hasAccess ? 'bg-blue-500 shadow-[0_0_5px_#3b82f6]' : 'bg-yellow-500 animate-pulse'}`}
-                                style={{ width: wallet ? `${Math.min(100, (balance / ACCESS_THRESHOLD) * 100)}%` : '0%' }}
-                            />
+                        <div className={`w-2 h-2 rounded-full border border-black/40 ${wallet ? 'bg-green-500 shadow-[0_0_8px_#22c55e] animate-pulse' : 'bg-red-500 shadow-[0_0_8px_#ef4444]'}`} />
+                    </div>
+                    <div className="space-y-3">
+                        <div className="flex flex-col">
+                            <div className="flex justify-between items-end">
+                                <span className="text-gray-400 text-[8px] uppercase tracking-tighter">Neural Reserves</span>
+                                <span className={`text-xs font-black tracking-tighter ${hasAccess ? 'text-blue-400' : 'text-yellow-500'}`}>
+                                    {wallet ? `${formattedBalance} $IT` : 'N/A'}
+                                </span>
+                            </div>
+                            <div className="w-full h-2 bg-gray-900 border border-gray-700 mt-1 overflow-hidden p-[1px]">
+                                <div 
+                                    className={`h-full transition-all duration-1000 ${hasAccess ? 'bg-blue-500 shadow-[0_0_5px_#3b82f6]' : 'bg-yellow-500 animate-pulse'}`}
+                                    style={{ width: wallet ? `${Math.min(100, (balance / ACCESS_THRESHOLD) * 100)}%` : '0%' }}
+                                />
+                            </div>
+                        </div>
+                        <div className="flex flex-col gap-1 items-center justify-center py-1">
+                            {!wallet ? (
+                                <div className="text-red-500 text-[9px] font-black uppercase text-center animate-pulse tracking-widest italic">[ UPLINK_REQUIRED ]</div>
+                            ) : !hasAccess ? (
+                                <a href={buyLink} target="_blank" rel="noopener noreferrer" className="w-full bg-yellow-600/20 border border-yellow-600 p-2 text-center text-yellow-400 hover:bg-yellow-600 hover:text-black transition-all animate-pulse text-[9px] font-black uppercase leading-tight flex items-center justify-center gap-2">
+                                    <ShoppingCart size={12}/> LOW POWER: BUY IT NOW
+                                </a>
+                            ) : (
+                                <div className="w-full bg-green-900/20 border border-green-500 p-2 text-center text-green-400 text-[9px] font-black uppercase flex items-center justify-center gap-2">
+                                    <ShieldCheck size={12}/> PROTOCOL: ACCESS_GRANTED
+                                </div>
+                            )}
                         </div>
                     </div>
-                    <div className="flex flex-col gap-1 items-center justify-center py-1">
-                        {!wallet ? (
-                            <div className="text-red-500 text-[9px] font-black uppercase text-center animate-pulse tracking-widest italic">
-                                [ UPLINK_REQUIRED ]
-                            </div>
-                        ) : !hasAccess ? (
-                            <a href={buyLink} target="_blank" rel="noopener noreferrer" className="w-full bg-yellow-600/20 border border-yellow-600 p-2 text-center text-yellow-400 hover:bg-yellow-600 hover:text-black transition-all animate-pulse text-[9px] font-black uppercase leading-tight flex items-center justify-center gap-2">
-                                <ShoppingCart size={12}/> LOW POWER: BUY IT NOW
-                            </a>
-                        ) : (
-                            <div className="w-full bg-green-900/20 border border-green-500 p-2 text-center text-green-400 text-[9px] font-black uppercase flex items-center justify-center gap-2">
-                                <ShieldCheck size={12}/> PROTOCOL: ACCESS_GRANTED
-                            </div>
-                        )}
+                    <div className="mt-2 pt-1 border-t border-white/10 flex justify-between items-center opacity-40">
+                        <span className="text-[7px] font-bold text-gray-400 uppercase tracking-widest">Sync cycle: 20s</span>
+                        <span className="text-[7px] font-bold text-white uppercase italic">HOLD IT</span>
                     </div>
                 </div>
-                <div className="mt-2 pt-1 border-t border-white/10 flex justify-between items-center opacity-40">
-                    <span className="text-[7px] font-bold text-gray-400 uppercase tracking-widest">Sync cycle: 20s</span>
-                    <span className="text-[7px] font-bold text-white uppercase italic">HOLD IT</span>
-                </div>
-            </div>
+            )}
         </div>
     );
 };
@@ -4393,7 +4432,7 @@ export default function UltimateOS() {
     <div className="w-full h-screen relative overflow-hidden font-sans select-none text-black">
       {/* Background & Icons */}
       <div className="absolute inset-0 z-0 bg-cover bg-center" style={{ backgroundImage: `url(${ASSETS.wallpaper})`, backgroundColor: '#008080' }}></div>
-      <div className="absolute top-0 left-0 p-4 z-0 flex flex-col gap-4 flex-wrap max-h-full">
+      <div className="absolute top-0 left-0 p-4 z-0 flex flex-col gap-4 flex-wrap max-h-full content-start">
         <DesktopIcon icon={Terminal} label="Terminal" onClick={() => openApp('terminal')} />
         <DesktopIcon icon={Lightbulb} label="Meme Mind" onClick={() => openApp('mememind')} />
         <DesktopIcon icon={Joystick} label="Merge IT" onClick={() => openApp('mergeit')} />
@@ -4473,10 +4512,10 @@ export default function UltimateOS() {
             <button key={win.id} onClick={() => handleTaskbarClick(win.id)} className={`min-w-[80px] max-w-[120px] h-8 truncate px-2 border-2 text-xs flex items-center ${win.id === activeWindowId && !win.isMinimized ? 'bg-white border-black font-bold' : 'border-white bg-[#c0c0c0]'}`}>{win.title}</button>
           ))}
         </div>
-        <div className="flex items-center gap-2 px-2 py-1 border-2 border-gray-500 bg-[#c0c0c0] ml-auto h-8 shadow-[inset_1px_1px_rgba(0,0,0,0.1)]">
+        <div className="flex items-center gap-2 px-2 py-1 border-2 border-gray-500 bg-[#c0c0c0] border-t-gray-700 border-l-gray-700 ml-auto h-8 shadow-inner">
           <button className={`h-6 text-[10px] font-mono px-2 border border-gray-600 ${caCopied ? 'bg-green-200 text-green-800' : 'bg-[#d0d0d0]'}`} onClick={handleCopyCA}>{caCopied ? 'COPIED!' : 'CA_KEY'}</button>
           <button onClick={connect} className="text-[10px] px-2 h-6 border border-gray-600 bg-[#d0d0d0] shadow-sm font-bold">{wallet ? `${wallet.slice(0,4)}..` : "LINK_SOL"}</button>
-          <span className="text-[10px] font-bold">{new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>
+          <span className="text-[10px] font-bold hidden sm:block ml-2 opacity-60">{new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>
         </div>
       </div>
     </div>
