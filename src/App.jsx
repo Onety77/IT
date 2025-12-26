@@ -21,7 +21,7 @@ import {
   TrendingDown, ShieldAlert, Cpu, BarChart3, Binary, Grid, ZoomIn, FileImage,
   Wifi, Hash, Lock, Unlock, Sun, Moon, Database, Radio, Command, Palette, UserCircle,
   ShieldCheck, Shield, Reply, Quote, CornerDownRight, Heart, ThumbsUp, ThumbsDown, Anchor, Crown, Bell, BellOff, ChevronDown,
-  ExternalLink, ShoppingCart, Minimize2, Circle, Layers, Eye, EyeOff, Tv, Ghost, Scan, Square as SquareIcon 
+  ExternalLink, ShoppingCart, Minimize2, Circle, Layers, Eye, EyeOff, Tv, Ghost, Scan, Square as SquareIcon, StickyNote
 } from 'lucide-react';
 
 // --- CONFIGURATION ---
@@ -1181,7 +1181,7 @@ const Button = ({ children, onClick, className = "", active = false, disabled = 
     disabled={disabled}
     title={title}
     className={`
-      flex items-center justify-center gap-2 px-2 py-1 border-2 text-black text-[10px] font-bold uppercase
+      flex items-center justify-center gap-2 px-2 py-1 border-2 text-black text-[10px] font-bold uppercase whitespace-nowrap
       ${active ? 'bg-[#d0d0d0] border-gray-600 border-t-black border-l-black shadow-inner translate-y-[1px]' : 'bg-[#c0c0c0] border-white border-b-gray-600 border-r-gray-600 shadow-sm'}
       ${disabled ? 'opacity-40 cursor-not-allowed grayscale' : 'active:border-gray-600 active:border-t-black active:border-l-black'}
       ${className}
@@ -1215,7 +1215,9 @@ const PaintApp = () => {
   const [brushSize, setBrushSize] = useState(8);
   const [globalEffect, setGlobalEffect] = useState('none');
   const [isDragging, setIsDragging] = useState(false);
-  const [showProps, setShowProps] = useState(true);
+  
+  // Mobile UI toggle for properties panel
+  const [showProps, setShowProps] = useState(window.innerWidth >= 768);
   
   const dragStartRef = useRef({ x: 0, y: 0 });
   const currentPathRef = useRef([]);
@@ -1225,13 +1227,11 @@ const PaintApp = () => {
   const saveHistory = useCallback((newEls) => {
     const newHist = history.slice(0, historyStep + 1);
     if (newHist.length > 30) newHist.shift();
-    // Use deep copy to ensure objects are distinct in history steps
     const copy = JSON.parse(JSON.stringify(newEls, (key, value) => {
-        if (key === 'imgElement') return undefined; // Cannot stringify HTML elements
+        if (key === 'imgElement') return undefined;
         return value;
     }));
     
-    // Re-attach imgElements which were lost in stringification
     newEls.forEach((el, i) => {
         if (el.type === 'image') copy[i].imgElement = el.imgElement;
     });
@@ -1268,6 +1268,21 @@ const PaintApp = () => {
     saveHistory([...elements, newEl]);
     setSelectedId(newEl.id);
     setTool('move');
+  };
+
+  const addSticker = (key) => {
+    const img = new Image();
+    // Assuming stickers are in public folder or mapped via ASSETS
+    img.src = typeof ASSETS !== 'undefined' && ASSETS.stickers ? ASSETS.stickers[key] : `${key}.jpg`;
+    img.crossOrigin = "Anonymous";
+    img.onload = () => {
+      const ratio = img.width / img.height;
+      const w = 200, h = 200 / ratio;
+      const newEl = { id: paintGenId(), type: 'image', x: canvasSize.w/2 - w/2, y: canvasSize.h/2 - h/2, width: w, height: h, imgElement: img, aspectRatio: ratio };
+      saveHistory([...elements, newEl]);
+      setSelectedId(newEl.id);
+      setTool('move');
+    }
   };
 
   const handleFileUpload = (e) => {
@@ -1484,7 +1499,6 @@ const PaintApp = () => {
     currentPathRef.current = [];
   };
 
-  // --- TOUCH GESTURES (PINCH ZOOM RESTORED) ---
   const handleTouchStart = (e) => {
     if (e.touches.length === 2) {
       e.preventDefault(); 
@@ -1519,6 +1533,7 @@ const PaintApp = () => {
     }
   };
 
+  // --- REVISED LAYOUTS ---
   const applyLayout = (type) => {
     let newEls = [];
     const cw = canvasSize.w;
@@ -1538,20 +1553,22 @@ const PaintApp = () => {
         { id: paintGenId(), type: 'text', x: 20, y: ch - 35, width: cw-40, height: 30, text: 'DEGENS ARE PUMPING $IT TO THE MOON', color: '#000000', size: 20, font: 'Arial', strokeWidth: 0 }
       ];
     }
-    else if (type === 'demotivational') {
-      newEls = [
-        { id: paintGenId(), type: 'rect', x: 0, y: 0, width: cw, height: ch, color: '#000000' },
-        { id: paintGenId(), type: 'rect', x: 50, y: 50, width: cw-100, height: ch-200, color: '#ffffff' },
-        { id: paintGenId(), type: 'text', x: 20, y: ch-130, width: cw-40, height: 60, text: 'FAILURE', color: '#ffffff', size: 50, font: 'Terminal', strokeWidth: 0 },
-        { id: paintGenId(), type: 'text', x: 20, y: ch-70, width: cw-40, height: 40, text: 'Because degening is a full time job.', color: '#ffffff', size: 20, font: 'Arial', strokeWidth: 0 }
-      ];
+    else if (type === 'wanted') {
+        newEls = [
+            { id: paintGenId(), type: 'rect', x: 0, y: 0, width: cw, height: ch, color: '#f5e8d0' }, // Aged paper
+            { id: paintGenId(), type: 'text', x: 20, y: 30, width: cw-40, height: 80, text: 'WANTED', color: '#4a3728', size: 80, font: 'Courier', strokeWidth: 0 },
+            { id: paintGenId(), type: 'rect', x: cw*0.15, y: 130, width: cw*0.7, height: ch*0.5, color: '#ffffff' }, // Photo slot
+            { id: paintGenId(), type: 'text', x: 20, y: ch*0.8, width: cw-40, height: 50, text: 'REWARD: $IT MOONBAG', color: '#4a3728', size: 30, font: 'Courier', strokeWidth: 0 }
+        ];
     }
-    else if (type === 'listing') {
-      newEls = [
-        { id: paintGenId(), type: 'rect', x: 0, y: 0, width: cw, height: 80, color: '#000080' },
-        { id: paintGenId(), type: 'text', x: 20, y: 20, width: cw-40, height: 50, text: 'LATEST LISTING: $IT', color: '#ffffff', size: 30, font: 'Terminal', strokeWidth: 0 },
-        { id: paintGenId(), type: 'rect', x: 20, y: 100, width: cw-40, height: 2, color: '#000000' }
-      ];
+    else if (type === 'alert') {
+        newEls = [
+            { id: paintGenId(), type: 'rect', x: 0, y: 0, width: cw, height: ch, color: '#008080' }, // Desktop blue
+            { id: paintGenId(), type: 'rect', x: cw/2 - 150, y: ch/2 - 100, width: 300, height: 200, color: '#c0c0c0' }, // Win95 Box
+            { id: paintGenId(), type: 'rect', x: cw/2 - 150, y: ch/2 - 100, width: 300, height: 25, color: '#000080' }, // Title bar
+            { id: paintGenId(), type: 'text', x: cw/2 - 130, y: ch/2 - 97, width: 100, height: 20, text: 'SYSTEM ERROR', color: '#ffffff', size: 12, font: 'Arial', strokeWidth: 0 },
+            { id: paintGenId(), type: 'text', x: cw/2 - 140, y: ch/2 - 40, width: 280, height: 80, text: 'DEGEN PROTOCOL DETECTED.\nPROCEED TO PUMP IT?', color: '#000000', size: 18, font: 'Arial', strokeWidth: 0 }
+        ];
     }
     saveHistory(newEls);
   };
@@ -1560,36 +1577,58 @@ const PaintApp = () => {
     <div className="flex flex-col h-full bg-[#c0c0c0] font-sans text-xs select-none overflow-hidden" ref={containerRef}>
       
       {/* --- TOP RIBBON --- */}
-      <div className="h-10 bg-[#c0c0c0] border-b-2 border-white flex items-center px-2 gap-2 shrink-0 z-40 overflow-x-auto no-scrollbar shadow-md">
+      <div className="h-10 bg-[#c0c0c0] border-b-2 border-white flex items-center px-2 gap-1 md:gap-2 shrink-0 z-40 overflow-x-auto no-scrollbar shadow-md">
         <Button onClick={undo} disabled={historyStep===0} title="Undo"><RotateCcw size={14}/></Button>
         <Button onClick={redo} disabled={historyStep===history.length-1} title="Redo"><RotateCw size={14}/></Button>
         <div className="h-6 w-px bg-gray-500 mx-1"></div>
         
-        <Button onClick={()=>applyLayout('classic')}><LayoutTemplate size={14}/> CLASSIC</Button>
-        <Button onClick={()=>applyLayout('breaking')}><Scan size={14}/> NEWS</Button>
-        <Button onClick={()=>applyLayout('demotivational')}><SquareIcon size={14}/> DEMO</Button>
-        <Button onClick={()=>applyLayout('listing')}><Layers size={14}/> LISTING</Button>
+        <Button onClick={()=>applyLayout('classic')}><LayoutTemplate size={12}/> CLASSIC</Button>
+        <Button onClick={()=>applyLayout('breaking')}><Scan size={12}/> NEWS</Button>
+        <Button onClick={()=>applyLayout('wanted')}><User size={12}/> WANTED</Button>
+        <Button onClick={()=>applyLayout('alert')}><AlertTriangle size={12}/> ALERT</Button>
 
         <div className="flex-1"></div>
         
-        <Button active={globalEffect==='deepfry'} onClick={()=>setGlobalEffect(g => g==='deepfry'?'none':'deepfry')} className={globalEffect==='deepfry'?"bg-red-200":""}><Zap size={14}/> FRY</Button>
-        <Button active={globalEffect==='vhs'} onClick={()=>setGlobalEffect(g => g==='vhs'?'none':'vhs')}><Tv size={14}/> VHS</Button>
-        <Button onClick={download} className="text-blue-800 font-black border-blue-800"><Download size={14}/> EXPORT IT</Button>
+        <Button onClick={download} className="text-blue-800 font-black border-blue-800"><Download size={14}/> EXPORT</Button>
+        {/* Mobile Props Toggle */}
+        <Button 
+            className="md:hidden" 
+            active={showProps} 
+            onClick={() => setShowProps(!showProps)}
+        >
+            <Sliders size={14}/> {showProps ? 'HIDE' : 'PROPS'}
+        </Button>
       </div>
 
       <div className="flex flex-1 overflow-hidden relative min-h-0">
         
-        {/* --- LEFT TOOLBOX --- */}
-        <div className="w-20 bg-[#c0c0c0] border-r-2 border-white flex flex-col items-center py-3 gap-3 shadow-xl z-30 shrink-0 overflow-y-auto">
-          <Button active={tool==='move'} onClick={()=>setTool('move')} className="w-14 h-12 flex-col"><Move size={18}/><span className="text-[8px]">MOVE</span></Button>
-          <Button active={tool==='brush'} onClick={()=>setTool('brush')} className="w-14 h-12 flex-col"><Paintbrush size={18}/><span className="text-[8px]">BRUSH</span></Button>
-          <Button onClick={addText} className="w-14 h-12 flex-col"><Type size={18}/><span className="text-[8px]">TEXT</span></Button>
-          <Button active={tool==='rect'} onClick={()=>setTool('rect')} className="w-14 h-12 flex-col"><SquareIcon size={18}/><span className="text-[8px]">RECT</span></Button>
-          <Button active={tool==='circle'} onClick={()=>setTool('circle')} className="w-14 h-12 flex-col"><Circle size={18}/><span className="text-[8px]">CIRCLE</span></Button>
+        {/* --- LEFT TOOLBOX (INCLUDES STICKERS) --- */}
+        <div className="w-16 md:w-20 bg-[#c0c0c0] border-r-2 border-white flex flex-col items-center py-3 gap-3 shadow-xl z-30 shrink-0 overflow-y-auto">
+          <Button active={tool==='move'} onClick={()=>setTool('move')} className="w-12 md:w-14 h-12 flex-col"><Move size={18}/><span className="text-[8px]">MOVE</span></Button>
+          <Button active={tool==='brush'} onClick={()=>setTool('brush')} className="w-12 md:w-14 h-12 flex-col"><Paintbrush size={18}/><span className="text-[8px]">BRUSH</span></Button>
+          <Button onClick={addText} className="w-12 md:w-14 h-12 flex-col"><Type size={18}/><span className="text-[8px]">TEXT</span></Button>
+          <Button active={tool==='rect'} onClick={()=>setTool('rect')} className="w-12 md:w-14 h-12 flex-col"><SquareIcon size={18}/><span className="text-[8px]">RECT</span></Button>
           
           <div className="w-10 h-px bg-gray-500 my-1"></div>
           
-          <Button onClick={()=>fileInputRef.current.click()} className="w-14 h-12 flex-col"><Upload size={18}/><span className="text-[8px]">FILE</span><input type="file" ref={fileInputRef} hidden accept="image/*" onChange={handleFileUpload} /></Button>
+          {/* Sticker Link Gallery */}
+          <div className="flex flex-col gap-2 items-center w-full px-1 mb-2">
+            <span className="text-[7px] font-black uppercase opacity-40">Assets</span>
+            {typeof ASSETS !== 'undefined' && ASSETS.stickers && Object.keys(ASSETS.stickers).map(key => (
+              <div 
+                key={key} 
+                className="w-10 h-10 md:w-12 md:h-12 bg-white border border-gray-400 cursor-pointer hover:border-blue-500 active:scale-95 transition-all p-1 shadow-sm shrink-0"
+                onClick={() => addSticker(key)}
+                title={`Add ${key}`}
+              >
+                <img src={ASSETS.stickers[key]} alt={key} className="w-full h-full object-contain pointer-events-none" />
+              </div>
+            ))}
+          </div>
+
+          <div className="w-10 h-px bg-gray-500 my-1"></div>
+
+          <Button onClick={()=>fileInputRef.current.click()} className="w-12 md:w-14 h-12 flex-col"><Upload size={18}/><span className="text-[8px]">FILE</span><input type="file" ref={fileInputRef} hidden accept="image/*" onChange={handleFileUpload} /></Button>
         </div>
 
         {/* --- CANVAS STAGE --- */}
@@ -1614,21 +1653,29 @@ const PaintApp = () => {
           </div>
           
           {/* Zoom Overlay */}
-          <div className="absolute bottom-4 right-4 bg-black/50 backdrop-blur p-2 flex gap-2 border border-white/20">
-             <button onClick={()=>setView(v=>({...v, scale: Math.max(0.2, v.scale-0.1)}))} className="text-white"><Minus size={14}/></button>
-             <span className="text-white font-mono w-10 text-center font-bold">{Math.round(view.scale*100)}%</span>
-             <button onClick={()=>setView(v=>({...v, scale: Math.min(3, v.scale+0.1)}))} className="text-white"><Plus size={14}/></button>
+          <div className="absolute bottom-4 right-4 bg-black/50 backdrop-blur p-2 flex gap-2 border border-white/20 z-40 rounded">
+             <button onClick={()=>setView(v=>({...v, scale: Math.max(0.2, v.scale-0.1)}))} className="text-white hover:text-emerald-400 active:scale-90"><Minus size={14}/></button>
+             <span className="text-white font-mono w-10 text-center font-bold text-[10px]">{Math.round(view.scale*100)}%</span>
+             <button onClick={()=>setView(v=>({...v, scale: Math.min(3, v.scale+0.1)}))} className="text-white hover:text-emerald-400 active:scale-90"><Plus size={14}/></button>
           </div>
         </div>
 
         {/* --- PROPERTIES PANEL --- */}
-        <div className="w-60 bg-[#c0c0c0] border-l-2 border-white flex flex-col shadow-xl z-30 overflow-y-auto">
-          <div className="bg-[#000080] text-white font-bold text-[10px] p-2 flex justify-between items-center uppercase tracking-widest italic">
+        <div className={`
+          absolute md:static top-0 right-0 bottom-0 z-50
+          w-64 bg-[#c0c0c0] border-l-2 border-white flex flex-col shadow-2xl md:shadow-none
+          transition-transform duration-300 ease-in-out
+          ${showProps ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}
+        `}>
+          <div className="bg-[#000080] text-white font-bold text-[10px] p-2 flex justify-between items-center uppercase tracking-widest italic shrink-0">
             <span>Inspector IT</span>
-            <Layers size={12}/>
+            <div className="flex items-center gap-2">
+                <Layers size={12}/>
+                <X size={14} className="md:hidden cursor-pointer hover:bg-red-600" onClick={() => setShowProps(false)}/>
+            </div>
           </div>
 
-          <div className="p-3 space-y-5">
+          <div className="flex-1 overflow-y-auto overflow-x-hidden p-3 space-y-5 pb-20">
             {selectedId ? (() => {
               const el = elements.find(e => e.id === selectedId);
               if (!el) return null;
@@ -1642,7 +1689,7 @@ const PaintApp = () => {
                       </div>
                       <div className="space-y-1">
                         <label className="text-[9px] font-black uppercase opacity-60">Typeface</label>
-                        <div className="grid grid-cols-2 gap-1">
+                        <div className="grid grid-cols-1 gap-1">
                           {FONTS.map(f => (<Button key={f.name} active={el.font === f.val} onClick={() => updateElement(el.id, ()=>({font: f.val}))}>{f.name}</Button>))}
                         </div>
                       </div>
@@ -1658,7 +1705,7 @@ const PaintApp = () => {
 
                   {el.type === 'text' && (
                     <div className="space-y-1">
-                      <label className="text-[9px] font-black uppercase opacity-60">Outline</label>
+                      <label className="text-[9px] font-black uppercase opacity-60">Outline Width</label>
                       <div className="flex items-center gap-2 bg-[#d0d0d0] p-1 border-2 border-inset border-gray-600">
                         <input type="range" min="0" max="10" value={el.strokeWidth || 0} onChange={e=>updateElement(el.id, ()=>({strokeWidth: parseInt(e.target.value)}))} className="flex-1 accent-blue-900"/>
                         <span className="font-mono text-[9px] w-4">{el.strokeWidth || 0}</span>
@@ -1667,7 +1714,7 @@ const PaintApp = () => {
                   )}
 
                   <div className="pt-4 border-t border-gray-500">
-                    <Button onClick={deleteSelected} className="w-full bg-red-100 text-red-700 border-red-700"><Trash2 size={14}/> TRASH OBJECT</Button>
+                    <Button onClick={deleteSelected} className="w-full bg-red-100 text-red-700 border-red-700 py-2"><Trash2 size={14}/> TRASH OBJECT</Button>
                   </div>
                 </div>
               );
@@ -1693,6 +1740,17 @@ const PaintApp = () => {
                 <p className="text-[9px] font-black uppercase tracking-tighter opacity-50">Select an object or pick a tool to start degining.</p>
               </div>
             )}
+
+            {/* Global Effects Area */}
+            <div className="pt-10 border-t border-gray-500">
+                <label className="text-[9px] font-black uppercase opacity-60 mb-2 block">Degen Filters</label>
+                <div className="grid grid-cols-2 gap-1">
+                    <Button active={globalEffect==='deepfry'} onClick={()=>setGlobalEffect(g => g==='deepfry'?'none':'deepfry')}><Zap size={10}/> DEEP FRY</Button>
+                    <Button active={globalEffect==='vhs'} onClick={()=>setGlobalEffect(g => g==='vhs'?'none':'vhs')}><Tv size={10}/> VHS</Button>
+                    <Button active={globalEffect==='terminal'} onClick={()=>setGlobalEffect(g => g==='terminal'?'none':'terminal')}><Scan size={10}/> NODES</Button>
+                    <Button active={globalEffect==='none'} onClick={()=>setGlobalEffect('none')}>CLEAR</Button>
+                </div>
+            </div>
           </div>
         </div>
       </div>
