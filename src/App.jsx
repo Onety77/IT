@@ -21,7 +21,7 @@ import {
   TrendingDown, ShieldAlert, Cpu, BarChart3, Binary, Grid, ZoomIn, FileImage,
   Wifi, Hash, Lock, Unlock, Sun, Moon, Database, Radio, Command, Palette, UserCircle,
   ShieldCheck, Shield, Reply, Quote, CornerDownRight, Heart, ThumbsUp, ThumbsDown, Anchor, Crown, Bell, BellOff, ChevronDown,
-  ExternalLink, ShoppingCart, Minimize2
+  ExternalLink, ShoppingCart, Minimize2, Circle, Layers, Eye, EyeOff, Tv, Ghost, Scan, Square as SquareIcon 
 } from 'lucide-react';
 
 // --- CONFIGURATION ---
@@ -1152,16 +1152,18 @@ if (MEME_CHARACTERS[cmd]) {
 };
 
 
+// --- CONSTANTS ---
 const FONTS = [
   { name: 'Impact', val: 'Impact, sans-serif' },
   { name: 'Arial', val: 'Arial, sans-serif' },
   { name: 'Comic Sans', val: '"Comic Sans MS", cursive' },
   { name: 'Courier', val: '"Courier New", monospace' },
-  { name: 'Brush', val: '"Brush Script MT", cursive' },
+  { name: 'Terminal', val: '"Courier New", monospace' },
 ];
 
 const MEME_COLORS = [
-  '#ffffff', '#000000', '#ff0000', '#ffff00', '#00ff00', '#0000ff'
+  '#ffffff', '#000000', '#ff0000', '#ffff00', '#00ff00', '#0000ff',
+  '#ff00ff', '#00ffff', '#808080', '#c0c0c0', '#ffd700', '#ffa500'
 ];
 
 const CANVAS_PRESETS = [
@@ -1170,546 +1172,534 @@ const CANVAS_PRESETS = [
   { name: 'Landscape (16:9)', w: 800, h: 450 },
 ];
 
-const InsetPanel = ({ children, className="" }) => (
-    <div className={`border-2 border-gray-600 border-r-white border-b-white bg-white ${className}`}>
-        {children}
-    </div>
+const paintGenId = () => Math.random().toString(36).substr(2, 9);
+
+// --- INTERNAL UI COMPONENTS ---
+const Button = ({ children, onClick, className = "", active = false, disabled = false, title = "" }) => (
+  <button
+    onClick={onClick}
+    disabled={disabled}
+    title={title}
+    className={`
+      flex items-center justify-center gap-2 px-2 py-1 border-2 text-black text-[10px] font-bold uppercase
+      ${active ? 'bg-[#d0d0d0] border-gray-600 border-t-black border-l-black shadow-inner translate-y-[1px]' : 'bg-[#c0c0c0] border-white border-b-gray-600 border-r-gray-600 shadow-sm'}
+      ${disabled ? 'opacity-40 cursor-not-allowed grayscale' : 'active:border-gray-600 active:border-t-black active:border-l-black'}
+      ${className}
+    `}
+  >
+    {children}
+  </button>
 );
 
+const InsetPanel = ({ children, className = "" }) => (
+  <div className={`border-2 border-gray-600 border-r-white border-b-white bg-white shadow-inner ${className}`}>
+    {children}
+  </div>
+);
 
 const PaintApp = () => {
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
   const fileInputRef = useRef(null);
 
-  
+  // --- STATE ---
   const [elements, setElements] = useState([]); 
   const [history, setHistory] = useState([[]]);
   const [historyStep, setHistoryStep] = useState(0);
   const [canvasSize, setCanvasSize] = useState(CANVAS_PRESETS[0]);
-  
-  
-  const [view, setView] = useState({ scale: 1, x: 0, y: 0 });
-  
-  
-  const [showStickers, setShowStickers] = useState(true);
-  const [showProps, setShowProps] = useState(false);
-
-  
+  const [view, setView] = useState({ scale: 0.8, x: 0, y: 0 });
   const [tool, setTool] = useState('move'); 
   const [selectedId, setSelectedId] = useState(null);
   const [isResizing, setIsResizing] = useState(false);
-  
-  
   const [toolColor, setToolColor] = useState('#000000');
-  const [brushSize, setBrushSize] = useState(5);
-  
-  
+  const [brushSize, setBrushSize] = useState(8);
   const [globalEffect, setGlobalEffect] = useState('none');
-
-  
   const [isDragging, setIsDragging] = useState(false);
+  const [showProps, setShowProps] = useState(true);
+  
   const dragStartRef = useRef({ x: 0, y: 0 });
   const currentPathRef = useRef([]);
   const gestureRef = useRef({ startDist: 0, startScale: 1, startX: 0, startY: 0, startViewX: 0, startViewY: 0 });
 
-  
-  useEffect(() => {
-      if (window.innerWidth < 600) {
-          setShowStickers(false);
-          setShowProps(false);
-      }
-  }, []);
+  // --- HISTORY MANAGEMENT ---
+  const saveHistory = useCallback((newEls) => {
+    const newHist = history.slice(0, historyStep + 1);
+    if (newHist.length > 30) newHist.shift();
+    // Use deep copy to ensure objects are distinct in history steps
+    const copy = JSON.parse(JSON.stringify(newEls, (key, value) => {
+        if (key === 'imgElement') return undefined; // Cannot stringify HTML elements
+        return value;
+    }));
+    
+    // Re-attach imgElements which were lost in stringification
+    newEls.forEach((el, i) => {
+        if (el.type === 'image') copy[i].imgElement = el.imgElement;
+    });
 
-  
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return; 
-      if (e.key === 'Delete' || e.key === 'Backspace') deleteSelected();
-      if ((e.ctrlKey || e.metaKey) && e.key === 'z') undo();
-      if ((e.ctrlKey || e.metaKey) && e.key === 'y') redo();
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedId, elements, historyStep]);
+    setHistory(newHist);
+    setHistoryStep(newHist.length - 1);
+    setElements(newEls);
+  }, [history, historyStep]);
 
-  
+  const undo = () => { if(historyStep > 0) { setHistoryStep(s=>s-1); setElements(history[historyStep-1]); setSelectedId(null); } };
+  const redo = () => { if(historyStep < history.length-1) { setHistoryStep(s=>s+1); setElements(history[historyStep+1]); setSelectedId(null); } };
+
+  const updateElement = (id, updater) => {
+    setElements(prev => prev.map(el => el.id === id ? { ...el, ...updater(el) } : el));
+  };
+
+  const deleteSelected = () => {
+    if (!selectedId) return;
+    saveHistory(elements.filter(e => e.id !== selectedId));
+    setSelectedId(null);
+  };
+
+  // --- ACTIONS ---
+  const download = () => {
+    if (!canvasRef.current) return;
+    const link = document.createElement('a');
+    link.download = `IT_MEME_${Date.now()}.png`;
+    link.href = canvasRef.current.toDataURL();
+    link.click();
+  };
+
+  const addText = () => {
+    const newEl = { id: paintGenId(), type: 'text', x: 100, y: 100, width: 200, height: 60, text: 'TEXT IT', color: '#000000', size: 40, font: 'Impact', strokeWidth: 2, strokeColor: '#ffffff' };
+    saveHistory([...elements, newEl]);
+    setSelectedId(newEl.id);
+    setTool('move');
+  };
+
+  const handleFileUpload = (e) => {
+    if (e.target.files[0]) {
+      const r = new FileReader();
+      r.onload = ev => {
+        const img = new Image();
+        img.src = ev.target.result;
+        img.onload = () => {
+          const ratio = img.width / img.height;
+          let w = canvasSize.w * 0.5, h = w / ratio;
+          const newEl = { id: paintGenId(), type: 'image', x: canvasSize.w/2 - w/2, y: canvasSize.h/2 - h/2, width: w, height: h, imgElement: img, aspectRatio: ratio };
+          saveHistory([...elements, newEl]);
+          setSelectedId(newEl.id);
+        }
+      };
+      r.readAsDataURL(e.target.files[0]);
+    }
+  };
+
+  // --- DRAWING ENGINE ---
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
-    
     
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     ctx.save();
-    if (globalEffect === 'deepfry') {
-        ctx.filter = 'contrast(200%) saturate(300%) brightness(110%) sepia(50%)';
-    }
+    
+    if (globalEffect === 'deepfry') ctx.filter = 'contrast(250%) saturate(350%) brightness(120%)';
+    if (globalEffect === 'vhs') ctx.filter = 'contrast(120%) saturate(80%) brightness(110%) hue-rotate(-5deg)';
+    if (globalEffect === 'terminal') ctx.filter = 'grayscale(100%) contrast(150%) brightness(80%) sepia(20%)';
 
     elements.forEach(el => {
       ctx.save();
+      ctx.globalAlpha = el.opacity !== undefined ? el.opacity : 1;
+
       if (el.type === 'path') {
         ctx.strokeStyle = el.color;
         ctx.lineWidth = el.size;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
         ctx.beginPath();
-        if(el.points.length > 0) {
-            ctx.moveTo(el.points[0].x, el.points[0].y);
-            el.points.forEach(p => ctx.lineTo(p.x, p.y));
+        if(el.points && el.points.length > 0) {
+          ctx.moveTo(el.points[0].x, el.points[0].y);
+          el.points.forEach(p => ctx.lineTo(p.x, p.y));
         }
         ctx.stroke();
       }
       else if (el.type === 'image' && el.imgElement) {
         ctx.drawImage(el.imgElement, el.x, el.y, el.width, el.height);
       }
+      else if (el.type === 'rect') {
+        ctx.fillStyle = el.color;
+        ctx.fillRect(el.x, el.y, el.width, el.height);
+      }
+      else if (el.type === 'circle') {
+        ctx.fillStyle = el.color;
+        ctx.beginPath();
+        ctx.arc(el.x + el.width/2, el.y + el.height/2, Math.abs(el.width/2), 0, Math.PI * 2);
+        ctx.fill();
+      }
       else if (el.type === 'text') {
         ctx.font = `900 ${el.size}px ${el.font}`;
-        ctx.textAlign = 'left';
+        ctx.textAlign = 'center';
         ctx.textBaseline = 'top';
         
-        if (el.strokeWidth > 0) {
+        const lines = el.text.split('\n');
+        lines.forEach((line, i) => {
+          const ly = el.y + (i * el.size * 1.1);
+          if (el.strokeWidth > 0) {
             ctx.strokeStyle = el.strokeColor || '#000000';
             ctx.lineWidth = el.strokeWidth; 
             ctx.lineJoin = 'round';
-            ctx.strokeText(el.text, el.x, el.y);
-        }
-        ctx.fillStyle = el.color;
-        ctx.fillText(el.text, el.x, el.y);
+            ctx.strokeText(line, el.x + (el.width / 2), ly);
+          }
+          ctx.fillStyle = el.color;
+          ctx.fillText(line, el.x + (el.width / 2), ly);
+        });
       }
 
       if (selectedId === el.id) {
-          ctx.save();
-          ctx.strokeStyle = '#000080';
-          ctx.lineWidth = 2;
-          ctx.setLineDash([4, 4]);
-          
-          let bx=el.x, by=el.y, bw=el.width, bh=el.height;
-          if (el.type === 'text') {
-              const m = ctx.measureText(el.text);
-              bw = m.width; bh = el.size * 1.2;
-          }
-          ctx.strokeRect(bx-5, by-5, bw+10, bh+10);
-          ctx.fillStyle = '#000080';
-          ctx.fillRect(bx + bw, by + bh, 15, 15); 
-          ctx.restore();
+        ctx.save();
+        ctx.strokeStyle = '#000080';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([5, 5]);
+        ctx.strokeRect(el.x - 2, el.y - 2, (el.width || 0) + 4, (el.height || 0) + 4);
+        ctx.setLineDash([]);
+        ctx.fillStyle = '#000080';
+        ctx.fillRect(el.x + (el.width || 0) - 5, el.y + (el.height || 0) - 5, 10, 10); 
+        ctx.restore();
       }
       ctx.restore();
     });
 
     if (isDragging && currentPathRef.current.length > 0 && tool === 'brush') {
-        ctx.strokeStyle = toolColor;
-        ctx.lineWidth = brushSize;
-        ctx.lineCap = 'round';
-        ctx.beginPath();
-        const path = currentPathRef.current;
-        ctx.moveTo(path[0].x, path[0].y);
-        path.forEach(p => ctx.lineTo(p.x, p.y));
-        ctx.stroke();
+      ctx.strokeStyle = toolColor;
+      ctx.lineWidth = brushSize;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      const path = currentPathRef.current;
+      ctx.moveTo(path[0].x, path[0].y);
+      path.forEach(p => ctx.lineTo(p.x, p.y));
+      ctx.stroke();
     }
     ctx.restore();
-  }, [elements, tool, selectedId, globalEffect, isDragging, toolColor, brushSize]);
+  }, [elements, tool, selectedId, globalEffect, isDragging, toolColor, brushSize, canvasSize]);
 
-  
-  const saveHistory = (newEls) => {
-    const newHist = history.slice(0, historyStep + 1);
-    if (newHist.length > 20) newHist.shift();
-    newHist.push(newEls);
-    setHistory(newHist);
-    setHistoryStep(newHist.length - 1);
-    setElements(newEls);
-  };
-
-  const updateElement = (id, updater) => {
-      setElements(prev => prev.map(el => el.id === id ? { ...el, ...updater(el) } : el));
-  };
-
-  const deleteSelected = () => {
-      if (!selectedId) return;
-      saveHistory(elements.filter(e => e.id !== selectedId));
-      setSelectedId(null);
-  };
-
-  const undo = () => { if(historyStep > 0) { setHistoryStep(s=>s-1); setElements(history[historyStep-1]); } };
-  const redo = () => { if(historyStep < history.length-1) { setHistoryStep(s=>s+1); setElements(history[historyStep+1]); } };
-
-  const applyLayout = (type) => {
-      const mainImg = elements.find(e => e.type === 'image');
-      const textTop = elements.find(e => e.type === 'text' && e.y < canvasSize.h/2);
-      const textBot = elements.find(e => e.type === 'text' && e.y > canvasSize.h/2);
-      let newElements = [];
-      const cx = canvasSize.w / 2, cy = canvasSize.h / 2;
-
-      if (type === 'classic') {
-          const imgW = canvasSize.w * 0.8, imgH = canvasSize.h * 0.6;
-          if (mainImg) newElements.push({ ...mainImg, x: cx - imgW/2, y: cy - imgH/2, width: imgW, height: imgH });
-          else addSticker('main'); 
-          const t1 = textTop || { id: generateId(), type: 'text', text: 'TOP IT', color: '#ffffff', strokeWidth: 3, strokeColor: '#000000', font: FONTS[0].val, size: 60 };
-          newElements.push({ ...t1, x: 20, y: 20 });
-          const t2 = textBot || { id: generateId(), type: 'text', text: 'BOTTOM IT', color: '#ffffff', strokeWidth: 3, strokeColor: '#000000', font: FONTS[0].val, size: 60 };
-          newElements.push({ ...t2, x: 20, y: canvasSize.h - 80 });
-          elements.forEach(e => { if (e !== mainImg && e !== textTop && e !== textBot) newElements.push(e); });
-      } else if (type === 'modern') {
-          if (mainImg) newElements.push({ ...mainImg, x: 0, y: 0, width: canvasSize.w, height: canvasSize.h });
-          const t1 = textTop || { id: generateId(), type: 'text', text: 'I AM BUYING IT', color: '#ffffff', strokeWidth: 2, strokeColor: '#000000', font: FONTS[0].val, size: 50 };
-          newElements.push({ ...t1, x: 20, y: canvasSize.h - 100 });
-      }
-      saveHistory(newElements);
-  };
-
-  
+  // --- COORDINATE HELPERS ---
   const getCanvasCoords = (clientX, clientY) => {
-      const rect = canvasRef.current.getBoundingClientRect();
-      const scaleX = canvasRef.current.width / rect.width;
-      const scaleY = canvasRef.current.height / rect.height;
-      return { 
-          x: (clientX - rect.left) * scaleX, 
-          y: (clientY - rect.top) * scaleY 
-      };
+    if (!canvasRef.current) return { x: 0, y: 0 };
+    const rect = canvasRef.current.getBoundingClientRect();
+    const scaleX = canvasRef.current.width / rect.width;
+    const scaleY = canvasRef.current.height / rect.height;
+    return { 
+      x: (clientX - rect.left) * scaleX, 
+      y: (clientY - rect.top) * scaleY 
+    };
   };
 
+  // --- INTERACTION HANDLERS ---
   const handleStart = (clientX, clientY) => {
-      const pos = getCanvasCoords(clientX, clientY);
-      dragStartRef.current = pos;
-      
-      if (selectedId) {
-          const el = elements.find(e => e.id === selectedId);
-          if (el) {
-              let hx = el.x + el.width + 10, hy = el.y + el.height + 10;
-              if (el.type === 'text') {
-                  const ctx = canvasRef.current.getContext('2d');
-                  ctx.font = `900 ${el.size}px ${el.font}`;
-                  const m = ctx.measureText(el.text);
-                  hx = el.x + m.width + 10; hy = el.y + el.size * 1.2 + 10;
-              }
-              if (Math.hypot(pos.x - hx, pos.y - hy) < 30) {
-                  setIsResizing(true);
-                  setIsDragging(true);
-                  return;
-              }
-          }
-      }
-
-      if (tool === 'move') {
-          let hit = null;
-          for (let i = elements.length - 1; i >= 0; i--) {
-             const el = elements[i];
-             let bx=el.x, by=el.y, bw=el.width, bh=el.height;
-             if(el.type === 'text') { 
-                 const ctx = canvasRef.current.getContext('2d');
-                 ctx.font = `900 ${el.size}px ${el.font}`;
-                 const m = ctx.measureText(el.text);
-                 bw = m.width; bh = el.size * 1.2;
-             }
-             if (pos.x >= bx && pos.x <= bx+bw && pos.y >= by && pos.y <= by+bh) {
-                 hit = el; break;
-             }
-          }
-          
-          if (hit) {
-              const newEls = elements.filter(e => e.id !== hit.id);
-              newEls.push(hit);
-              setElements(newEls);
-              setSelectedId(hit.id);
-              setIsDragging(true);
-              
-          } else {
-              setSelectedId(null);
-          }
-      } else if (tool === 'brush') {
-          currentPathRef.current = [pos];
+    const pos = getCanvasCoords(clientX, clientY);
+    dragStartRef.current = pos;
+    
+    if (selectedId) {
+      const el = elements.find(e => e.id === selectedId);
+      if (el) {
+        const handleX = el.x + el.width;
+        const handleY = el.y + el.height;
+        if (Math.hypot(pos.x - handleX, pos.y - handleY) < 30) {
+          setIsResizing(true);
           setIsDragging(true);
-          setSelectedId(null);
+          return;
+        }
       }
+    }
+
+    if (tool === 'move') {
+      let hit = null;
+      for (let i = elements.length - 1; i >= 0; i--) {
+        const el = elements[i];
+        if (pos.x >= el.x && pos.x <= el.x + el.width && pos.y >= el.y && pos.y <= el.y + el.height) {
+          hit = el; break;
+        }
+      }
+      if (hit) {
+        const newEls = elements.filter(e => e.id !== hit.id);
+        newEls.push(hit);
+        setElements(newEls);
+        setSelectedId(hit.id);
+        setIsDragging(true);
+      } else {
+        setSelectedId(null);
+      }
+    } else if (tool === 'brush') {
+      currentPathRef.current = [pos];
+      setIsDragging(true);
+      setSelectedId(null);
+    } else if (['rect', 'circle'].includes(tool)) {
+      const newEl = { 
+        id: paintGenId(), type: tool, x: pos.x, y: pos.y, 
+        width: 1, height: 1, color: toolColor 
+      };
+      setElements([...elements, newEl]);
+      setSelectedId(newEl.id);
+      setIsResizing(true);
+      setIsDragging(true);
+    }
   };
 
   const handleMove = (clientX, clientY) => {
-      if (!isDragging) return;
-      const pos = getCanvasCoords(clientX, clientY);
+    if (!isDragging) return;
+    const pos = getCanvasCoords(clientX, clientY);
 
-      if (isResizing && selectedId) {
-          const el = elements.find(e => e.id === selectedId);
-          if (el.type === 'image') {
-              const newW = Math.max(50, pos.x - el.x);
-              const newH = newW / (el.aspectRatio || 1); 
-              updateElement(selectedId, () => ({ width: newW, height: newH }));
-          } else if (el.type === 'text') {
-              const distY = pos.y - el.y;
-              const newSize = Math.max(10, Math.min(200, distY / 1.2));
-              updateElement(selectedId, () => ({ size: newSize }));
-          }
-      }
-      else if (tool === 'move' && selectedId) {
-          const dx = pos.x - dragStartRef.current.x;
-          const dy = pos.y - dragStartRef.current.y;
-          updateElement(selectedId, (el) => ({ x: el.x + dx, y: el.y + dy }));
-          dragStartRef.current = pos;
-      }
-      else if (tool === 'brush') {
-          currentPathRef.current.push(pos);
-          setElements([...elements]);
-      }
+    if (isResizing && selectedId) {
+      updateElement(selectedId, el => ({
+        width: Math.max(10, pos.x - el.x),
+        height: Math.max(10, pos.y - el.y)
+      }));
+    }
+    else if (tool === 'move' && selectedId) {
+      const dx = pos.x - dragStartRef.current.x;
+      const dy = pos.y - dragStartRef.current.y;
+      updateElement(selectedId, el => ({ x: el.x + dx, y: el.y + dy }));
+      dragStartRef.current = pos;
+    }
+    else if (tool === 'brush') {
+      currentPathRef.current.push(pos);
+      setElements([...elements]);
+    }
   };
 
   const handleEnd = () => {
-      if (isDragging) {
-          if (isResizing || (tool === 'move' && selectedId)) saveHistory(elements);
-          else if (tool === 'brush') {
-              saveHistory([...elements, { id: generateId(), type: 'path', points: currentPathRef.current, color: toolColor, size: brushSize }]);
-              currentPathRef.current = [];
-          }
-      }
-      setIsDragging(false);
-      setIsResizing(false);
+    if (isDragging) {
+        if (tool === 'brush' && currentPathRef.current.length > 0) {
+            const newPath = { 
+                id: paintGenId(), 
+                type: 'path', 
+                points: [...currentPathRef.current], 
+                color: toolColor, 
+                size: brushSize 
+            };
+            saveHistory([...elements, newPath]);
+        } else {
+            saveHistory(elements);
+        }
+    }
+    setIsDragging(false);
+    setIsResizing(false);
+    currentPathRef.current = [];
   };
 
-  
+  // --- TOUCH GESTURES (PINCH ZOOM RESTORED) ---
   const handleTouchStart = (e) => {
-      if (e.touches.length === 2) {
-          e.preventDefault(); 
-          const dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
-          const cx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
-          const cy = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-          gestureRef.current = { startDist: dist, startScale: view.scale, startX: cx, startY: cy, startViewX: view.x, startViewY: view.y };
-      } else if (e.touches.length === 1) {
-          handleStart(e.touches[0].clientX, e.touches[0].clientY);
-      }
+    if (e.touches.length === 2) {
+      e.preventDefault(); 
+      const dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+      const cx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+      const cy = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+      gestureRef.current = { 
+        startDist: dist, 
+        startScale: view.scale, 
+        startX: cx, 
+        startY: cy, 
+        startViewX: view.x, 
+        startViewY: view.y 
+      };
+    } else if (e.touches.length === 1) {
+      handleStart(e.touches[0].clientX, e.touches[0].clientY);
+    }
   };
 
   const handleTouchMove = (e) => {
+    if (e.touches.length === 2) {
       e.preventDefault(); 
-      if (e.touches.length === 2) {
-          const dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
-          const cx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
-          const cy = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-          const scale = Math.max(0.5, Math.min(3, gestureRef.current.startScale * (dist / gestureRef.current.startDist)));
-          const dx = cx - gestureRef.current.startX;
-          const dy = cy - gestureRef.current.startY;
-          setView({ scale, x: gestureRef.current.startViewX + dx, y: gestureRef.current.startViewY + dy });
-      } else if (e.touches.length === 1) {
-          handleMove(e.touches[0].clientX, e.touches[0].clientY);
-      }
+      const dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+      const cx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+      const cy = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+      const scale = Math.max(0.2, Math.min(3, gestureRef.current.startScale * (dist / (gestureRef.current.startDist || 1))));
+      const dx = cx - gestureRef.current.startX;
+      const dy = cy - gestureRef.current.startY;
+      setView({ scale, x: gestureRef.current.startViewX + dx, y: gestureRef.current.startViewY + dy });
+    } else if (e.touches.length === 1) {
+      handleMove(e.touches[0].clientX, e.touches[0].clientY);
+    }
   };
 
-  const handleTouchEnd = () => {
-      handleEnd();
-  };
+  const applyLayout = (type) => {
+    let newEls = [];
+    const cw = canvasSize.w;
+    const ch = canvasSize.h;
 
-  
-  const handleMouseDown = (e) => handleStart(e.clientX, e.clientY);
-  const handleMouseMove = (e) => handleMove(e.clientX, e.clientY);
-  const handleMouseUp = () => handleEnd();
-
-  
-  const addText = () => {
-      const newEl = { 
-          id: generateId(), type: 'text', x: 50, y: 50, 
-          text: 'EDIT IT', color: toolColor, size: 50, font: FONTS[0].val,
-          strokeColor: '#000000', strokeWidth: 2 
-      };
-      saveHistory([...elements, newEl]);
-      setSelectedId(newEl.id);
-      setTool('move');
-      setShowProps(true); 
-  };
-
-  const addSticker = (key) => {
-      const img = new Image();
-      img.src = ASSETS.stickers[key];
-      img.crossOrigin = "Anonymous";
-      img.onload = () => {
-          const ratio = img.width / img.height;
-          const w = 200, h = 200 / ratio;
-          const newEl = { id: generateId(), type: 'image', x: canvasSize.w/2 - w/2, y: canvasSize.h/2 - h/2, width: w, height: h, imgElement: img, aspectRatio: ratio };
-          saveHistory([...elements, newEl]);
-          setSelectedId(newEl.id);
-          setTool('move');
-          if (window.innerWidth < 600) setShowStickers(false); 
-      }
-  };
-
-  const handleFileUpload = (e) => {
-      if(e.target.files[0]) {
-          const r = new FileReader();
-          r.onload = ev => {
-              const img = new Image();
-              img.src = ev.target.result;
-              img.onload = () => {
-                  const ratio = img.width / img.height;
-                  let w = canvasSize.w, h = w / ratio;
-                  if (h > canvasSize.h) { h = canvasSize.h; w = h * ratio; }
-                  const newEl = { id: generateId(), type: 'image', x: canvasSize.w/2 - w/2, y: canvasSize.h/2 - h/2, width: w, height: h, imgElement: img, aspectRatio: ratio };
-                  saveHistory([...elements, newEl]);
-                  setSelectedId(newEl.id);
-              }
-          };
-          r.readAsDataURL(e.target.files[0]);
-      }
-  };
-
-  const download = () => {
-      const link = document.createElement('a');
-      link.download = `IT_MEME_${Date.now()}.png`;
-      link.href = canvasRef.current.toDataURL();
-      link.click();
-  };
-
-  const postIt = () => {
-      download();
-      const text = encodeURIComponent("I just created this masterpiece with $IT OS. #SENDIT");
-      window.open(`https://twitter.com/intent/tweet?text=${text}`, '_blank');
+    if (type === 'classic') {
+      newEls = [
+        { id: paintGenId(), type: 'text', x: 20, y: 20, width: cw-40, height: 100, text: 'TOP TEXT IT', color: '#ffffff', size: 60, font: 'Impact', strokeWidth: 4, strokeColor: '#000000' },
+        { id: paintGenId(), type: 'text', x: 20, y: ch-100, width: cw-40, height: 100, text: 'BOTTOM TEXT IT', color: '#ffffff', size: 60, font: 'Impact', strokeWidth: 4, strokeColor: '#000000' }
+      ];
+    } 
+    else if (type === 'breaking') {
+      newEls = [
+        { id: paintGenId(), type: 'rect', x: 0, y: ch - 120, width: cw, height: 80, color: '#ff0000' },
+        { id: paintGenId(), type: 'rect', x: 0, y: ch - 40, width: cw, height: 40, color: '#ffffff' },
+        { id: paintGenId(), type: 'text', x: 20, y: ch - 110, width: cw-40, height: 60, text: 'BREAKING NEWS', color: '#ffffff', size: 40, font: 'Impact', strokeWidth: 0 },
+        { id: paintGenId(), type: 'text', x: 20, y: ch - 35, width: cw-40, height: 30, text: 'DEGENS ARE PUMPING $IT TO THE MOON', color: '#000000', size: 20, font: 'Arial', strokeWidth: 0 }
+      ];
+    }
+    else if (type === 'demotivational') {
+      newEls = [
+        { id: paintGenId(), type: 'rect', x: 0, y: 0, width: cw, height: ch, color: '#000000' },
+        { id: paintGenId(), type: 'rect', x: 50, y: 50, width: cw-100, height: ch-200, color: '#ffffff' },
+        { id: paintGenId(), type: 'text', x: 20, y: ch-130, width: cw-40, height: 60, text: 'FAILURE', color: '#ffffff', size: 50, font: 'Terminal', strokeWidth: 0 },
+        { id: paintGenId(), type: 'text', x: 20, y: ch-70, width: cw-40, height: 40, text: 'Because degening is a full time job.', color: '#ffffff', size: 20, font: 'Arial', strokeWidth: 0 }
+      ];
+    }
+    else if (type === 'listing') {
+      newEls = [
+        { id: paintGenId(), type: 'rect', x: 0, y: 0, width: cw, height: 80, color: '#000080' },
+        { id: paintGenId(), type: 'text', x: 20, y: 20, width: cw-40, height: 50, text: 'LATEST LISTING: $IT', color: '#ffffff', size: 30, font: 'Terminal', strokeWidth: 0 },
+        { id: paintGenId(), type: 'rect', x: 20, y: 100, width: cw-40, height: 2, color: '#000000' }
+      ];
+    }
+    saveHistory(newEls);
   };
 
   return (
     <div className="flex flex-col h-full bg-[#c0c0c0] font-sans text-xs select-none overflow-hidden" ref={containerRef}>
+      
+      {/* --- TOP RIBBON --- */}
+      <div className="h-10 bg-[#c0c0c0] border-b-2 border-white flex items-center px-2 gap-2 shrink-0 z-40 overflow-x-auto no-scrollbar shadow-md">
+        <Button onClick={undo} disabled={historyStep===0} title="Undo"><RotateCcw size={14}/></Button>
+        <Button onClick={redo} disabled={historyStep===history.length-1} title="Redo"><RotateCw size={14}/></Button>
+        <div className="h-6 w-px bg-gray-500 mx-1"></div>
         
-        {/* --- TOP BAR --- */}
-        <div className="h-10 bg-[#c0c0c0] border-b-2 border-white flex items-center px-2 gap-2 shrink-0 z-40 overflow-x-auto no-scrollbar">
-            <Button className="md:hidden" onClick={() => setShowProps(!showProps)} active={showProps} disabled={!selectedId && tool!=='brush'}>
-                {showProps ? <X size={14}/> : <Sliders size={14}/>} PROPS
-            </Button>
+        <Button onClick={()=>applyLayout('classic')}><LayoutTemplate size={14}/> CLASSIC</Button>
+        <Button onClick={()=>applyLayout('breaking')}><Scan size={14}/> NEWS</Button>
+        <Button onClick={()=>applyLayout('demotivational')}><SquareIcon size={14}/> DEMO</Button>
+        <Button onClick={()=>applyLayout('listing')}><Layers size={14}/> LISTING</Button>
 
-            <Button onClick={()=>applyLayout('classic')} title="Classic"><LayoutTemplate size={14}/> LAYOUT</Button>
-            <Button onClick={()=>applyLayout('modern')} title="Modern"><Maximize2 size={14}/> FULL</Button>
-            
-            <div className="h-6 w-px bg-gray-500 border-l border-white mx-1"></div>
-            
-            <Button onClick={undo} disabled={historyStep===0} title="Undo"><RotateCcw size={14}/></Button>
-            <Button onClick={redo} disabled={historyStep===history.length-1} title="Redo"><RotateCw size={14}/></Button>
-            
-            <div className="flex-1"></div>
-            
-            <Button active={globalEffect==='deepfry'} onClick={()=>setGlobalEffect(g => g==='none'?'deepfry':'none')} className={globalEffect==='deepfry'?"text-red-800 bg-red-200":""}><Zap size={14}/> FRY IT</Button>
-            <Button onClick={download} className="text-blue-800"><Download size={14}/> SAVE IT</Button>
-            <Button onClick={postIt} className="text-white bg-[#1da1f2] border-blue-800 hidden md:flex"><Share size={14}/> POST IT</Button>
+        <div className="flex-1"></div>
+        
+        <Button active={globalEffect==='deepfry'} onClick={()=>setGlobalEffect(g => g==='deepfry'?'none':'deepfry')} className={globalEffect==='deepfry'?"bg-red-200":""}><Zap size={14}/> FRY</Button>
+        <Button active={globalEffect==='vhs'} onClick={()=>setGlobalEffect(g => g==='vhs'?'none':'vhs')}><Tv size={14}/> VHS</Button>
+        <Button onClick={download} className="text-blue-800 font-black border-blue-800"><Download size={14}/> EXPORT IT</Button>
+      </div>
+
+      <div className="flex flex-1 overflow-hidden relative min-h-0">
+        
+        {/* --- LEFT TOOLBOX --- */}
+        <div className="w-20 bg-[#c0c0c0] border-r-2 border-white flex flex-col items-center py-3 gap-3 shadow-xl z-30 shrink-0 overflow-y-auto">
+          <Button active={tool==='move'} onClick={()=>setTool('move')} className="w-14 h-12 flex-col"><Move size={18}/><span className="text-[8px]">MOVE</span></Button>
+          <Button active={tool==='brush'} onClick={()=>setTool('brush')} className="w-14 h-12 flex-col"><Paintbrush size={18}/><span className="text-[8px]">BRUSH</span></Button>
+          <Button onClick={addText} className="w-14 h-12 flex-col"><Type size={18}/><span className="text-[8px]">TEXT</span></Button>
+          <Button active={tool==='rect'} onClick={()=>setTool('rect')} className="w-14 h-12 flex-col"><SquareIcon size={18}/><span className="text-[8px]">RECT</span></Button>
+          <Button active={tool==='circle'} onClick={()=>setTool('circle')} className="w-14 h-12 flex-col"><Circle size={18}/><span className="text-[8px]">CIRCLE</span></Button>
+          
+          <div className="w-10 h-px bg-gray-500 my-1"></div>
+          
+          <Button onClick={()=>fileInputRef.current.click()} className="w-14 h-12 flex-col"><Upload size={18}/><span className="text-[8px]">FILE</span><input type="file" ref={fileInputRef} hidden accept="image/*" onChange={handleFileUpload} /></Button>
         </div>
 
-        <div className="flex flex-1 overflow-hidden relative">
-            
-            {/* --- LEFT SIDEBAR (TOOLS) --- */}
-            <div className="w-20 bg-[#c0c0c0] border-r-2 border-white flex flex-col items-center py-2 gap-2 shadow-xl z-30 shrink-0">
-                <Button onClick={addText} className="w-16 h-12 flex-col gap-1"><Type size={16}/> <span className="text-[9px]">TEXT IT</span></Button>
-                <Button onClick={()=>fileInputRef.current.click()} className="w-16 h-12 flex-col gap-1"><Upload size={16}/> <span className="text-[9px]">ADD IT</span><input type="file" ref={fileInputRef} hidden accept="image/*" onChange={handleFileUpload} /></Button>
-                <Button active={tool==='brush'} onClick={()=>setTool(t => t==='brush'?'move':'brush')} className="w-16 h-12 flex-col gap-1"><Paintbrush size={16}/> <span className="text-[9px]">DRAW IT</span></Button>
-                
-                <div className="w-10 h-px bg-gray-500 border-b border-white my-1"></div>
-                
-                <div className="flex-1 w-full flex flex-col items-center overflow-hidden">
-                    <div className="md:hidden w-full px-1">
-                        <Button onClick={() => setShowStickers(!showStickers)} active={showStickers} className="w-full h-8 mb-2"><ImageIcon size={14}/> STICKERS</Button>
-                    </div>
-                    <div className={`flex-col gap-1 w-full px-1 items-center overflow-y-auto ${showStickers ? 'flex' : 'hidden'} md:flex`}>
-                        {Object.entries(ASSETS.stickers).map(([k, src]) => (
-                            <div key={k} className="w-14 h-14 bg-white border-2 border-gray-600 border-r-white border-b-white cursor-pointer active:border-black p-1 shrink-0" onClick={() => addSticker(k)}>
-                                <img src={src} className="w-full h-full object-contain" title={k}/>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            </div>
+        {/* --- CANVAS STAGE --- */}
+        <div className="flex-1 bg-[#808080] flex items-center justify-center overflow-hidden relative border-t-2 border-l-2 border-black touch-none min-h-0">
+          <div 
+            className="shadow-2xl bg-white origin-center"
+            style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale})` }}
+          >
+            <canvas 
+              ref={canvasRef}
+              width={canvasSize.w}
+              height={canvasSize.h}
+              className="touch-none block cursor-crosshair"
+              onMouseDown={(e)=>handleStart(e.clientX, e.clientY)}
+              onMouseMove={(e)=>handleMove(e.clientX, e.clientY)}
+              onMouseUp={handleEnd}
+              onMouseLeave={handleEnd}
+              onTouchStart={handleTouchStart}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={handleEnd}
+            />
+          </div>
+          
+          {/* Zoom Overlay */}
+          <div className="absolute bottom-4 right-4 bg-black/50 backdrop-blur p-2 flex gap-2 border border-white/20">
+             <button onClick={()=>setView(v=>({...v, scale: Math.max(0.2, v.scale-0.1)}))} className="text-white"><Minus size={14}/></button>
+             <span className="text-white font-mono w-10 text-center font-bold">{Math.round(view.scale*100)}%</span>
+             <button onClick={()=>setView(v=>({...v, scale: Math.min(3, v.scale+0.1)}))} className="text-white"><Plus size={14}/></button>
+          </div>
+        </div>
 
-            {/* --- MAIN CANVAS AREA --- */}
-            <div className="flex-1 bg-[#808080] flex items-center justify-center overflow-hidden relative border-t-2 border-l-2 border-black border-r-white border-b-white touch-none">
-                <div 
-                    className="shadow-[4px_4px_0_0_rgba(0,0,0,0.5)] bg-white origin-center transition-transform duration-75"
-                    style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale})` }}
-                >
-                    <canvas 
-                        ref={canvasRef}
-                        width={canvasSize.w}
-                        height={canvasSize.h}
-                        className="touch-none block"
-                        style={{ width: canvasSize.w > 600 ? '100%' : 'auto', maxHeight: '80vh', objectFit: 'contain' }}
-                        onTouchStart={handleTouchStart}
-                        onTouchMove={handleTouchMove}
-                        onTouchEnd={handleTouchEnd}
-                        onMouseDown={handleMouseDown}
-                        onMouseMove={handleMouseMove}
-                        onMouseUp={handleMouseUp}
-                        onMouseLeave={handleMouseUp}
-                    />
-                </div>
-                
-                {/* View Controls Overlay (Mobile Only) */}
-                <div className="absolute bottom-4 right-4 flex gap-2 md:hidden opacity-50 hover:opacity-100">
-                    <Button onClick={() => setView({scale:1, x:0, y:0})}><Maximize2 size={16}/></Button>
-                </div>
-            </div>
+        {/* --- PROPERTIES PANEL --- */}
+        <div className="w-60 bg-[#c0c0c0] border-l-2 border-white flex flex-col shadow-xl z-30 overflow-y-auto">
+          <div className="bg-[#000080] text-white font-bold text-[10px] p-2 flex justify-between items-center uppercase tracking-widest italic">
+            <span>Inspector IT</span>
+            <Layers size={12}/>
+          </div>
 
-            {/* --- RIGHT PROPERTIES (CONTEXTUAL) --- */}
-            <div className={`
-                absolute md:static top-0 right-0 bottom-0 z-30
-                w-56 bg-[#c0c0c0] border-l-2 border-white flex flex-col shadow-xl md:shadow-none
-                transition-transform duration-300 ease-in-out
-                ${showProps ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}
-            `}>
-                <div className="p-1 bg-[#000080] text-white font-bold text-[10px] flex justify-between px-2 items-center">
-                    <span>{tool === 'brush' && !selectedId ? "BRUSH SETTINGS" : "PROPERTIES"}</span>
-                    {selectedId && <span>#{selectedId.slice(0,4)}</span>}
-                    <div className="md:hidden cursor-pointer p-1" onClick={() => setShowProps(false)}><X size={14}/></div>
-                </div>
-
-                {selectedId ? (() => {
-                    const el = elements.find(e => e.id === selectedId);
-                    if (!el) return null;
-                    return (
-                        <div className="p-2 flex flex-col gap-4 overflow-y-auto pb-10">
-                            {el.type === 'text' && (
-                                <>
-                                    <div className="flex flex-col gap-1">
-                                        <label className="text-[9px] font-bold">CONTENT</label>
-                                        <InsetPanel><textarea value={el.text} onChange={e => updateElement(el.id, ()=>({text: e.target.value}))} className="w-full p-1 font-bold text-center resize-none outline-none text-xs" rows={2}/></InsetPanel>
-                                    </div>
-                                    <div className="flex flex-col gap-1">
-                                        <label className="text-[9px] font-bold">SIZE</label>
-                                        <div className="flex items-center gap-1">
-                                            <Button onClick={() => updateElement(el.id, e=>({size: Math.max(10, e.size - 5)}))}><Minus size={12}/></Button>
-                                            <span className="flex-1 text-center font-mono text-xs bg-white border border-gray-500 py-1">{Math.round(el.size)}px</span>
-                                            <Button onClick={() => updateElement(el.id, e=>({size: Math.min(200, e.size + 5)}))}><Plus size={12}/></Button>
-                                        </div>
-                                    </div>
-                                    <div className="flex flex-col gap-1">
-                                        <label className="text-[9px] font-bold">FONT</label>
-                                        <div className="grid grid-cols-2 gap-1">{FONTS.map(f => (<Button key={f.name} active={el.font === f.val} onClick={() => updateElement(el.id, ()=>({font: f.val}))} className="truncate text-[9px]">{f.name}</Button>))}</div>
-                                    </div>
-                                    <div className="flex flex-col gap-1">
-                                        <label className="text-[9px] font-bold">STROKE</label>
-                                        <div className="flex items-center gap-2 bg-white border border-gray-500 p-1">
-                                            <input type="color" value={el.strokeColor || '#000000'} onChange={e => updateElement(el.id, ()=>({strokeColor: e.target.value}))} className="w-6 h-6 border-none p-0 bg-transparent"/>
-                                            <input type="range" min="0" max="10" value={el.strokeWidth || 0} onChange={e => updateElement(el.id, ()=>({strokeWidth: parseInt(e.target.value)}))} className="flex-1 h-2"/>
-                                            <span className="text-[9px] w-6">{el.strokeWidth || 0}</span>
-                                        </div>
-                                    </div>
-                                </>
-                            )}
-                            {(el.type === 'text' || el.type === 'path') && (
-                                <div className="flex flex-col gap-1">
-                                    <label className="text-[9px] font-bold">FILL COLOR</label>
-                                    <div className="flex flex-wrap gap-1">
-                                        {MEME_COLORS.map(c => (<div key={c} onClick={() => updateElement(el.id, ()=>({color: c}))} className={`w-6 h-6 border-2 cursor-pointer ${el.color === c ? 'border-black border-dashed' : 'border-gray-500 border-r-white border-b-white'}`} style={{backgroundColor: c}}/>))}
-                                        <div className="w-6 h-6 border-2 border-gray-500 bg-gray-200 relative"><input type="color" className="opacity-0 absolute inset-0 w-full h-full" onChange={e => updateElement(el.id, ()=>({color: e.target.value}))} /></div>
-                                    </div>
-                                </div>
-                            )}
-                            <div className="mt-auto pt-2 border-t border-gray-500 border-b-white"><Button onClick={deleteSelected} className="w-full text-red-800"><Trash2 size={12}/> TRASH IT</Button></div>
+          <div className="p-3 space-y-5">
+            {selectedId ? (() => {
+              const el = elements.find(e => e.id === selectedId);
+              if (!el) return null;
+              return (
+                <div className="space-y-4">
+                  {el.type === 'text' && (
+                    <>
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-black uppercase opacity-60">Caption</label>
+                        <InsetPanel><textarea value={el.text} onChange={e => updateElement(el.id, ()=>({text: e.target.value}))} className="w-full p-2 font-bold outline-none text-xs text-black" rows={3}/></InsetPanel>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-black uppercase opacity-60">Typeface</label>
+                        <div className="grid grid-cols-2 gap-1">
+                          {FONTS.map(f => (<Button key={f.name} active={el.font === f.val} onClick={() => updateElement(el.id, ()=>({font: f.val}))}>{f.name}</Button>))}
                         </div>
-                    );
-                })() : tool === 'brush' ? (
-                    <div className="p-2 flex flex-col gap-4">
-                        <div className="flex flex-col gap-1"><label className="text-[9px] font-bold">SIZE: {brushSize}px</label><input type="range" min="1" max="50" value={brushSize} onChange={e=>setBrushSize(parseInt(e.target.value))} className="w-full"/></div>
-                        <div className="flex flex-col gap-1"><label className="text-[9px] font-bold">COLOR</label><div className="flex flex-wrap gap-1">{MEME_COLORS.map(c => (<div key={c} onClick={() => setToolColor(c)} className={`w-6 h-6 border-2 cursor-pointer ${toolColor === c ? 'border-black border-dashed' : 'border-gray-500'}`} style={{backgroundColor: c}}/>))}</div></div>
+                      </div>
+                    </>
+                  )}
+
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-black uppercase opacity-60">Color Palette</label>
+                    <div className="flex flex-wrap gap-1">
+                      {MEME_COLORS.map(c => (<div key={c} onClick={() => updateElement(el.id, ()=>({color: c}))} className={`w-6 h-6 border-2 cursor-pointer ${el.color === c ? 'border-white outline outline-1 outline-black shadow-lg' : 'border-gray-500 border-r-white border-b-white'}`} style={{backgroundColor: c}}/>))}
                     </div>
-                ) : (
-                    <div className="flex-1 flex flex-col items-center justify-center text-gray-500 gap-2 p-4 text-center"><MousePointer size={24} className="opacity-50"/><p className="text-[10px]">Select IT or Draw IT.</p></div>
-                )}
-            </div>
+                  </div>
+
+                  {el.type === 'text' && (
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-black uppercase opacity-60">Outline</label>
+                      <div className="flex items-center gap-2 bg-[#d0d0d0] p-1 border-2 border-inset border-gray-600">
+                        <input type="range" min="0" max="10" value={el.strokeWidth || 0} onChange={e=>updateElement(el.id, ()=>({strokeWidth: parseInt(e.target.value)}))} className="flex-1 accent-blue-900"/>
+                        <span className="font-mono text-[9px] w-4">{el.strokeWidth || 0}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="pt-4 border-t border-gray-500">
+                    <Button onClick={deleteSelected} className="w-full bg-red-100 text-red-700 border-red-700"><Trash2 size={14}/> TRASH OBJECT</Button>
+                  </div>
+                </div>
+              );
+            })() : tool === 'brush' ? (
+              <div className="space-y-5">
+                <div className="space-y-1">
+                  <label className="text-[9px] font-black uppercase opacity-60">Brush Size</label>
+                  <div className="flex items-center gap-2 bg-[#d0d0d0] p-1 border-2 border-inset border-gray-600">
+                    <input type="range" min="1" max="50" value={brushSize} onChange={e=>setBrushSize(parseInt(e.target.value))} className="flex-1 accent-blue-900"/>
+                    <span className="font-mono text-[9px] w-4">{brushSize}</span>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[9px] font-black uppercase opacity-60">Brush Color</label>
+                  <div className="flex flex-wrap gap-1">
+                    {MEME_COLORS.map(c => (<div key={c} onClick={() => setToolColor(c)} className={`w-6 h-6 border-2 cursor-pointer ${toolColor === c ? 'border-white outline outline-1 outline-black shadow-lg' : 'border-gray-500 border-r-white border-b-white'}`} style={{backgroundColor: c}}/>))}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center text-gray-500 gap-2 p-4 text-center mt-10">
+                <MousePointer size={32} className="opacity-20 animate-pulse"/>
+                <p className="text-[9px] font-black uppercase tracking-tighter opacity-50">Select an object or pick a tool to start degining.</p>
+              </div>
+            )}
+          </div>
         </div>
+      </div>
     </div>
   );
 };
+
 
 
 const AmpTunesApp = () => {
@@ -3046,7 +3036,7 @@ const SOUNDS = {
   out: "/notis/msg_out.mp3"
 };
 
-const ChatApp = () => {
+const ChatApp = ({ hasAccess }) => {
   // --- CORE STATE ---
   const [messages, setMessages] = useState([]);
   const [pendingMessages, setPendingMessages] = useState([]);
@@ -3195,11 +3185,16 @@ const ChatApp = () => {
     const forbidden = ["ADMIN", "SYSTEM", "KERNEL", "IT_OS", "MOD"];
     if (name.length < 2) { setError("ALIAS_TOO_SHORT"); return; }
     if (forbidden.some(word => name.includes(word))) { setError("RESERVED_IDENTITY_BLOCK"); return; }
-    if (sfxInRef.current) { sfxInRef.current.volume = 0; sfxInRef.current.play().then(() => { sfxInRef.current.pause(); sfxInRef.current.volume = 0.4; }).catch(() => {}); }
-    if (sfxOutRef.current) { sfxOutRef.current.volume = 0; sfxOutRef.current.play().then(() => { sfxOutRef.current.pause(); sfxOutRef.current.volume = 0.4; }).catch(() => {}); }
+
+    // CRITICAL: Always save the user's choices. 
+    // enforcement happens visually in the useEffect.
     localStorage.setItem('tbox_alias', name);
     localStorage.setItem('tbox_color', userColor);
     localStorage.setItem('tbox_avatar', userAvatar);
+
+    if (sfxInRef.current) { sfxInRef.current.volume = 0; sfxInRef.current.play().then(() => { sfxInRef.current.pause(); sfxInRef.current.volume = 0.4; }).catch(() => {}); }
+    if (sfxOutRef.current) { sfxOutRef.current.volume = 0; sfxOutRef.current.play().then(() => { sfxOutRef.current.pause(); sfxOutRef.current.volume = 0.4; }).catch(() => {}); }
+    
     setIsSetup(true);
   };
 
@@ -3232,15 +3227,23 @@ const ChatApp = () => {
     return () => unsubscribe();
   }, []);
 
+  // MASTER SYNC: This block forces the UI to unlock immediately when hasAccess flips
   useEffect(() => {
     const savedName = localStorage.getItem('tbox_alias');
     if (savedName) {
       setUsername(savedName);
-      setUserColor(localStorage.getItem('tbox_color') || COLOR_LIST[0].hex);
-      setUserAvatar(localStorage.getItem('tbox_avatar') || AVATAR_LIST[5].url);
+      if (hasAccess) {
+        // UNLOCK: Sync state to the choices saved in storage
+        setUserColor(localStorage.getItem('tbox_color') || COLOR_LIST[0].hex);
+        setUserAvatar(localStorage.getItem('tbox_avatar') || AVATAR_LIST[5].url);
+      } else {
+        // LOCK: Force default visuals for non-holders
+        setUserColor(COLOR_LIST[0].hex);
+        setUserAvatar(AVATAR_LIST[5].url);
+      }
       setIsSetup(true);
     }
-  }, []);
+  }, [hasAccess]);
 
   useEffect(() => {
     if (!user) return;
@@ -3266,7 +3269,7 @@ const ChatApp = () => {
       setIsConnected(true);
     }, () => setIsConnected(false));
     return () => unsubscribe();
-  }, [user, isNotiMuted]);
+  }, [user]);
 
   // SMART AUTO SCROLL & ARROW TOGGLE
   const handleOnScroll = () => {
@@ -3294,11 +3297,13 @@ const ChatApp = () => {
         audioRef.current = new Audio(currentFile);
         audioRef.current.volume = 0.2;
       } else { audioRef.current.src = currentFile; }
-      audioRef.current.onended = () => setTrackIndex(prev => (prev + 1) % CHAT_PLAYLIST.length);
+      audioRef.current.onended = () => {
+        if (hasAccess) setTrackIndex(prev => (prev + 1) % CHAT_PLAYLIST.length);
+      };
       audioRef.current.play().catch(() => {});
     } else if (audioRef.current) { audioRef.current.pause(); }
     return () => { if (audioRef.current) audioRef.current.pause(); };
-  }, [isSetup, isMuted, trackIndex]);
+  }, [isSetup, isMuted, trackIndex, hasAccess]);
 
   // --- GESTURES ---
   const onMsgContextMenu = (e, msg) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, msg }); };
@@ -3319,16 +3324,26 @@ const ChatApp = () => {
 
   const handleTouchEnd = () => { if (longPressTimer.current) clearTimeout(longPressTimer.current); };
 
-  // FIX: Stable Identity Selector Block
+  // IDENTITY SELECTOR UI
   const identitySection = (
     <div className="space-y-4 p-4 bg-black border-2 border-green-900 rounded shadow-inner" onClick={e => e.stopPropagation()}>
         <div className="space-y-2 text-center">
             <label className="text-[9px] text-emerald-600 font-black tracking-widest uppercase block text-center">Faction Avatar</label>
+            {!hasAccess && <div className="text-[8px] text-yellow-500 font-bold uppercase tracking-tighter mb-1 animate-pulse">[ IDENTITY_LOCK: BUY $IT TO UNLOCK ]</div>}
             <div className="grid grid-cols-3 gap-2">
             {AVATAR_LIST.map((av) => (
                 <button key={av.id} type="button" 
-                  onPointerDown={(e) => { e.stopPropagation(); setUserAvatar(av.url); }} 
-                  className={`aspect-square border-2 transition-all p-1 bg-zinc-900 ${userAvatar === av.url ? 'border-emerald-500 scale-105 shadow-[0_0_10px_#10b981]' : 'border-zinc-800 grayscale opacity-40 hover:opacity-100 hover:grayscale-0'}`}>
+                  onPointerDown={(e) => { 
+                    e.stopPropagation(); 
+                    if (hasAccess) {
+                        setUserAvatar(av.url); 
+                        localStorage.setItem('tbox_avatar', av.url);
+                    } else {
+                        setError("LOCKED: HOLD 500K $IT TO CHOOSE PFPS");
+                        setTimeout(() => setError(null), 3000);
+                    }
+                  }} 
+                  className={`aspect-square border-2 transition-all p-1 bg-zinc-900 ${userAvatar === av.url ? 'border-emerald-500 scale-105 shadow-[0_0_10px_#10b981]' : `border-zinc-800 opacity-40 hover:opacity-100 ${!hasAccess ? 'grayscale opacity-20' : ''}`}`}>
                     <img src={av.url} alt={av.name} className="w-full h-full object-cover pointer-events-none" />
                 </button>
             ))}
@@ -3339,8 +3354,17 @@ const ChatApp = () => {
             <div className="flex justify-center gap-2 flex-wrap">
             {COLOR_LIST.map((col) => (
                 <button key={col.id} type="button" 
-                  onPointerDown={(e) => { e.stopPropagation(); setUserColor(col.hex); }} 
-                  className={`w-8 h-8 border-2 transition-all ${userColor === col.hex ? 'border-white scale-110 shadow-lg' : 'border-black/40'}`} style={{ backgroundColor: col.hex }} />
+                  onPointerDown={(e) => { 
+                    e.stopPropagation(); 
+                    if (hasAccess) {
+                        setUserColor(col.hex); 
+                        localStorage.setItem('tbox_color', col.hex);
+                    } else {
+                        setError("LOCKED: HOLD 500K $IT TO CHANGE COLORS");
+                        setTimeout(() => setError(null), 3000);
+                    }
+                  }} 
+                  className={`w-8 h-8 border-2 transition-all ${userColor === col.hex ? 'border-white scale-110 shadow-lg' : 'border-black/40'} ${!hasAccess ? 'opacity-20' : ''}`} style={{ backgroundColor: col.hex }} />
             ))}
             </div>
         </div>
@@ -3377,7 +3401,20 @@ const ChatApp = () => {
         </div>
         <div className="flex items-center gap-3">
           <div className="flex items-center bg-black/20 rounded px-1.5 py-0.5 border border-white/10 gap-2">
-            <button onClick={(e) => {e.stopPropagation(); setTrackIndex(prev => (prev + 1) % CHAT_PLAYLIST.length);}} className="text-emerald-500 hover:text-white transition-colors"><SkipForward size={14}/></button>
+            <button 
+              onClick={(e) => {
+                e.stopPropagation(); 
+                if (hasAccess) {
+                    setTrackIndex(prev => (prev + 1) % CHAT_PLAYLIST.length);
+                } else {
+                    setError("LOCKED: HOLD 500K $IT TO SKIP TUNES");
+                    setTimeout(() => setError(null), 3000);
+                }
+              }} 
+              className={`text-emerald-500 hover:text-white transition-colors ${!hasAccess ? 'opacity-20 cursor-not-allowed' : ''}`}
+            >
+              <SkipForward size={14}/>
+            </button>
             <button onClick={(e) => {e.stopPropagation(); setIsMuted(!isMuted)}} className={`p-1 transition-all ${isMuted ? 'text-red-400' : 'text-emerald-500 animate-pulse'}`}>{isMuted ? <VolumeX size={14}/> : <Volume2 size={14}/>}</button>
             <button onClick={(e) => {e.stopPropagation(); setIsNotiMuted(!isNotiMuted)}} className={`p-1 transition-all ${isNotiMuted ? 'text-red-400' : 'text-emerald-500'}`}>{isNotiMuted ? <BellOff size={14}/> : <Bell size={14}/>}</button>
           </div>
@@ -3396,18 +3433,34 @@ const ChatApp = () => {
                 <X size={10} className="cursor-pointer" onClick={() => setActiveMenu(null)} />
               </div>
               <div className="p-1 space-y-1">
-                  <div className="p-2 bg-black border border-white/10 rounded mb-2 text-center">
+                  {error && <div className="text-[7px] text-red-700 font-black text-center mb-1 bg-red-100 p-1 border border-red-300 uppercase animate-pulse">{error}</div>}
+                  <div className={`p-2 bg-black border border-white/10 rounded mb-2 text-center ${!hasAccess ? 'opacity-30' : ''}`}>
                     <div className="text-[8px] font-black text-emerald-500 mb-2 truncate uppercase tracking-widest">{CHAT_PLAYLIST[trackIndex].title}</div>
                     <div className="flex justify-center items-center gap-4 text-white">
-                        <button onClick={() => setTrackIndex(p => (p-1+CHAT_PLAYLIST.length)%CHAT_PLAYLIST.length)}><SkipBack size={16}/></button>
+                        <button onClick={() => { if(hasAccess) setTrackIndex(p => (p-1+CHAT_PLAYLIST.length)%CHAT_PLAYLIST.length); else { setError("BUY $IT TO SKIP"); setTimeout(()=>setError(null), 2000); } }}><SkipBack size={16}/></button>
                         <button onClick={() => setIsMuted(!isMuted)}>{isMuted ? <Play size={16}/> : <Pause size={16}/>}</button>
-                        <button onClick={() => setTrackIndex(p => (p+1)%CHAT_PLAYLIST.length)}><SkipForward size={16}/></button>
+                        <button onClick={() => { if(hasAccess) setTrackIndex(p => (p+1)%CHAT_PLAYLIST.length); else { setError("BUY $IT TO SKIP"); setTimeout(()=>setError(null), 2000); } }}><SkipForward size={16}/></button>
                     </div>
                   </div>
                   <button onClick={() => setIsNotiMuted(!isNotiMuted)} className="w-full text-left px-2 py-1.5 hover:bg-[#000080] hover:text-white flex items-center gap-2 text-[10px] font-black uppercase border border-transparent hover:border-white transition-all">
-                    {isNotiMuted ? <Bell size={12}/> : <BellOff size={12}/>} {isNotiMuted ? "Unmute Notifications" : "Mute Notifications"}
+                    {isNotiMuted ? <Bell size={12}/> : <BellOff size={12}/>} {isNotiMuted ? "Unmute Notis" : "Mute Notis"}
                   </button>
-                  <button onClick={() => setActiveMenu('appearance')} className="w-full text-left px-2 py-1.5 hover:bg-[#000080] hover:text-white flex items-center gap-2 text-[10px] font-black uppercase border border-transparent hover:border-white transition-all"><Palette size={12}/> Appearance Settings</button>
+                  
+                  {/* Appearance button: Always visible, faded if no access */}
+                  <button 
+                    onClick={() => {
+                        if (hasAccess) {
+                            setActiveMenu('appearance');
+                        } else {
+                            setError("LOCKED: HOLD 500K $IT TO ACCESS");
+                            setTimeout(() => setError(null), 3000);
+                        }
+                    }} 
+                    className={`w-full text-left px-2 py-1.5 hover:bg-[#000080] hover:text-white flex items-center gap-2 text-[10px] font-black uppercase border border-transparent hover:border-white transition-all ${!hasAccess ? 'opacity-30' : ''}`}
+                  >
+                    <Palette size={12}/> Appearance Settings
+                  </button>
+                  
                   <button onClick={() => {localStorage.removeItem('tbox_alias'); setIsSetup(false);}} className="w-full text-left px-2 py-1.5 hover:bg-[#000080] hover:text-white flex items-center gap-2 text-[10px] font-black uppercase border border-transparent hover:border-white transition-all"><LogOut size={12}/> Logout Link</button>
                   <div className="h-px bg-gray-500 my-1"></div>
                   <button onClick={(e) => {localStorage.clear(); window.location.reload();}} className="w-full text-left px-2 py-1.5 hover:bg-red-700 hover:text-white text-red-800 flex items-center gap-2 text-[10px] font-black border border-transparent hover:border-white transition-all"><Trash2 size={12}/> Burn Identity</button>
@@ -3418,13 +3471,28 @@ const ChatApp = () => {
       {activeMenu === 'appearance' && (
           <div className="absolute inset-0 bg-black/90 backdrop-blur-md z-[200] flex items-center justify-center p-4" onClick={e=>e.stopPropagation()}>
               <div className="w-full max-w-xs bg-[#c0c0c0] border-2 border-white border-r-black border-b-black p-1 shadow-2xl">
-                  <div className="bg-[#000080] text-white text-[10px] font-bold px-2 py-1 flex justify-between items-center font-mono">
+                  <div className="bg-[#000080] text-white text-[10px] font-bold px-2 py-1 flex justify-between items-center font-mono uppercase tracking-widest">
                       <span>UPDATE_IDENTITY.EXE</span>
                       <X size={14} className="cursor-pointer hover:bg-red-600 p-0.5" onClick={() => setActiveMenu('options')} />
                   </div>
                   <div className="p-4 bg-black space-y-4">
+                        {error && <div className="text-[8px] text-red-500 font-bold animate-pulse text-center uppercase">{error}</div>}
                         {identitySection}
-                        <button onClick={() => {localStorage.setItem('tbox_color', userColor); localStorage.setItem('tbox_avatar', userAvatar); setActiveMenu(null);}} className="w-full bg-[#c0c0c0] text-black border-2 border-gray-400 border-l-white border-t-white py-3 font-black text-[10px] tracking-widest uppercase hover:bg-white transition-colors">Apply Changes</button>
+                        <button 
+                            onClick={() => {
+                                if (hasAccess) {
+                                    localStorage.setItem('tbox_color', userColor); 
+                                    localStorage.setItem('tbox_avatar', userAvatar); 
+                                    setActiveMenu(null);
+                                } else {
+                                    setError("BUY $IT TO APPLY CHANGES");
+                                    setTimeout(() => setError(null), 3000);
+                                }
+                            }} 
+                            className={`w-full bg-[#c0c0c0] text-black border-2 border-gray-400 border-l-white border-t-white py-3 font-black text-[10px] tracking-widest uppercase hover:bg-white transition-colors ${!hasAccess ? 'opacity-20 grayscale cursor-not-allowed' : ''}`}
+                        >
+                            Apply Changes
+                        </button>
                   </div>
               </div>
           </div>
@@ -3563,8 +3631,6 @@ const ChatApp = () => {
     </div>
   );
 };
-
-
 
 
 
