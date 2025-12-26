@@ -13,18 +13,18 @@ import {
   FileText, Music, MousePointer, Volume2,
   Paintbrush, Eraser, Download, Settings, Wallet, Bot,
   Search, Layout, Type, Folder, Twitter, Users, Copy, Check,
-  Menu, LogOut, ChevronRight,
+  Menu, LogOut, ChevronRight, Link as LinkIcon, Link2Off,
   Move, RotateCcw, RotateCw, Upload,
   Maximize2, LayoutTemplate, Monitor, Share, Sliders, ChevronLeft, Plus,
   Send, User, AlertCircle, XCircle, AlertTriangle,
   Lightbulb, TrendingUp, Sparkles, RefreshCw, Trophy, Info, Flame, Share2, Joystick, VolumeX,
   TrendingDown, ShieldAlert, Cpu, BarChart3, Binary, Grid, ZoomIn, FileImage,
-  Wifi, Hash, Lock, Sun, Moon, Database, Radio, Command, Palette, UserCircle,
-  ShieldCheck, Shield, Reply, Quote, CornerDownRight, Heart, ThumbsUp, ThumbsDown, Anchor, Crown, Bell, BellOff, ChevronDown
+  Wifi, Hash, Lock, Unlock, Sun, Moon, Database, Radio, Command, Palette, UserCircle,
+  ShieldCheck, Shield, Reply, Quote, CornerDownRight, Heart, ThumbsUp, ThumbsDown, Anchor, Crown, Bell, BellOff, ChevronDown,
+  ExternalLink, ShoppingCart
 } from 'lucide-react';
 
-
-
+// --- CONFIGURATION ---
 const firebaseConfig = {
   apiKey: "AIzaSyB_gNokFnucM2nNAhhkRRnPsPNBAShYlMs",
   authDomain: "it-token.firebaseapp.com",
@@ -34,92 +34,39 @@ const firebaseConfig = {
   appId: "1:804328953904:web:e760545b579bf2527075f5"
 };
 
-
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-
-
-
-
 const appId = 'it-token-os';
 
-
+const CA_ADDRESS = "So11111111111111111111111111111111111111112";
+const ACCESS_THRESHOLD = 500000; // 500k IT tokens
+const RPC_ENDPOINT = "https://api.mainnet-beta.solana.com"; 
 
 const ASSETS = {
   wallpaper: "wall.jpg", 
   logo: "logo.png",
-  
-  
   stickers: {
-    main: "main.jpg",
-    pumpit: "pumpit.jpg",
-    sendit: "sendit.jpg",
-    moonit: "moonit.jpg",
-    hodlit: "hodlit.jpg",
+    main: "main.jpg", pumpit: "pumpit.jpg", sendit: "sendit.jpg", moonit: "moonit.jpg", hodlit: "hodlit.jpg",
   },
-
-  
   memes: {
-    main: "main.jpg",
-    pumpit: "pumpit.jpg",
-    sendit: "sendit.jpg",
-    moonit: "moonit.jpg",
-    hodlit: "hodlit.jpg",
-    meme_06: "memes/1.jpg",
-    meme_07: "memes/2.jpg",
-    meme_08: "memes/3.jpg",
-    meme_09: "memes/4.jpg",
-    meme_10: "memes/5.jpg",
-    meme_11: "memes/6.jpg",
-    meme_12: "memes/7.jpg",
-    meme_13: "memes/8.jpg",
-    meme_14: "memes/9.jpg",
-    meme_15: "memes/10.jpg",
-    meme_16: "memes/11.jpg",
-    meme_17: "memes/12.jpg",
-    meme_18: "memes/13.jpg",
-    meme_19: "memes/14.jpg",
-    meme_20: "memes/15.jpg",
-    meme_21: "memes/16.jpg",
-    meme_22: "memes/17.jpg",
-    meme_23: "memes/18.jpg",
-    meme_24: "memes/19.jpg",
-    meme_25: "memes/20.jpg",
-    meme_26: "memes/21.jpg",
-    meme_27: "memes/22.jpg",
-    meme_28: "memes/23.jpg",
-    meme_29: "memes/24.jpg",
-    meme_30: "memes/25.jpg",
-    meme_31: "memes/26.jpg",
-    meme_32: "memes/27.jpg",
-    meme_33: "memes/28.jpg",
-    meme_34: "memes/29.jpg",
-    meme_35: "memes/30.jpg",
-    meme_36: "memes/31.jpg",
-    meme_37: "memes/32.jpg",
-    meme_38: "memes/33.jpg",
-    meme_39: "memes/34.jpg",
-    meme_40: "memes/35.jpg",
-    meme_41: "memes/40.jpg",
-    meme_42: "memes/41.jpg",
-    meme_43: "memes/42.jpg",
-    meme_44: "memes/43.jpg",
-    meme_45: "memes/44.jpg",
-    meme_46: "memes/45.jpg",
-    meme_47: "memes/46.jpg",
-    meme_48: "memes/47.jpg",
-    meme_49: "memes/48.jpg",
+    main: "main.jpg", pumpit: "pumpit.jpg", sendit: "sendit.jpg", moonit: "moonit.jpg", hodlit: "hodlit.jpg",
+    meme_06: "memes/1.jpg", meme_07: "memes/2.jpg", meme_08: "memes/3.jpg", meme_09: "memes/4.jpg",
+    meme_10: "memes/5.jpg", meme_11: "memes/6.jpg", meme_12: "memes/7.jpg", meme_13: "memes/8.jpg",
+    meme_14: "memes/9.jpg", meme_15: "memes/10.jpg", meme_16: "memes/11.jpg", meme_17: "memes/12.jpg",
+    meme_18: "memes/13.jpg", meme_19: "memes/14.jpg", meme_20: "memes/15.jpg", meme_21: "memes/16.jpg",
+    meme_22: "memes/17.jpg", meme_23: "memes/18.jpg", meme_24: "memes/19.jpg", meme_25: "memes/20.jpg",
+    meme_26: "memes/21.jpg", meme_27: "memes/22.jpg", meme_28: "memes/23.jpg", meme_29: "memes/24.jpg",
+    meme_30: "memes/25.jpg", meme_31: "memes/26.jpg", meme_32: "memes/27.jpg", meme_33: "memes/28.jpg",
+    meme_34: "memes/29.jpg", meme_35: "memes/30.jpg", meme_36: "memes/31.jpg", meme_37: "memes/32.jpg",
+    meme_38: "memes/33.jpg", meme_39: "memes/34.jpg", meme_40: "memes/35.jpg", meme_41: "memes/40.jpg",
+    meme_42: "memes/41.jpg", meme_43: "memes/42.jpg", meme_44: "memes/43.jpg", meme_45: "memes/44.jpg",
+    meme_46: "memes/45.jpg", meme_47: "memes/46.jpg", meme_48: "memes/47.jpg", meme_49: "memes/48.jpg",
     meme_50: "memes/49.jpg",
   }
 };
 
-
-const SOCIALS = {
-  twitter: "https://x.com/ITonSol",
-  community: "https://x.com/ITonSol",
-};
-
+const SOCIALS = { twitter: "https://x.com/ITonSol", community: "https://x.com/ITonSol" };
 
 const TUNES_PLAYLIST = [
   { file: "GET_IT_STARTED.mp3", title: "LETS GET IT STARTED", duration: "1:37", artist: "CREW" },
@@ -130,13 +77,8 @@ const TUNES_PLAYLIST = [
   { file: "MEME_IT.mp3", title: "MEME IT 2.0", duration: "2:34", artist: "MEMERS" }
 ];
 
-const CA_ADDRESS = "So11111111111111111111111111111111111111112";
-const ACCESS_THRESHOLD = 500000; // 500k IT tokens
-const RPC_ENDPOINT = "https://api.mainnet-beta.solana.com"; 
-
 // --- UTILITIES ---
 const generateId = () => Math.random().toString(36).substr(2, 9);
-
 const copyToClipboard = (text) => {
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(text);
@@ -150,34 +92,26 @@ const copyToClipboard = (text) => {
   }
 };
 
-// --- UPGRADED WALLET HOOK (PHASE 1) ---
+// --- UPGRADED WALLET HOOK (PHASE 1.5) ---
 const useWallet = () => {
   const [wallet, setWallet] = useState(null);
   const [balance, setBalance] = useState(0);
   const [connecting, setConnecting] = useState(false);
   const [hasAccess, setHasAccess] = useState(false);
 
-  // 1. SOLANA BALANCE CHECKER (Direct RPC Call)
   const checkTokenBalance = useCallback(async (publicKey) => {
+    if (!publicKey) return;
     try {
       const response = await fetch(RPC_ENDPOINT, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          jsonrpc: '2.0',
-          id: 1,
-          method: 'getTokenAccountsByOwner',
-          params: [
-            publicKey,
-            { mint: CA_ADDRESS },
-            { encoding: 'jsonParsed' }
-          ]
+          jsonrpc: '2.0', id: 1, method: 'getTokenAccountsByOwner',
+          params: [publicKey, { mint: CA_ADDRESS }, { encoding: 'jsonParsed' }]
         })
       });
-      
       const data = await response.json();
       const accounts = data.result?.value || [];
-      
       if (accounts.length > 0) {
         const amount = accounts[0].account.data.parsed.info.tokenAmount.uiAmount || 0;
         setBalance(amount);
@@ -186,45 +120,43 @@ const useWallet = () => {
         setBalance(0);
         setHasAccess(false);
       }
-    } catch (e) {
-      console.error("Balance Check Error:", e);
-    }
+    } catch (e) { console.error("Balance Check Error:", e); }
   }, []);
 
-  // 2. UNIVERSAL CONNECT (Mobile + Desktop)
+  const disconnect = useCallback(() => {
+    if (window.solana) window.solana.disconnect();
+    setWallet(null);
+    setBalance(0);
+    setHasAccess(false);
+  }, []);
+
   const connect = async () => {
+    if (wallet) { disconnect(); return; }
     setConnecting(true);
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-
     try {
       if (window.solana && window.solana.isPhantom) {
-        // DESKTOP OR PHANTOM BROWSER
         const response = await window.solana.connect();
         const pubKey = response.publicKey.toString();
         setWallet(pubKey);
         await checkTokenBalance(pubKey);
       } else if (isMobile) {
-        // MOBILE REDIRECT: Jump into Phantom's in-app browser
         const url = encodeURIComponent(window.location.href);
         window.location.href = `https://phantom.app/ul/browse/${url}?ref=${url}`;
       } else {
         alert("KERNEL ERROR: Phantom Extension not detected. Please install it to access IT OS.");
       }
-    } catch (err) {
-      console.error("Connection Failed", err);
-    } finally {
-      setConnecting(false);
-    }
+    } catch (err) { console.error("Connection Failed", err); } 
+    finally { setConnecting(false); }
   };
 
-  // 3. AUTO-REFRESH BALANCE (Anti-Jeet Protocol)
   useEffect(() => {
     if (!wallet) return;
-    const interval = setInterval(() => checkTokenBalance(wallet), 60000); // Check every min
+    const interval = setInterval(() => checkTokenBalance(wallet), 60000);
     return () => clearInterval(interval);
   }, [wallet, checkTokenBalance]);
 
-  return { wallet, balance, hasAccess, connect, connecting };
+  return { wallet, balance, hasAccess, connect, disconnect, connecting };
 };
 
 // --- OS PRICE TRACKER ---
@@ -252,22 +184,84 @@ const useDexData = (ca) => {
   return data;
 };
 
+// --- FLOATING HUD COMPONENT: TOP RIGHT ---
+const SystemResourceMonitor = ({ wallet, balance, hasAccess }) => {
+    const formattedBalance = new Intl.NumberFormat().format(Math.floor(balance));
+    const buyLink = `https://jup.ag/swap/SOL-${CA_ADDRESS}`;
+
+    return (
+        <div className="fixed top-4 right-4 z-[9000] flex flex-col items-end pointer-events-none">
+            {/* HUD Panel */}
+            <div className="bg-black/60 backdrop-blur-md border-2 border-white border-r-gray-700 border-b-gray-700 p-3 w-64 shadow-[10px_10px_0px_rgba(0,0,0,0.5)] pointer-events-auto group hover:scale-[1.02] transition-transform font-mono">
+                
+                {/* Header Title */}
+                <div className="flex justify-between items-center border-b border-white/20 pb-2 mb-2">
+                    <div className="flex items-center gap-2">
+                        <Cpu size={14} className="text-white animate-pulse" />
+                        <span className="text-[10px] font-black text-white uppercase tracking-widest leading-none">KERNEL_TELEMETRY</span>
+                    </div>
+                    <div className={`w-2 h-2 rounded-full border border-black/40 ${wallet ? 'bg-green-500 shadow-[0_0_8px_#22c55e] animate-pulse' : 'bg-red-500 shadow-[0_0_8px_#ef4444]'}`} title={wallet ? "Neural Link Active" : "No Signal"} />
+                </div>
+
+                {/* Balance Stats */}
+                <div className="space-y-3">
+                    <div className="flex flex-col">
+                        <div className="flex justify-between items-end">
+                            <span className="text-gray-400 text-[8px] uppercase tracking-tighter">Neural Reserves</span>
+                            <span className={`text-xs font-black tracking-tighter ${hasAccess ? 'text-blue-400' : 'text-yellow-500'}`}>
+                                {wallet ? `${formattedBalance} $IT` : 'N/A'}
+                            </span>
+                        </div>
+                        {/* Energy Bar */}
+                        <div className="w-full h-2 bg-gray-900 border border-gray-700 mt-1 overflow-hidden p-[1px]">
+                            <div 
+                                className={`h-full transition-all duration-1000 ${hasAccess ? 'bg-blue-500 shadow-[0_0_5px_#3b82f6]' : 'bg-yellow-500 animate-pulse'}`}
+                                style={{ width: wallet ? `${Math.min(100, (balance / ACCESS_THRESHOLD) * 100)}%` : '0%' }}
+                            />
+                        </div>
+                    </div>
+
+                    {/* Dynamic Action Area */}
+                    <div className="flex flex-col gap-1 items-center justify-center py-1">
+                        {!wallet ? (
+                            <div className="text-red-500 text-[9px] font-black uppercase text-center animate-pulse tracking-widest italic">
+                                [ UPLINK_REQUIRED ]
+                            </div>
+                        ) : !hasAccess ? (
+                            <a 
+                                href={buyLink} 
+                                target="_blank" 
+                                rel="noopener noreferrer" 
+                                className="w-full bg-yellow-600/20 border border-yellow-600 p-2 text-center text-yellow-400 hover:bg-yellow-600 hover:text-black transition-all animate-pulse text-[9px] font-black uppercase leading-tight flex items-center justify-center gap-2"
+                            >
+                                <ShoppingCart size={12}/> LOW POWER: BUY IT NOW
+                            </a>
+                        ) : (
+                            <div className="w-full bg-green-900/20 border border-green-500 p-2 text-center text-green-400 text-[9px] font-black uppercase flex items-center justify-center gap-2">
+                                <ShieldCheck size={12}/> PROTOCOL: ACCESS_GRANTED
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* Footer Sync */}
+                <div className="mt-2 pt-1 border-t border-white/10 flex justify-between items-center opacity-40">
+                    <span className="text-[7px] font-bold text-gray-400 uppercase tracking-widest">Sync cycle: 60s</span>
+                    <span className="text-[7px] font-bold text-white uppercase italic">HOLD IT</span>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 // --- UI COMPONENTS ---
 const Button = ({ children, onClick, className = "", active = false, disabled = false, title = "", ...props }) => (
   <button
-    onClick={onClick}
-    disabled={disabled}
-    title={title}
-    {...props}
-    className={`
-      px-3 py-1 text-sm font-bold flex items-center justify-center gap-2 select-none active:scale-[0.98]
-      border-t-2 border-l-2 border-b-2 border-r-2
+    onClick={onClick} disabled={disabled} title={title} {...props}
+    className={`px-3 py-1 text-sm font-bold flex items-center justify-center gap-2 select-none active:scale-[0.98] border-t-2 border-l-2 border-b-2 border-r-2
       ${disabled ? 'text-gray-500 bg-gray-200' : 'text-black bg-[#c0c0c0]'}
-      ${active 
-        ? 'border-t-black border-l-black border-b-white border-r-white bg-[#d4d0c8] translate-y-[1px]' 
-        : 'border-t-white border-l-white border-b-black border-r-black'}
-      ${className}
-    `}
+      ${active ? 'border-t-black border-l-black border-b-white border-r-white bg-[#d4d0c8] translate-y-[1px]' : 'border-t-white border-l-white border-b-black border-r-black'}
+      ${className}`}
   >
     {children}
   </button>
@@ -276,21 +270,17 @@ const Button = ({ children, onClick, className = "", active = false, disabled = 
 const WindowFrame = ({ title, icon: Icon, children, onClose, onMinimize, onMaximize, isActive, onFocus }) => (
   <div
     className={`flex flex-col w-full h-full bg-[#d4d0c8] shadow-[8px_8px_0px_rgba(0,0,0,0.5)] border-2 border-[#d4d0c8] ${isActive ? 'z-50' : 'z-10'}`}
-    style={{
-      borderTop: '2px solid white', borderLeft: '2px solid white', borderRight: '2px solid black', borderBottom: '2px solid black',
-    }}
-    onMouseDown={onFocus}
-    onTouchStart={onFocus}
+    style={{ borderTop: '2px solid white', borderLeft: '2px solid white', borderRight: '2px solid black', borderBottom: '2px solid black' }}
+    onMouseDown={onFocus} onTouchStart={onFocus}
   >
     <div className={`flex justify-between items-center px-1 py-1 select-none ${isActive ? 'bg-[#000080]' : 'bg-[#808080]'}`}>
       <div className="flex items-center gap-2 text-white font-bold text-sm tracking-wider px-1">
-        {Icon && <Icon size={16} />}
-        <span>{title}</span>
+        {Icon && <Icon size={16} />} <span>{title}</span>
       </div>
       <div className="flex gap-1" onMouseDown={(e) => e.stopPropagation()} onTouchStart={(e) => e.stopPropagation()}>
-        <button onClick={onMinimize} className="w-5 h-5 bg-[#c0c0c0] border-t-white border-l-white border-b-black border-r-black border-2 flex items-center justify-center"><div className="w-2 h-0.5 bg-black mt-2"></div></button>
-        <button onClick={onMaximize} className="w-5 h-5 bg-[#c0c0c0] border-t-white border-l-white border-b-black border-r-black border-2 flex items-center justify-center"><div className="w-2.5 h-2 border-t-2 border-black"></div></button>
-        <button onClick={onClose} className="w-5 h-5 bg-[#c0c0c0] border-t-white border-l-white border-b-black border-r-black border-2 font-bold text-xs flex items-center justify-center">X</button>
+        <button onClick={onMinimize} className="w-5 h-5 bg-[#c0c0c0] border-t-white border-l-white border-b-black border-r-black border-2 flex items-center justify-center transition-colors hover:bg-gray-100"><div className="w-2 h-0.5 bg-black mt-2"></div></button>
+        <button onClick={onMaximize} className="w-5 h-5 bg-[#c0c0c0] border-t-white border-l-white border-b-black border-r-black border-2 flex items-center justify-center transition-colors hover:bg-gray-100"><div className="w-2.5 h-2 border-t-2 border-black"></div></button>
+        <button onClick={onClose} className="w-5 h-5 bg-[#c0c0c0] border-t-white border-l-white border-b-black border-r-black border-2 font-bold text-xs flex items-center justify-center transition-colors hover:bg-red-500 hover:text-white text-black">X</button>
       </div>
     </div>
     <div className="flex-1 overflow-auto bg-white m-1 border-2 border-gray-600 border-r-white border-b-white relative cursor-default">
@@ -298,7 +288,6 @@ const WindowFrame = ({ title, icon: Icon, children, onClose, onMinimize, onMaxim
     </div>
   </div>
 );
-
 
 const StartMenu = ({ isOpen, onClose, onOpenApp }) => {
   const [caCopied, setCaCopied] = useState(false);
