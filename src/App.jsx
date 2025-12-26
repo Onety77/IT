@@ -131,9 +131,12 @@ const TUNES_PLAYLIST = [
 ];
 
 const CA_ADDRESS = "So11111111111111111111111111111111111111112";
+const ACCESS_THRESHOLD = 500000; // 500k IT tokens
+const RPC_ENDPOINT = "https://api.mainnet-beta.solana.com"; 
 
-
+// --- UTILITIES ---
 const generateId = () => Math.random().toString(36).substr(2, 9);
+
 const copyToClipboard = (text) => {
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(text);
@@ -147,9 +150,84 @@ const copyToClipboard = (text) => {
   }
 };
 
+// --- UPGRADED WALLET HOOK (PHASE 1) ---
+const useWallet = () => {
+  const [wallet, setWallet] = useState(null);
+  const [balance, setBalance] = useState(0);
+  const [connecting, setConnecting] = useState(false);
+  const [hasAccess, setHasAccess] = useState(false);
 
+  // 1. SOLANA BALANCE CHECKER (Direct RPC Call)
+  const checkTokenBalance = useCallback(async (publicKey) => {
+    try {
+      const response = await fetch(RPC_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'getTokenAccountsByOwner',
+          params: [
+            publicKey,
+            { mint: CA_ADDRESS },
+            { encoding: 'jsonParsed' }
+          ]
+        })
+      });
+      
+      const data = await response.json();
+      const accounts = data.result?.value || [];
+      
+      if (accounts.length > 0) {
+        const amount = accounts[0].account.data.parsed.info.tokenAmount.uiAmount || 0;
+        setBalance(amount);
+        setHasAccess(amount >= ACCESS_THRESHOLD);
+      } else {
+        setBalance(0);
+        setHasAccess(false);
+      }
+    } catch (e) {
+      console.error("Balance Check Error:", e);
+    }
+  }, []);
 
+  // 2. UNIVERSAL CONNECT (Mobile + Desktop)
+  const connect = async () => {
+    setConnecting(true);
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
+    try {
+      if (window.solana && window.solana.isPhantom) {
+        // DESKTOP OR PHANTOM BROWSER
+        const response = await window.solana.connect();
+        const pubKey = response.publicKey.toString();
+        setWallet(pubKey);
+        await checkTokenBalance(pubKey);
+      } else if (isMobile) {
+        // MOBILE REDIRECT: Jump into Phantom's in-app browser
+        const url = encodeURIComponent(window.location.href);
+        window.location.href = `https://phantom.app/ul/browse/${url}?ref=${url}`;
+      } else {
+        alert("KERNEL ERROR: Phantom Extension not detected. Please install it to access IT OS.");
+      }
+    } catch (err) {
+      console.error("Connection Failed", err);
+    } finally {
+      setConnecting(false);
+    }
+  };
+
+  // 3. AUTO-REFRESH BALANCE (Anti-Jeet Protocol)
+  useEffect(() => {
+    if (!wallet) return;
+    const interval = setInterval(() => checkTokenBalance(wallet), 60000); // Check every min
+    return () => clearInterval(interval);
+  }, [wallet, checkTokenBalance]);
+
+  return { wallet, balance, hasAccess, connect, connecting };
+};
+
+// --- OS PRICE TRACKER ---
 const useDexData = (ca) => {
   const [data, setData] = useState({ price: "LOADING...", mcap: "LOADING...", change: "0" });
   useEffect(() => {
@@ -174,26 +252,7 @@ const useDexData = (ca) => {
   return data;
 };
 
-
-const useWallet = () => {
-  const [wallet, setWallet] = useState(null);
-  const [connecting, setConnecting] = useState(false);
-  const connect = async () => {
-    setConnecting(true);
-    try {
-      if (window.solana && window.solana.isPhantom) {
-        const response = await window.solana.connect();
-        setWallet(response.publicKey.toString());
-      } else {
-        alert("Please open IT on PC to Connect IT, or install the Phantom Wallet extension!");
-      }
-    } catch (err) { alert("Connection Failed"); } finally { setConnecting(false); }
-  };
-  return { wallet, connect, connecting };
-};
-
-
-
+// --- UI COMPONENTS ---
 const Button = ({ children, onClick, className = "", active = false, disabled = false, title = "", ...props }) => (
   <button
     onClick={onClick}
@@ -205,7 +264,7 @@ const Button = ({ children, onClick, className = "", active = false, disabled = 
       border-t-2 border-l-2 border-b-2 border-r-2
       ${disabled ? 'text-gray-500 bg-gray-200' : 'text-black bg-[#c0c0c0]'}
       ${active 
-        ? 'border-t-black border-l-black border-b-white border-r-white bg-[#d4d0c8]' 
+        ? 'border-t-black border-l-black border-b-white border-r-white bg-[#d4d0c8] translate-y-[1px]' 
         : 'border-t-white border-l-white border-b-black border-r-black'}
       ${className}
     `}
@@ -229,12 +288,12 @@ const WindowFrame = ({ title, icon: Icon, children, onClose, onMinimize, onMaxim
         <span>{title}</span>
       </div>
       <div className="flex gap-1" onMouseDown={(e) => e.stopPropagation()} onTouchStart={(e) => e.stopPropagation()}>
-        <Button onClick={onMinimize} className="w-6 h-6 !p-0"><Minus size={10} /></Button>
-        <Button onClick={onMaximize} className="w-6 h-6 !p-0"><Square size={8} /></Button>
-        <Button onClick={onClose} className="w-6 h-6 !p-0"><X size={12} /></Button>
+        <button onClick={onMinimize} className="w-5 h-5 bg-[#c0c0c0] border-t-white border-l-white border-b-black border-r-black border-2 flex items-center justify-center"><div className="w-2 h-0.5 bg-black mt-2"></div></button>
+        <button onClick={onMaximize} className="w-5 h-5 bg-[#c0c0c0] border-t-white border-l-white border-b-black border-r-black border-2 flex items-center justify-center"><div className="w-2.5 h-2 border-t-2 border-black"></div></button>
+        <button onClick={onClose} className="w-5 h-5 bg-[#c0c0c0] border-t-white border-l-white border-b-black border-r-black border-2 font-bold text-xs flex items-center justify-center">X</button>
       </div>
     </div>
-    <div className="flex-1 overflow-auto p-1 bg-[#d4d0c8] relative cursor-default">
+    <div className="flex-1 overflow-auto bg-white m-1 border-2 border-gray-600 border-r-white border-b-white relative cursor-default">
       {children}
     </div>
   </div>
