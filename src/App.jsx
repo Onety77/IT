@@ -1272,7 +1272,6 @@ const PaintApp = () => {
 
   const addSticker = (key) => {
     const img = new Image();
-    // Assuming stickers are in public folder or mapped via ASSETS
     img.src = typeof ASSETS !== 'undefined' && ASSETS.stickers ? ASSETS.stickers[key] : `${key}.jpg`;
     img.crossOrigin = "Anonymous";
     img.onload = () => {
@@ -1533,7 +1532,7 @@ const PaintApp = () => {
     }
   };
 
-  // --- REVISED LAYOUTS ---
+  // --- LAYOUTS ---
   const applyLayout = (type) => {
     let newEls = [];
     const cw = canvasSize.w;
@@ -1555,17 +1554,17 @@ const PaintApp = () => {
     }
     else if (type === 'wanted') {
         newEls = [
-            { id: paintGenId(), type: 'rect', x: 0, y: 0, width: cw, height: ch, color: '#f5e8d0' }, // Aged paper
+            { id: paintGenId(), type: 'rect', x: 0, y: 0, width: cw, height: ch, color: '#f5e8d0' }, 
             { id: paintGenId(), type: 'text', x: 20, y: 30, width: cw-40, height: 80, text: 'WANTED', color: '#4a3728', size: 80, font: 'Courier', strokeWidth: 0 },
-            { id: paintGenId(), type: 'rect', x: cw*0.15, y: 130, width: cw*0.7, height: ch*0.5, color: '#ffffff' }, // Photo slot
+            { id: paintGenId(), type: 'rect', x: cw*0.15, y: 130, width: cw*0.7, height: ch*0.5, color: '#ffffff' }, 
             { id: paintGenId(), type: 'text', x: 20, y: ch*0.8, width: cw-40, height: 50, text: 'REWARD: $IT MOONBAG', color: '#4a3728', size: 30, font: 'Courier', strokeWidth: 0 }
         ];
     }
     else if (type === 'alert') {
         newEls = [
-            { id: paintGenId(), type: 'rect', x: 0, y: 0, width: cw, height: ch, color: '#008080' }, // Desktop blue
-            { id: paintGenId(), type: 'rect', x: cw/2 - 150, y: ch/2 - 100, width: 300, height: 200, color: '#c0c0c0' }, // Win95 Box
-            { id: paintGenId(), type: 'rect', x: cw/2 - 150, y: ch/2 - 100, width: 300, height: 25, color: '#000080' }, // Title bar
+            { id: paintGenId(), type: 'rect', x: 0, y: 0, width: cw, height: ch, color: '#008080' }, 
+            { id: paintGenId(), type: 'rect', x: cw/2 - 150, y: ch/2 - 100, width: 300, height: 200, color: '#c0c0c0' }, 
+            { id: paintGenId(), type: 'rect', x: cw/2 - 150, y: ch/2 - 100, width: 300, height: 25, color: '#000080' }, 
             { id: paintGenId(), type: 'text', x: cw/2 - 130, y: ch/2 - 97, width: 100, height: 20, text: 'SYSTEM ERROR', color: '#ffffff', size: 12, font: 'Arial', strokeWidth: 0 },
             { id: paintGenId(), type: 'text', x: cw/2 - 140, y: ch/2 - 40, width: 280, height: 80, text: 'DEGEN PROTOCOL DETECTED.\nPROCEED TO PUMP IT?', color: '#000000', size: 18, font: 'Arial', strokeWidth: 0 }
         ];
@@ -1577,32 +1576,39 @@ const PaintApp = () => {
     <div className="flex flex-col h-full bg-[#c0c0c0] font-sans text-xs select-none overflow-hidden" ref={containerRef}>
       
       {/* --- TOP RIBBON --- */}
-      <div className="h-10 bg-[#c0c0c0] border-b-2 border-white flex items-center px-2 gap-1 md:gap-2 shrink-0 z-40 overflow-x-auto no-scrollbar shadow-md">
-        <Button onClick={undo} disabled={historyStep===0} title="Undo"><RotateCcw size={14}/></Button>
-        <Button onClick={redo} disabled={historyStep===history.length-1} title="Redo"><RotateCw size={14}/></Button>
-        <div className="h-6 w-px bg-gray-500 mx-1"></div>
+      <div className="h-10 bg-[#c0c0c0] border-b-2 border-white flex items-center px-1 shrink-0 z-40 shadow-md">
+        {/* FIXED: Always visible controls */}
+        <div className="flex items-center gap-1 px-1 border-r border-gray-400 mr-1">
+            <Button onClick={undo} disabled={historyStep===0} title="Undo"><RotateCcw size={14}/></Button>
+            <Button onClick={redo} disabled={historyStep===history.length-1} title="Redo"><RotateCw size={14}/></Button>
+            {/* FIXED: Properties Icon - Always visible, no text label on mobile */}
+            <Button 
+                className="md:hidden" 
+                active={showProps} 
+                onClick={() => setShowProps(!showProps)}
+                title="Toggle Properties"
+            >
+                <Sliders size={14}/>
+            </Button>
+        </div>
         
-        <Button onClick={()=>applyLayout('classic')}><LayoutTemplate size={12}/> CLASSIC</Button>
-        <Button onClick={()=>applyLayout('breaking')}><Scan size={12}/> NEWS</Button>
-        <Button onClick={()=>applyLayout('wanted')}><User size={12}/> WANTED</Button>
-        <Button onClick={()=>applyLayout('alert')}><AlertTriangle size={12}/> ALERT</Button>
+        {/* SCROLLABLE: Layouts and secondary tools */}
+        <div className="flex-1 flex items-center gap-1 overflow-x-auto no-scrollbar py-1">
+            <Button onClick={()=>applyLayout('classic')}><LayoutTemplate size={12}/><span className="hidden sm:inline ml-1">CLASSIC</span></Button>
+            <Button onClick={()=>applyLayout('breaking')}><Scan size={12}/><span className="hidden sm:inline ml-1">NEWS</span></Button>
+            <Button onClick={()=>applyLayout('wanted')}><User size={12}/><span className="hidden sm:inline ml-1">WANTED</span></Button>
+            <Button onClick={()=>applyLayout('alert')}><AlertTriangle size={12}/><span className="hidden sm:inline ml-1">ALERT</span></Button>
+        </div>
 
-        <div className="flex-1"></div>
-        
-        <Button onClick={download} className="text-blue-800 font-black border-blue-800"><Download size={14}/> EXPORT</Button>
-        {/* Mobile Props Toggle */}
-        <Button 
-            className="md:hidden" 
-            active={showProps} 
-            onClick={() => setShowProps(!showProps)}
-        >
-            <Sliders size={14}/> {showProps ? 'HIDE' : 'PROPS'}
-        </Button>
+        {/* FIXED: Export/Actions */}
+        <div className="flex items-center gap-1 px-1 border-l border-gray-400 ml-1">
+            <Button onClick={download} className="text-blue-800 font-black border-blue-800"><Download size={14}/><span className="hidden md:inline ml-1">EXPORT</span></Button>
+        </div>
       </div>
 
       <div className="flex flex-1 overflow-hidden relative min-h-0">
         
-        {/* --- LEFT TOOLBOX (INCLUDES STICKERS) --- */}
+        {/* --- LEFT TOOLBOX --- */}
         <div className="w-16 md:w-20 bg-[#c0c0c0] border-r-2 border-white flex flex-col items-center py-3 gap-3 shadow-xl z-30 shrink-0 overflow-y-auto">
           <Button active={tool==='move'} onClick={()=>setTool('move')} className="w-12 md:w-14 h-12 flex-col"><Move size={18}/><span className="text-[8px]">MOVE</span></Button>
           <Button active={tool==='brush'} onClick={()=>setTool('brush')} className="w-12 md:w-14 h-12 flex-col"><Paintbrush size={18}/><span className="text-[8px]">BRUSH</span></Button>
@@ -1611,7 +1617,6 @@ const PaintApp = () => {
           
           <div className="w-10 h-px bg-gray-500 my-1"></div>
           
-          {/* Sticker Link Gallery */}
           <div className="flex flex-col gap-2 items-center w-full px-1 mb-2">
             <span className="text-[7px] font-black uppercase opacity-40">Assets</span>
             {typeof ASSETS !== 'undefined' && ASSETS.stickers && Object.keys(ASSETS.stickers).map(key => (
@@ -1741,7 +1746,6 @@ const PaintApp = () => {
               </div>
             )}
 
-            {/* Global Effects Area */}
             <div className="pt-10 border-t border-gray-500">
                 <label className="text-[9px] font-black uppercase opacity-60 mb-2 block">Degen Filters</label>
                 <div className="grid grid-cols-2 gap-1">
@@ -3244,8 +3248,7 @@ const ChatApp = ({ hasAccess }) => {
     if (name.length < 2) { setError("ALIAS_TOO_SHORT"); return; }
     if (forbidden.some(word => name.includes(word))) { setError("RESERVED_IDENTITY_BLOCK"); return; }
 
-    // CRITICAL: Always save the user's choices. 
-    // enforcement happens visually in the useEffect.
+    // Save intended choices
     localStorage.setItem('tbox_alias', name);
     localStorage.setItem('tbox_color', userColor);
     localStorage.setItem('tbox_avatar', userAvatar);
@@ -3285,23 +3288,30 @@ const ChatApp = ({ hasAccess }) => {
     return () => unsubscribe();
   }, []);
 
-  // MASTER SYNC: This block forces the UI to unlock immediately when hasAccess flips
+  // CRITICAL FIX: The main useEffect that handles hasAccess synchronization
   useEffect(() => {
     const savedName = localStorage.getItem('tbox_alias');
+    const savedColor = localStorage.getItem('tbox_color');
+    const savedAvatar = localStorage.getItem('tbox_avatar');
+    
     if (savedName) {
       setUsername(savedName);
+      
       if (hasAccess) {
-        // UNLOCK: Sync state to the choices saved in storage
-        setUserColor(localStorage.getItem('tbox_color') || COLOR_LIST[0].hex);
-        setUserAvatar(localStorage.getItem('tbox_avatar') || AVATAR_LIST[5].url);
+        // UNLOCK: Apply saved preferences
+        if (savedColor) setUserColor(savedColor);
+        if (savedAvatar) setUserAvatar(savedAvatar);
+        console.log('🔓 ACCESS GRANTED - Unlocking saved preferences');
       } else {
-        // LOCK: Force default visuals for non-holders
+        // LOCK: Force defaults
         setUserColor(COLOR_LIST[0].hex);
         setUserAvatar(AVATAR_LIST[5].url);
+        console.log('🔒 ACCESS DENIED - Locked to defaults');
       }
+      
       setIsSetup(true);
     }
-  }, [hasAccess]);
+  }, [hasAccess]); // ← Prop-reactive dependency
 
   useEffect(() => {
     if (!user) return;
@@ -3442,6 +3452,15 @@ const ChatApp = ({ hasAccess }) => {
               <input autoFocus value={username} onChange={(e) => setUsername(e.target.value.toUpperCase())} className="w-full bg-black border-b-2 border-emerald-900 text-emerald-400 p-3 text-center text-xl font-black outline-none focus:border-emerald-500" placeholder="NAME_IT" />
               {error && <div className="text-[8px] text-red-500 font-bold animate-pulse mt-2 tracking-widest uppercase">{String(error)}</div>}
             </div>
+            
+            {/* Status indicator on setup screen */}
+            <div className={`text-center p-2 border-2 ${hasAccess ? 'border-green-500 bg-green-950/20' : 'border-yellow-600 bg-yellow-900/20'}`}>
+              <div className={`text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 ${hasAccess ? 'text-green-400' : 'text-yellow-400'}`}>
+                {hasAccess ? <ShieldCheck size={12}/> : <Lock size={12}/>}
+                {hasAccess ? '✓ FULL ACCESS GRANTED' : '⚠ LIMITED ACCESS MODE'}
+              </div>
+            </div>
+
             {identitySection}
             <button onClick={handleInitialize} className="w-full bg-[#c0c0c0] text-black border-2 border-gray-400 border-l-white border-t-white py-4 font-black text-sm active:translate-y-1 hover:bg-white transition-colors uppercase">Establish Uplink</button>
           </div>
@@ -3456,6 +3475,12 @@ const ChatApp = ({ hasAccess }) => {
       <div className={`flex justify-between items-center px-3 py-1.5 border-b shrink-0 ${isDarkMode ? 'border-black bg-black/40' : 'border-zinc-400 bg-white/40'} backdrop-blur-md z-[100]`}>
         <div className="flex gap-5 text-[9px] font-black text-zinc-500 uppercase tracking-widest truncate">
           <span className="flex items-center gap-1.5"><Wifi size={10} className={isConnected ? 'text-emerald-500' : 'text-red-500'}/> {isConnected ? 'Link_Live' : 'Syncing...'}</span>
+          
+          {/* Access status indicator in header */}
+          <span className={`flex items-center gap-1.5 font-black uppercase ${hasAccess ? 'text-green-400' : 'text-yellow-600'}`}>
+            {hasAccess ? <ShieldCheck size={10}/> : <Lock size={10}/>} 
+            {hasAccess ? 'VIP' : 'GUEST'}
+          </span>
         </div>
         <div className="flex items-center gap-3">
           <div className="flex items-center bg-black/20 rounded px-1.5 py-0.5 border border-white/10 gap-2">
@@ -3689,7 +3714,6 @@ const ChatApp = ({ hasAccess }) => {
     </div>
   );
 };
-
 
 
 const NotepadApp = () => {
