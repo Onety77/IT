@@ -4552,7 +4552,7 @@ const ForgeItApp = () => {
   const [dailyCount, setDailyCount] = useState(0);
   const [showMobileBlueprint, setShowMobileBlueprint] = useState(false);
   
-  const apiKey = ""; 
+  const apiKey = "AIzaSyC-6mPR5HK6uxWHRWaTldIO0-HRaMjWN6I"; 
 
   // Forge State
   const [selections, setSelections] = useState({
