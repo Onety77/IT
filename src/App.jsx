@@ -4498,6 +4498,7 @@ const PFP_TRAITS = {
     { id: 'gold_leaf', label: 'Gold Leaf Canvas', prompt: 'against a high-contrast black canvas with real gold leaf textures', vip: true },
   ],
   head: [
+    { id: 'none', label: 'None', prompt: 'no headgear' },
     { id: 'beanie', label: 'Wool Beanie', prompt: 'wearing a slouched grey wool beanie' },
     { id: 'backward', label: 'Backward Red Cap', prompt: 'wearing a backward red baseball cap' },
     { id: 'baseball', label: 'Baseball Cap', prompt: 'wearing a tilted blue baseball cap' },
@@ -4528,6 +4529,7 @@ const PFP_TRAITS = {
     { id: 'holographic', label: 'Holographic Static', prompt: 'the mask has a shifting rainbow glitch holographic effect', vip: true },
   ],
   shirts: [
+    { id: 'none', label: 'None', prompt: 'not wearing a shirt' },
     { id: 'classic_it', label: 'Classic IT', prompt: 'wearing a white tee with IT printed in black ink' },
     { id: 'red_it', label: 'IT (Red Ink)', prompt: 'wearing a white tee with IT printed in red ink' },
     { id: 'blank', label: 'Blank Tee', prompt: 'wearing a simple blank white t-shirt' },
@@ -4607,8 +4609,23 @@ const ForgeItApp = () => {
   const [showMobileBlueprint, setShowMobileBlueprint] = useState(false);
   const [isRandomizing, setIsRandomizing] = useState(false);
   
-  // PROTECTED API KEY (Vercel)
-  const apiKey = process.env.REACT_APP_GEMINI || ""; 
+  // SAFE API KEY ACCESS
+  // This logic checks multiple possible environment locations without throwing errors
+  const apiKey = (() => {
+    try {
+      // 1. Check for Vite environment
+      if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_GEMINI) {
+        return import.meta.env.VITE_GEMINI;
+      }
+      // 2. Check for Create React App / Webpack environment
+      if (typeof process !== 'undefined' && process.env && process.env.REACT_APP_GEMINI) {
+        return process.env.REACT_APP_GEMINI;
+      }
+    } catch (e) {
+      // Fallback to empty string if access fails
+    }
+    return ""; 
+  })();
 
   // Forge State
   const [selections, setSelections] = useState({
@@ -4669,8 +4686,6 @@ const ForgeItApp = () => {
   const handleTraitSelect = (catId, trait) => {
     setSelections(prev => {
       const next = { ...prev, [catId]: trait };
-      
-      // EXCLUSIVE LOGIC: If a Superhero is selected, clear other conflicting items
       if (catId === 'super' && trait.id !== 'none') {
         next.head = PFP_TRAITS.head[0];
         next.shirts = PFP_TRAITS.shirts[0];
@@ -4678,11 +4693,9 @@ const ForgeItApp = () => {
         next.glasses = PFP_TRAITS.glasses[0];
         next.expression = PFP_TRAITS.expression[0];
       } 
-      // LOGIC: If a regular clothing item is selected, clear active Superhero
       else if (['head', 'shirts', 'item', 'glasses', 'expression'].includes(catId) && trait.id !== 'none') {
         next.super = PFP_TRAITS.super[0];
       }
-      
       return next;
     });
   };
@@ -4695,13 +4708,11 @@ const ForgeItApp = () => {
     const interval = setInterval(() => {
       const newSels = {};
       Object.keys(PFP_TRAITS).forEach(cat => {
-        // REQUEST: Skip superhero section in randomization
         if (cat === 'super') {
           newSels[cat] = PFP_TRAITS.super[0];
           return;
         }
         const items = PFP_TRAITS[cat];
-        // Only select non-VIP unless they have access
         const availableItems = items.filter(i => !i.vip || hasEliteAccess);
         newSels[cat] = availableItems[Math.floor(Math.random() * availableItems.length)];
       });
@@ -4734,6 +4745,11 @@ const ForgeItApp = () => {
       return;
     }
 
+    if (!apiKey) {
+      setError("CONFIGURATION_ERROR: API identifier not detected. Check Vercel/Env.");
+      return;
+    }
+
     setIsForging(true); setGeneratedImg(null); setProgress(0); setError(null);
     setLogs(["LOCKING_BLUEPRINT...", "PRESERVING_BODY_SHAPE...", "OVERLAYING_MEME_TRAITS..."]);
 
@@ -4747,7 +4763,7 @@ const ForgeItApp = () => {
       if (selections.super.id !== 'none') {
         promptText = `
           ARTSY SUPERHERO TRANSFORMATION.
-          SOURCE: Use the attached character as the EXACT static blueprint.
+          SOURCE: Use the attached character as the STATIC blueprint.
           KEEP: Core mask structure and 90s hand-drawn artsy anime style.
           TRANSFORM: ${selections.super.prompt}. 
           BACKGROUND: ${selections.bg.prompt}.
