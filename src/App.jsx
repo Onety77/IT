@@ -692,7 +692,7 @@ const Shippy = ({ hidden, dexData }) => {
       {/* CHAT AREA */}
       <div 
         ref={scrollRef} 
-        className="h-85 overflow-y-auto p-3 space-y-4 border-b border-gray-400 relative bg-[#050505] scroll-smooth shadow-inner"
+        className="h-80 overflow-y-auto p-3 space-y-4 border-b border-gray-400 relative bg-[#050505] scroll-smooth shadow-inner"
       >
         {messages.map((m, i) => (
           <div key={i} className={`flex flex-col ${m.role === 'user' ? 'items-end' : 'items-start'} animate-in fade-in slide-in-from-bottom-2`}>
@@ -3473,7 +3473,7 @@ const ChatApp = ({ dexData, wallet, onRefreshAccess }) => {
     <div className="space-y-4 p-4 bg-black border-2 border-green-900 rounded shadow-inner" onClick={e => e.stopPropagation()}>
         <div className="space-y-2 text-center">
             <label className="text-[9px] text-emerald-600 font-black tracking-widest uppercase block text-center">Faction Avatar</label>
-            {!hasAccess && <div className="text-[8px] text-yellow-500 font-bold uppercase animate-pulse">[ IDENTITY_LOCK: BUY $IT ]</div>}
+            {!hasAccess && <div className="text-[8px] text-yellow-500 font-bold uppercase animate-pulse">[ BUY $IT TO UNLOCK PFPS ]</div>}
             <div className="grid grid-cols-3 gap-2">
             {AVATAR_LIST.map((av) => (
                 <button key={av.id} type="button" 
@@ -3517,7 +3517,7 @@ const ChatApp = ({ dexData, wallet, onRefreshAccess }) => {
               <label className="text-[9px] text-emerald-700 font-black tracking-[0.2em] uppercase block">Assign Alias</label>
               <input autoFocus value={username} onChange={(e) => setUsername(e.target.value.toUpperCase())} className="w-full bg-black border-b-2 border-emerald-900 text-emerald-400 p-3 text-center text-xl font-black outline-none focus:border-emerald-500 uppercase" placeholder="NAME_IT" />
               <div className={`text-[10px] font-black uppercase mt-2 ${hasAccess ? 'text-green-500' : 'text-yellow-600'}`}>
-                {hasAccess ? `[ ACCESS_GRANTED: ${tokenBalance.toLocaleString()} $IT ]` : '[ ACCESS_RESTRICTED: GUEST ]'}
+                {hasAccess ? `[ ACCESS_GRANTED: ${tokenBalance.toLocaleString()} $IT ]` : '[ LIMITED_ACCESS: GUEST ]'}
               </div>
             </div>
             {identitySection}
@@ -3558,7 +3558,7 @@ const ChatApp = ({ dexData, wallet, onRefreshAccess }) => {
       {activeMenu === 'options' && (
           <div className="absolute top-10 right-2 w-56 bg-[#c0c0c0] border-2 border-white border-r-black border-b-black shadow-2xl z-[150] p-1 animate-in zoom-in-95 text-black" onClick={e=>e.stopPropagation()}>
               <div className="bg-[#000080] text-white text-[9px] font-bold px-2 py-1 flex items-center justify-between uppercase italic">
-                <span className="flex items-center gap-1"><Settings size={10}/> OPTIONS_MENU</span>
+                <span className="flex items-center gap-1"><Settings size={10}/> OPTIONS</span>
                 <X size={10} className="cursor-pointer" onClick={() => setActiveMenu(null)} />
               </div>
               <div className="p-1 space-y-1">
@@ -3575,9 +3575,9 @@ const ChatApp = ({ dexData, wallet, onRefreshAccess }) => {
                     onClick={() => { if(hasAccess) setActiveMenu('appearance'); else { setError("HOLD 500K IT TO ACCESS"); setTimeout(()=>setError(null), 3000); } }} 
                     className={`w-full text-left px-2 py-1.5 hover:bg-[#000080] hover:text-white flex items-center gap-2 text-[10px] font-black uppercase transition-all ${!hasAccess ? 'opacity-30' : ''}`}
                   >
-                    <Palette size={12}/> Appearance Settings
+                    <Palette size={12}/> Appearance
                   </button>
-                  <button onClick={() => {localStorage.removeItem('tbox_alias'); setIsSetup(false);}} className="w-full text-left px-2 py-1.5 hover:bg-[#000080] hover:text-white flex items-center gap-2 text-[10px] font-black uppercase transition-all"><LogOut size={12}/> Logout Link</button>
+                  <button onClick={() => {localStorage.removeItem('tbox_alias'); setIsSetup(false);}} className="w-full text-left px-2 py-1.5 hover:bg-[#000080] hover:text-white flex items-center gap-2 text-[10px] font-black uppercase transition-all"><LogOut size={12}/> Logout</button>
                   <div className="h-px bg-gray-500 my-1"></div>
                   <button onClick={() => {localStorage.clear(); window.location.reload();}} className="w-full text-left px-2 py-1.5 hover:bg-red-700 hover:text-white text-red-800 flex items-center gap-2 text-[10px] font-black transition-all uppercase tracking-tighter"><Trash2 size={12}/> Burn Identity</button>
               </div>
@@ -4613,58 +4613,117 @@ export default function UltimateOS() {
       
       {/* Assistant Shippy */}
       {typeof Shippy !== 'undefined' && <Shippy hidden={isAnyWindowMaximized} dexData={dexData} />}
-
-      {/* Windows (z-100+) */}
-      {windows.map(win => (
+{windows.map(win => (
         <DraggableWindow 
-          key={win.id} 
-          win={win} 
-          isActive={win.id === activeWindowId} 
-          onFocus={() => focusWindow(win.id)} 
-          onClose={() => closeWindow(win.id)} 
-          onMaximize={() => toggleMax(win.id)} 
-          onMinimize={() => minimizeWindow(win.id)} 
+          key={win.id} win={win} isActive={win.id === activeWindowId} 
+          onFocus={() => focusWindow(win.id)} onClose={() => closeWindow(win.id)} 
+          onMaximize={() => toggleMax(win.id)} onMinimize={() => minimizeWindow(win.id)} 
           onMove={moveWindow}
         >
-          {win.type === 'paint' && typeof PaintApp !== 'undefined' && <PaintApp />}
-          {win.type === 'terminal' && typeof TerminalApp !== 'undefined' && <TerminalApp dexData={dexData} />}
-          {win.type === 'tunes' && typeof AmpTunesApp !== 'undefined' && <AmpTunesApp />}
-          {win.type === 'rugsweeper' && typeof RugSweeperApp !== 'undefined' && <RugSweeperApp />}
-          {win.type === 'notepad' && typeof NotepadApp !== 'undefined' && <NotepadApp />}
-          {win.type === 'trollbox' && typeof ChatApp !== 'undefined' && <ChatApp />}
-          {win.type === 'memes' && typeof MemesApp !== 'undefined' && <MemesApp />}
-          {win.type === 'mememind' && typeof MemeMindApp !== 'undefined' && <MemeMindApp />}
-          {win.type === 'mergeit' && typeof MergeItApp !== 'undefined' && <MergeItApp />}
+          {win.type === 'paint' && <PaintApp isHolder={hasAccess} />}
+          {win.type === 'terminal' && <TerminalApp dexData={dexData} />}
+          {win.type === 'tunes' && (
+             <AmpTunesApp isHolder={hasAccess} onLocked={() => showAlert("HOLD IT TO SKIP TRACKS")} />
+          )}
+          {win.type === 'rugsweeper' && <RugSweeperApp />}
+          {win.type === 'notepad' && <NotepadApp />}
+          {win.type === 'trollbox' && (
+            <ChatApp dexData={dexData} wallet={wallet} onLocked={() => showAlert("HOLD IT TO CHAT / SET PFP")} />
+          )}
+          {win.type === 'memes' && <MemesApp />}
+          {win.type === 'mememind' && <MemeMindApp />}
+          {win.type === 'mergeit' && <MergeItApp />}
+          
           {win.type === 'wallet' && (
-            <div className="p-6 bg-[#c0c0c0] h-full font-mono flex flex-col gap-4">
-              <div className="border-2 border-gray-600 border-t-black border-l-black p-4 bg-white shadow-inner flex flex-col gap-2">
-                <div className="text-blue-900 font-bold text-xs uppercase flex justify-between">
-                  <span>Solana Mainnet</span>
-                  <div className={`w-2 h-2 rounded-full ${wallet ? 'bg-green-500 shadow-[0_0_5px_rgba(34,197,94,0.8)]' : 'bg-red-500'}`}></div>
+            <div className="p-4 bg-black h-full font-mono flex flex-col gap-4 text-emerald-500 overflow-y-auto relative selection:bg-emerald-500 selection:text-black">
+              {/* CRT Scanline Overlay */}
+              <div className="absolute inset-0 pointer-events-none opacity-[0.07] bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,252,0.06))] bg-[length:100%_2px,3px_100%] z-20" />
+              
+              <div className="flex justify-between items-center border-b border-emerald-900/50 pb-2 z-10">
+                <div className="flex items-center gap-2">
+                  <Activity size={14} className="animate-pulse text-emerald-400" />
+                  <span className="text-[10px] font-black uppercase tracking-widest text-emerald-700">Wallet Monitor</span>
                 </div>
-                <div className="flex flex-col border-b border-gray-100 pb-3 mt-2">
-                   <div className="flex justify-between items-baseline">
-                      <span className="text-gray-400 text-[9px] uppercase font-bold">SOL Holding</span>
-                      <span className="text-3xl font-black">{(solBalance || 0).toFixed(4)} SOL</span>
-                   </div>
-                   <div className="flex justify-between items-baseline mt-1">
-                      <span className="text-gray-400 text-[9px] uppercase font-bold">IT Holding</span>
-                      <span className="text-xl font-black text-blue-600">{(dexData.balance || 0).toLocaleString()} IT</span>
-                   </div>
+                <div className={`px-2 py-0.5 rounded-sm text-[8px] font-black uppercase ${wallet ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400 animate-pulse'}`}>
+                  {wallet ? 'Connected' : 'Disconnected'}
                 </div>
               </div>
-              <button 
-                onClick={connect} 
-                disabled={connecting} 
-                className={`w-full bg-[#c0c0c0] border-2 border-white border-b-black border-r-black py-3 active:border-black active:bg-gray-400 text-xs font-black shadow-md ${connecting ? 'opacity-50' : ''}`}
-              >
-                {wallet ? "SIGN OUT / DISCONNECT" : "LINK SOLANA WALLET"}
-              </button>
+
+              {/* Balances Section */}
+              <div className="grid grid-cols-1 gap-3 z-10">
+                <div className="bg-[#050505] border border-emerald-900/30 p-4 relative group hover:border-emerald-500/50 transition-all duration-300">
+                  <div className="absolute top-2 right-2 opacity-10 group-hover:opacity-30 transition-opacity"><Zap size={12} /></div>
+                  <span className="text-[9px] font-bold text-emerald-800 uppercase tracking-tighter block mb-1">Your SOL</span>
+                  <div className="flex justify-between items-baseline">
+                    <span className="text-3xl font-black text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.25)]">{(solBalance || 0).toFixed(4)}</span>
+                    <span className="text-xs font-black text-emerald-600 ml-2">SOL</span>
+                  </div>
+                </div>
+
+                <div className="bg-[#050505] border border-blue-900/30 p-4 relative group hover:border-blue-500/50 transition-all duration-300">
+                  <div className="absolute top-2 right-2 opacity-10 group-hover:opacity-30 transition-opacity"><Crown size={12} /></div>
+                  <span className="text-[9px] font-bold text-blue-800 uppercase tracking-tighter block mb-1">Your IT</span>
+                  <div className="flex justify-between items-baseline">
+                    <span className="text-2xl font-black text-blue-400 drop-shadow-[0_0_10px_rgba(59,130,246,0.3)]">{(dexData.balance || 0).toLocaleString()}</span>
+                    <span className="text-xs font-black text-blue-600 ml-2">IT</span>
+                  </div>
+                  {!hasAccess && (
+                    <div className="mt-3 h-1 w-full bg-blue-950/50 rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-blue-500 transition-all duration-1000" 
+                        style={{ width: `${Math.min(100, (dexData.balance / ACCESS_THRESHOLD) * 100)}%` }} 
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Status Banner */}
+              <div className={`p-3 border-2 transition-all z-10 flex items-center gap-4 ${hasAccess ? 'border-emerald-500/50 bg-emerald-950/10' : 'border-yellow-600/50 bg-yellow-900/10 animate-pulse'}`}>
+                <div className="shrink-0 p-2 bg-black/40 border border-current rounded-sm">
+                  {hasAccess ? <ShieldCheck className="text-emerald-400" size={24} /> : <Lock className="text-yellow-500" size={24} />}
+                </div>
+                <div className="flex flex-col">
+                  <span className={`text-[11px] font-black uppercase tracking-[0.1em] ${hasAccess ? 'text-emerald-400' : 'text-yellow-500'}`}>
+                    {hasAccess ? 'VIP Access Unlocked' : 'Access Locked'}
+                  </span>
+                  <span className="text-[8px] text-white/50 uppercase leading-tight mt-0.5">
+                    {hasAccess ? 'You are a verified holder. Enjoy the perks!' : 'Hold 500k $IT to unlock all features.'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="mt-auto flex flex-col gap-2 pb-2 z-10">
+                <button 
+                  onClick={connect} 
+                  disabled={connecting}
+                  className={`w-full py-4 font-black text-[11px] tracking-[0.2em] uppercase transition-all flex items-center justify-center gap-3 border-2 active:scale-[0.98] shadow-lg
+                    ${wallet 
+                      ? 'bg-red-950/20 border-red-900 text-red-500 hover:bg-red-900/40 hover:text-red-400' 
+                      : 'bg-emerald-950/20 border-emerald-900 text-emerald-400 hover:bg-emerald-900/40 hover:text-emerald-300'}`}
+                >
+                  {connecting ? <RefreshCw className="animate-spin" size={14}/> : (wallet ? <LogOut size={16}/> : <Wallet size={16}/>)}
+                  {connecting ? 'Connecting...' : (wallet ? 'Disconnect IT' : 'Connect IT')}
+                </button>
+                
+                {wallet && (
+                  <div className="flex flex-col gap-1 p-2 bg-emerald-950/5 border border-emerald-900/20">
+                    <span className="text-[7px] text-emerald-900 font-black uppercase block text-center">Your Wallet</span>
+                    <span className="text-[8px] text-emerald-600/80 font-mono text-center break-all px-2">{wallet}</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="text-[7px] text-zinc-600 text-center font-bold uppercase tracking-widest opacity-40 py-2 border-t border-emerald-900/10">
+                Secure Connection. <br/>Keys remain local to device.
+              </div>
             </div>
           )}
         </DraggableWindow>
       ))}
 
+      
       <div id="start-menu-container"><StartMenu isOpen={isStartOpen} onClose={() => setIsStartOpen(false)} onOpenApp={openApp} /></div>
 
       {/* Taskbar */}
