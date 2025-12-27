@@ -4702,7 +4702,7 @@ const ForgeItApp = () => {
       <div className="absolute inset-0 pointer-events-none opacity-[0.03] bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,252,0.06))] bg-[length:100%_2px,3px_100%] z-[100]" />
 
       {/* HUD HEADER */}
-      <header className="h-12 md:h-16 border-b border-emerald-900/40 bg-black flex items-center justify-between px-4 md:px-6 shrink-0 z-20">
+      <header className="h-12 md:h-16 border-b border-emerald-900/40 bg-black flex items-center justify-between px-4 md:px-6 shrink-0 z-[70]">
         <div className="flex items-center gap-3">
           <div className="p-1.5 md:p-2 border border-emerald-500/40 rounded-sm bg-black relative">
              <div className="absolute inset-0 bg-emerald-500/10 blur-md animate-pulse" />
@@ -4724,29 +4724,31 @@ const ForgeItApp = () => {
 
       <main className="flex-1 flex flex-col md:flex-row min-h-0 relative">
         
-        {/* MOBILE SOURCE MONITOR (Sticky Small Bar) */}
-        <div 
-          onClick={() => setShowMobileBlueprint(!showMobileBlueprint)}
-          className="md:hidden flex items-center justify-between px-4 py-2.5 bg-black border-b border-emerald-900/30 cursor-pointer hover:bg-zinc-900 transition-colors shrink-0 z-30"
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-sm overflow-hidden border border-emerald-500/40 relative">
-              <img src={BASE_CHARACTER} className="w-full h-full object-cover grayscale opacity-60" />
-              <div className="absolute inset-0 bg-emerald-500/10 animate-pulse" />
-            </div>
-            <div className="flex flex-col">
-              <span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest">Source_Identity</span>
-              <div className="flex items-center gap-1 mt-1">
-                 <div className="w-1 h-1 bg-green-500 rounded-full animate-ping" />
-                 <span className="text-[7px] text-zinc-500 uppercase font-bold tracking-tighter">BIO_SIGNAL_LOCK: STABLE</span>
+        {/* MOBILE SOURCE MONITOR (Sticky Small Bar) - Only visible when not result/forging */}
+        {!isForging && !generatedImg && (
+          <div 
+            onClick={() => setShowMobileBlueprint(!showMobileBlueprint)}
+            className="md:hidden flex items-center justify-between px-4 py-2.5 bg-black border-b border-emerald-900/30 cursor-pointer hover:bg-zinc-900 transition-colors shrink-0 z-30"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-sm overflow-hidden border border-emerald-500/40 relative">
+                <img src={BASE_CHARACTER} className="w-full h-full object-cover grayscale opacity-60" />
+                <div className="absolute inset-0 bg-emerald-500/10 animate-pulse" />
+              </div>
+              <div className="flex flex-col">
+                <span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest">Source_Identity</span>
+                <div className="flex items-center gap-1 mt-1">
+                   <div className="w-1 h-1 bg-green-500 rounded-full animate-ping" />
+                   <span className="text-[7px] text-zinc-500 uppercase font-bold tracking-tighter">BIO_SIGNAL_LOCK: STABLE</span>
+                </div>
               </div>
             </div>
+            {showMobileBlueprint ? <ChevronUp size={16} className="text-emerald-500" /> : <ChevronDown size={16} className="text-zinc-600" />}
           </div>
-          {showMobileBlueprint ? <ChevronUp size={16} className="text-emerald-500" /> : <ChevronDown size={16} className="text-zinc-600" />}
-        </div>
+        )}
 
         {/* MOBILE COLLAPSIBLE BLUEPRINT */}
-        {showMobileBlueprint && (
+        {showMobileBlueprint && !isForging && !generatedImg && (
           <div className="md:hidden h-[200px] w-full relative overflow-hidden bg-black border-b border-emerald-900/50 animate-in slide-in-from-top-4 duration-500 shrink-0 z-20">
              <img src={BASE_CHARACTER} className="w-full h-full object-cover grayscale opacity-40" />
              <div className="absolute inset-x-0 top-0 h-[2px] bg-emerald-500/40 shadow-[0_0_20px_#10b981] animate-[blueprint-scan_3s_linear_infinite]" />
@@ -4810,7 +4812,6 @@ const ForgeItApp = () => {
                       ) : null}
                     </div>
 
-                    {/* Button Glitch Hover Effect */}
                     <div className="absolute inset-0 bg-white/5 translate-x-[-100%] group-hover:translate-x-0 transition-transform duration-500 pointer-events-none" />
                   </button>
                 );
@@ -4839,7 +4840,11 @@ const ForgeItApp = () => {
         </div>
 
         {/* RIGHT: BLUEPRINT (Desktop) & CHAMBER VIEWPORT */}
-        <div className="w-full md:w-[400px] lg:w-[480px] bg-[#020202] flex flex-col border-l border-emerald-900/30 shrink-0 min-h-0">
+        {/* On mobile, this container now hides unless forging or image exists, effectively taking over the screen when needed */}
+        <div className={`
+          w-full md:w-[400px] lg:w-[480px] bg-[#020202] flex flex-col border-l border-emerald-900/30 shrink-0 min-h-0
+          ${(isForging || generatedImg) ? 'fixed inset-0 z-[60] md:relative md:inset-auto md:z-0' : 'hidden md:flex'}
+        `}>
           
           {/* SOURCE BLUEPRINT (Desktop View) */}
           <div className="hidden md:block h-[200px] relative overflow-hidden bg-black border-b border-emerald-900/40 group shrink-0">
@@ -4891,7 +4896,6 @@ const ForgeItApp = () => {
                   <div className="absolute inset-0 bg-[radial-gradient(circle,rgba(16,185,129,0.15)_0%,transparent_70%)] animate-pulse" />
                   <Scan size={100} className="text-emerald-500/10 animate-pulse" strokeWidth={0.5} />
                   
-                  {/* Holographic Circular Progress */}
                   <div className="absolute inset-0 flex items-center justify-center">
                      <svg className="w-48 h-48 md:w-64 md:h-64 rotate-[-90deg] opacity-20">
                         <circle cx="50%" cy="50%" r="45%" fill="none" stroke="#10b981" strokeWidth="1" strokeDasharray="1000" strokeDashoffset={1000 - (progress * 10)} className="transition-all duration-300" />
@@ -5002,6 +5006,7 @@ const ForgeItApp = () => {
     </div>
   );
 };
+
 
 
 
