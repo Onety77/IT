@@ -3183,29 +3183,20 @@ const SOUNDS = {
 };
 
 
-const ChatApp = ({ hasAccess: initialAccess, tokenBalance: initialBalance = 0, onRefreshAccess }) => {
-  // --- KERNEL EVENT LISTENER (SHIPPY METHOD) ---
-  const [hasAccess, setHasAccess] = useState(initialAccess);
-  const [tokenBalance, setTokenBalance] = useState(initialBalance);
+const ChatApp = ({ dexData, wallet, onRefreshAccess }) => {
+  // --- KERNEL EVENT LISTENER ---
+  const [hasAccess, setHasAccess] = useState(false);
+  const [tokenBalance, setTokenBalance] = useState(0);
 
   useEffect(() => {
-    // Listen for the global "shout" from the useDexData hook
     const handleKernelSync = (e) => {
       const { balance, hasAccess: accessStatus } = e.detail;
       setTokenBalance(balance);
       setHasAccess(accessStatus);
-      console.log(`[CHAT_KERNEL] Sync Success: ${balance} IT`);
     };
-
     window.addEventListener('IT_OS_BALANCE_UPDATE', handleKernelSync);
     return () => window.removeEventListener('IT_OS_BALANCE_UPDATE', handleKernelSync);
   }, []);
-
-  // Update if props change (fallback mechanism)
-  useEffect(() => {
-    setHasAccess(initialAccess);
-    setTokenBalance(initialBalance);
-  }, [initialAccess, initialBalance]);
 
   // --- CORE STATE ---
   const [messages, setMessages] = useState([]);
@@ -3213,7 +3204,7 @@ const ChatApp = ({ hasAccess: initialAccess, tokenBalance: initialBalance = 0, o
   const [inputText, setInputText] = useState("");
   const [username, setUsername] = useState("");
   const [userColor, setUserColor] = useState(COLOR_LIST[0].hex);
-  const [userAvatar, setUserAvatar] = useState(AVATAR_LIST[5].url); 
+  const [userAvatar, setUserAvatar] = useState('/pfps/mask.jpg'); 
   const [isSetup, setIsSetup] = useState(false);
   const [isConnected, setIsConnected] = useState(false); 
   const [cooldown, setCooldown] = useState(0);
@@ -3327,19 +3318,18 @@ const ChatApp = ({ hasAccess: initialAccess, tokenBalance: initialBalance = 0, o
     const currentReply = replyingTo;
     const tempId = "temp_" + Date.now();
     
-    // Force identity defaults if hasAccess is false
     const finalAvatar = hasAccess ? userAvatar : '/pfps/mask.jpg';
     const finalColor = hasAccess ? userColor : COLOR_LIST[0].hex;
 
     setPendingMessages(prev => [...prev, {
-        id: tempId, text, user: username, color: finalColor, avatar: finalAvatar, _sortTs: Date.now(), replyTo: currentReply, pending: true, reactions: { heart:0, up:0, down:0 }
+        id: tempId, text, user: username, color: finalColor, avatar: finalAvatar, _sortTs: Date.now(), replyTo: currentReply, pending: true, reactions: { heart:0, up:0, down:0 }, isVip: hasAccess
     }]);
     setInputText(""); setReplyingTo(null); setCooldown(2); playSfx('out');
     setTimeout(() => inputRef.current?.focus(), 10);
     try {
       await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'trollbox_messages'), {
         text, user: username, color: finalColor, avatar: finalAvatar, timestamp: serverTimestamp(), uid: user.uid, replyTo: currentReply || null,
-        reactions: { heart: 0, up: 0, down: 0 }
+        reactions: { heart: 0, up: 0, down: 0 }, isVip: hasAccess
       });
     } catch (err) { 
         setPendingMessages(prev => prev.filter(m => m.id !== tempId));
@@ -3394,13 +3384,14 @@ const ChatApp = ({ hasAccess: initialAccess, tokenBalance: initialBalance = 0, o
   useEffect(() => {
     const initAuth = async () => {
       try {
+        const authObj = getAuth();
         if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-          await signInWithCustomToken(auth, __initial_auth_token);
-        } else { await signInAnonymously(auth); }
+          await signInWithCustomToken(authObj, __initial_auth_token);
+        } else { await signInAnonymously(authObj); }
       } catch (e) { setError("NODE_AUTH_ERROR"); }
     };
     initAuth();
-    const unsubscribe = onAuthStateChanged(auth, setUser);
+    const unsubscribe = onAuthStateChanged(getAuth(), setUser);
     return () => unsubscribe();
   }, []);
 
@@ -3454,19 +3445,29 @@ const ChatApp = ({ hasAccess: initialAccess, tokenBalance: initialBalance = 0, o
     return () => { if (audioRef.current) audioRef.current.pause(); };
   }, [isSetup, isMuted, trackIndex, hasAccess]);
 
-  // --- GESTURES ---
+  // --- STRICT GESTURES ---
   const onMsgContextMenu = (e, msg) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, msg }); };
+  
   const handleTouchStart = (e, msg) => { 
     touchStartPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
     if (longPressTimer.current) clearTimeout(longPressTimer.current);
-    longPressTimer.current = setTimeout(() => { setContextMenu({ x: window.innerWidth / 2 - 80, y: window.innerHeight / 2 - 100, msg }); }, 800); 
+    longPressTimer.current = setTimeout(() => { 
+        setContextMenu({ x: window.innerWidth / 2 - 80, y: window.innerHeight / 2 - 100, msg }); 
+    }, 600); // 600ms for a deliberate press
   };
+
   const handleTouchMove = (e) => {
     const moveX = Math.abs(e.touches[0].clientX - touchStartPos.current.x);
     const moveY = Math.abs(e.touches[0].clientY - touchStartPos.current.y);
-    if (moveX > 10 || moveY > 10) { if (longPressTimer.current) clearTimeout(longPressTimer.current); }
+    // If user moves finger > 10px, it's a scroll, so kill the long-press timer
+    if (moveX > 10 || moveY > 10) { 
+        if (longPressTimer.current) clearTimeout(longPressTimer.current); 
+    }
   };
-  const handleTouchEnd = () => { if (longPressTimer.current) clearTimeout(longPressTimer.current); };
+
+  const handleTouchEnd = () => { 
+    if (longPressTimer.current) clearTimeout(longPressTimer.current); 
+  };
 
   const identitySection = (
     <div className="space-y-4 p-4 bg-black border-2 border-green-900 rounded shadow-inner" onClick={e => e.stopPropagation()}>
@@ -3605,7 +3606,7 @@ const ChatApp = ({ hasAccess: initialAccess, tokenBalance: initialBalance = 0, o
             <div onClick={(e) => { e.stopPropagation(); handleCopyCA(); }} className="flex items-center gap-1 text-[7px] font-black opacity-40 hover:opacity-100 transition-opacity shrink-0">{copiedCA ? <Check size={8} className="text-green-500"/> : <Copy size={8}/>} {copiedCA ? 'COPIED' : 'COPY'}</div>
         </div>
 
-        <div ref={scrollRef} onScroll={handleOnScroll} className="flex-1 overflow-y-auto overflow-x-hidden p-4 scrollbar-classic space-y-6 scroll-smooth z-10 w-full box-border text-xs relative win-scroll-container">
+        <div ref={scrollRef} onScroll={handleOnScroll} className="flex-1 overflow-y-auto overflow-x-hidden p-4 scrollbar-classic space-y-8 scroll-smooth z-10 w-full box-border text-xs relative win-scroll-container">
           <div className="flex flex-col items-center py-6 border-b border-dashed border-zinc-800 mb-8 opacity-40 text-center">
             <Shield size={20} className={isDarkMode ? 'text-emerald-500' : 'text-blue-900'} />
             <span className="text-[7px] font-black uppercase mt-2 italic tracking-[0.5em]">Live_Transmission</span>
@@ -3614,11 +3615,14 @@ const ChatApp = ({ hasAccess: initialAccess, tokenBalance: initialBalance = 0, o
           {combinedMessages.map((msg) => {
             const isMe = msg.uid === user?.uid || msg.user === username;
             const isSystem = msg.user === 'KERNEL_SYSTEM';
+            const isVip = msg.isVip || (msg.avatar && msg.avatar !== '/pfps/mask.jpg');
             const mColor = isSystem ? '#10b981' : (msg.color || '#3b82f6');
             return (
               <div key={msg.id} id={`msg-${msg.id}`} 
                   onContextMenu={(e) => onMsgContextMenu(e, msg)} 
                   onTouchStart={(e) => handleTouchStart(e, msg)} 
+                  onTouchMove={handleTouchMove}
+                  onTouchEnd={handleTouchEnd}
                   onDoubleClick={(e) => { e.preventDefault(); handleReaction(msg.id, 'heart'); }}
                   className={`flex gap-3 animate-in fade-in slide-in-from-bottom-2 duration-300 transition-all max-w-full relative group ${isMe ? 'flex-row-reverse text-right' : 'flex-row'} ${msg.pending ? 'opacity-40 animate-pulse' : ''}`}
               >
@@ -3626,7 +3630,18 @@ const ChatApp = ({ hasAccess: initialAccess, tokenBalance: initialBalance = 0, o
                   <img src={msg.avatar || '/pfps/mask.jpg'} alt="" className="w-full h-full object-cover" />
                 </div>
                 <div className={`flex flex-col min-w-0 max-w-[80vw] md:max-w-[70%] ${isMe ? 'items-end' : 'items-start'}`}>
-                  {/* CLEAN UI: Top meta line removed as requested. Metadata moved to bottom info block. */}
+                  {/* RESTORED: Name header with VIP glow logic */}
+                  <div className={`flex items-center gap-2 mb-1 px-1 truncate ${isMe ? 'flex-row-reverse' : ''}`}>
+                    <span 
+                        className={`text-[10px] font-black uppercase tracking-tighter truncate ${isVip ? 'vip-glow' : ''}`} 
+                        style={{ color: mColor }}
+                    >
+                        {String(msg.user)}
+                    </span>
+                    <span className="text-[7px] opacity-30 font-mono">[{new Date(msg._sortTs).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}]</span>
+                    {isVip && <Zap size={8} className="text-yellow-400 animate-pulse shrink-0" />}
+                  </div>
+
                   <div className={`p-3 relative group transition-all duration-200 shadow-md w-fit max-w-full break-words ${isMe ? style.tileMe : style.tileOther} ${isSystem ? 'cursor-pointer border-emerald-500/50 bg-green-950/10' : ''}`}
                       style={{ borderLeft: !isMe ? `3px solid ${mColor}` : undefined, borderRight: isMe ? `3px solid ${mColor}` : undefined }} >
                     {msg.replyTo && (
@@ -3650,10 +3665,6 @@ const ChatApp = ({ hasAccess: initialAccess, tokenBalance: initialBalance = 0, o
                             ))}
                         </div>
                     )}
-                  </div>
-                  <div className="flex gap-2 mt-1 px-1 opacity-30 text-[7px] font-black uppercase tracking-tighter">
-                     <span>{String(msg.user)}</span>
-                     <span>[{new Date(msg._sortTs).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}]</span>
                   </div>
                 </div>
               </div>
@@ -3705,10 +3716,19 @@ const ChatApp = ({ hasAccess: initialAccess, tokenBalance: initialBalance = 0, o
         .scrollbar-classic::-webkit-scrollbar-thumb { background: #111; border: 1px solid #444; }
         @keyframes highlight { 0% { outline: 4px solid #10b981; box-shadow: 0 0 20px #10b981; } 100% { outline: 0px solid transparent; } }
         .msg-highlight { animation: highlight 2s ease-out forwards; }
+        .vip-glow { 
+            text-shadow: 0 0 5px currentColor, 0 0 10px currentColor; 
+            animation: pulse-glow 2s infinite alternate;
+        }
+        @keyframes pulse-glow {
+            from { opacity: 0.8; }
+            to { opacity: 1; filter: brightness(1.5); }
+        }
       `}</style>
     </div>
   );
 };
+
 
 
 const NotepadApp = () => {
