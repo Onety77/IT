@@ -633,7 +633,7 @@ const Shippy = ({ hidden, dexData }) => {
       <div className="absolute inset-0 pointer-events-none z-[100] opacity-[0.03] bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,252,0.06))] bg-[length:100%_2px,3px_100%]" />
       
       {/* WINDOW HEADER */}
-      <div className="bg-gradient-to-r from-[#000080] to-[#10b981] text-white p-1 flex justify-between items-center select-none border-b border-gray-400">
+      <div className="bg-gradient-to-r from-[#013a0a] to-[#006836] text-white p-1 flex justify-between items-center select-none border-b border-gray-400">
         <div className="flex items-center gap-3 px-1">
           <div className="relative">
              <Activity size={14} className="text-emerald-400 animate-pulse" />
@@ -665,7 +665,7 @@ const Shippy = ({ hidden, dexData }) => {
       {/* CHAT AREA */}
       <div 
         ref={scrollRef} 
-        className="h-80 overflow-y-auto p-3 space-y-4 border-b border-gray-400 relative bg-[#050505] scroll-smooth shadow-inner"
+        className="h-85 overflow-y-auto p-3 space-y-4 border-b border-gray-400 relative bg-[#050505] scroll-smooth shadow-inner"
       >
         {messages.map((m, i) => (
           <div key={i} className={`flex flex-col ${m.role === 'user' ? 'items-end' : 'items-start'} animate-in fade-in slide-in-from-bottom-2`}>
