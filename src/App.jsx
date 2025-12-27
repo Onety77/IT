@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { initializeApp } from 'firebase/app';
+import { initializeApp, getApp, getApps } from 'firebase/app';
 import { 
   getFirestore, collection, addDoc, getDocs, updateDoc, doc, setDoc, getDoc, 
   onSnapshot, query, orderBy, limit, serverTimestamp, deleteDoc, increment
@@ -21,7 +21,8 @@ import {
   TrendingDown, ShieldAlert, Cpu, BarChart3, Binary, Grid, ZoomIn, FileImage,
   Wifi, Hash, Lock, Unlock, Sun, Moon, Database, Radio, Command, Palette, UserCircle,
   ShieldCheck, Shield, Reply, Quote, CornerDownRight, Heart, ThumbsUp, ThumbsDown, Anchor, Crown, Bell, BellOff, ChevronDown,
-  ExternalLink, ShoppingCart, Minimize2, Circle, Layers, Eye, EyeOff, Tv, Ghost, Scan, Square as SquareIcon, StickyNote
+  ExternalLink, ShoppingCart, Minimize2, Circle, Layers, Eye, EyeOff, Tv, Ghost, Scan, Square as SquareIcon, StickyNote,
+  Shirt, Wind, ZapOff, Fingerprint, Crosshair, Dna
 } from 'lucide-react';
 
 // --- CONFIGURATION ---
@@ -34,7 +35,8 @@ const firebaseConfig = {
   appId: "1:804328953904:web:e760545b579bf2527075f5"
 };
 
-const app = initializeApp(firebaseConfig);
+// Singleton Firebase Initialization
+const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 const auth = getAuth(app);
 const db = getFirestore(app);
 const appId = 'it-token-os';
@@ -105,7 +107,6 @@ const useWallet = () => {
   const [balance, setBalance] = useState(0);
 
   const connect = async () => {
-    // DISCONNECT LOGIC
     if (wallet) {
       setWallet(null);
       setBalance(0);
@@ -120,7 +121,6 @@ const useWallet = () => {
         const resp = await window.solana.connect();
         setWallet(resp.publicKey.toString());
       } else if (isMobile) {
-        // MOBILE DEEP LINK FIX
         const currentUrl = window.location.href;
         window.location.href = `https://phantom.app/ul/browse/${encodeURIComponent(currentUrl)}`;
       } else {
@@ -191,8 +191,6 @@ const useDexData = (ca, userWallet) => {
 
   const fetchTokenBalance = useCallback(async () => {
     if (!userWallet || !ca || ca.length < 32) return;
-    
-    // Attempt multiple endpoints for redundancy
     for (const endpoint of RPC_ENDPOINTS) {
       try {
         const response = await fetch(endpoint, {
@@ -209,56 +207,37 @@ const useDexData = (ca, userWallet) => {
             ]
           })
         });
-        
         if (!response.ok) continue;
         const result = await response.json();
 
-        // Case 1: Token account found with balance
         if (result.result && result.result.value && result.result.value.length > 0) {
           const accountData = result.result.value[0].account.data;
-          
           if (accountData.parsed) {
             const uiAmount = accountData.parsed.info.tokenAmount.uiAmount;
             setData(prev => ({ ...prev, balance: uiAmount }));
-
-            // --- KERNEL EVENT DISPATCH ---
-            // This "shouts" the balance to the whole OS
             window.dispatchEvent(new CustomEvent('IT_OS_BALANCE_UPDATE', {
-              detail: {
-                balance: uiAmount,
-                hasAccess: uiAmount >= 500000 // Threshold defined here for global sync
-              }
+              detail: { balance: uiAmount, hasAccess: uiAmount >= ACCESS_THRESHOLD }
             }));
-            
             return; 
           }
-        } 
-        // Case 2: No token account found (Balance is 0)
-        else if (result.result && result.result.value) {
+        } else if (result.result && result.result.value) {
           setData(prev => ({ ...prev, balance: 0 }));
-          
-          // Dispatch zero balance event
           window.dispatchEvent(new CustomEvent('IT_OS_BALANCE_UPDATE', {
             detail: { balance: 0, hasAccess: false }
           }));
           return;
         }
-      } catch (err) { 
-        // Continue to next endpoint on failure
-        continue; 
-      }
+      } catch (err) { continue; }
     }
   }, [userWallet, ca]);
 
   useEffect(() => {
     fetchPrice();
     if (userWallet) fetchTokenBalance();
-
     const interval = setInterval(() => {
       fetchPrice();
       if (userWallet) fetchTokenBalance();
     }, 20000);
-
     return () => clearInterval(interval);
   }, [fetchPrice, fetchTokenBalance, userWallet]);
 
@@ -328,6 +307,7 @@ const StartMenu = ({ isOpen, onClose, onOpenApp }) => {
              {[
                { id: 'terminal', icon: Terminal, label: 'Terminal' },
                { id: 'mememind', icon: Lightbulb, label: 'Meme Mind IT' }, 
+               { id: 'forgeit', icon: Sparkles, label: 'Forge IT' }, // INTEGRATION
                { id: 'mergeit', icon: Joystick, label: 'Merge IT' },      
                { id: 'paint', icon: Paintbrush, label: 'Paint IT' },
                { id: 'memes', icon: Folder, label: 'Memes' },
@@ -346,14 +326,12 @@ const StartMenu = ({ isOpen, onClose, onOpenApp }) => {
   );
 };
 
-// --- SYSTEM RESOURCE MONITOR (Adaptive Responsive Fix) ---
 const SystemResourceMonitor = ({ wallet, balance, hasAccess }) => {
     const [isExpanded, setIsExpanded] = useState(false);
     const monitorRef = useRef(null);
     const formattedBalance = balance ? balance.toLocaleString(undefined, { maximumFractionDigits: 0 }) : '0';
     const buyLink = `https://jup.ag/swap/SOL-${CA_ADDRESS}`;
 
-    // Auto-shrink when clicking away
     useEffect(() => {
         const handleClickAway = (e) => {
             if (monitorRef.current && !monitorRef.current.contains(e.target)) {
@@ -377,7 +355,6 @@ const SystemResourceMonitor = ({ wallet, balance, hasAccess }) => {
             className={`fixed top-4 right-4 z-[5] flex flex-col items-end transition-all duration-300 pointer-events-auto cursor-pointer ${isExpanded ? 'w-64' : 'w-auto'}`}
         >
             {!isExpanded ? (
-                /* Compact View (Mobile Friendly) */
                 <div className="bg-black/80 backdrop-blur-md border border-white p-2 flex items-center gap-2 shadow-lg hover:bg-black transition-colors rounded-sm">
                     <Cpu size={14} className="text-white animate-pulse" />
                     <span className="text-[11px] font-bold text-white font-mono">
@@ -386,7 +363,6 @@ const SystemResourceMonitor = ({ wallet, balance, hasAccess }) => {
                     <div className={`w-1.5 h-1.5 rounded-full ${wallet ? 'bg-green-500 shadow-[0_0_5px_#22c55e]' : 'bg-red-500 shadow-[0_0_5px_#ef4444]'}`} />
                 </div>
             ) : (
-                /* Expanded View (Full Telemetry) */
                 <div className="bg-black/60 backdrop-blur-md border-2 border-white border-r-gray-700 border-b-gray-700 p-3 w-full shadow-[10px_10px_0px_rgba(0,0,0,0.5)] font-mono">
                     <div className="flex justify-between items-center border-b border-white/20 pb-2 mb-2">
                         <div className="flex items-center gap-2">
@@ -410,23 +386,6 @@ const SystemResourceMonitor = ({ wallet, balance, hasAccess }) => {
                                 />
                             </div>
                         </div>
-                        <div className="flex flex-col gap-1 items-center justify-center py-1">
-                            {!wallet ? (
-                                <div className="text-red-500 text-[9px] font-black uppercase text-center animate-pulse tracking-widest italic">[ UPLINK_REQUIRED ]</div>
-                            ) : !hasAccess ? (
-                                <a href={buyLink} target="_blank" rel="noopener noreferrer" className="w-full bg-yellow-600/20 border border-yellow-600 p-2 text-center text-yellow-400 hover:bg-yellow-600 hover:text-black transition-all animate-pulse text-[9px] font-black uppercase leading-tight flex items-center justify-center gap-2">
-                                    <ShoppingCart size={12}/> LOW POWER: BUY IT NOW
-                                </a>
-                            ) : (
-                                <div className="w-full bg-green-900/20 border border-green-500 p-2 text-center text-green-400 text-[9px] font-black uppercase flex items-center justify-center gap-2">
-                                    <ShieldCheck size={12}/> PROTOCOL: ACCESS_GRANTED
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                    <div className="mt-2 pt-1 border-t border-white/10 flex justify-between items-center opacity-40">
-                        <span className="text-[7px] font-bold text-gray-400 uppercase tracking-widest">Sync cycle: 20s</span>
-                        <span className="text-[7px] font-bold text-white uppercase italic">HOLD IT</span>
                     </div>
                 </div>
             )}
@@ -4496,7 +4455,493 @@ const MergeItApp = () => {
 };
 
 
+//forgeit
 
+// --- CONFIGURATION ---
+const UNLIMITED_THRESHOLD = 3000000; 
+const DAILY_LIMIT = 5;
+const APP_ID = typeof __app_id !== 'undefined' ? __app_id : 'it-forge-cult';
+
+// --- ASSETS ---
+const BASE_CHARACTER = "main.jpg";
+
+// --- EXPANDED TRAIT LIBRARY ---
+const PFP_CATEGORIES = [
+  { id: 'bg', label: 'WORLD', icon: Globe },
+  { id: 'outfit', label: 'GEAR', icon: Shirt },
+  { id: 'eyes', label: 'SPECS', icon: Eye },
+  { id: 'mask', label: 'COVER', icon: Ghost },
+  { id: 'head', label: 'CAP', icon: Terminal },
+  { id: 'aura', label: 'AURA', icon: Layers },
+  { id: 'vibe', label: 'MOOD', icon: Activity },
+];
+
+const PFP_TRAITS = {
+  bg: [
+    { id: 'neon', label: 'Neon Alley', prompt: 'in a glowing purple and teal cyberpunk alleyway' },
+    { id: 'matrix', label: 'Data Stream', prompt: 'surrounded by falling green matrix code' },
+    { id: 'chart', label: 'God Candle', prompt: 'in front of a massive green candle trading chart' },
+    { id: 'moon', label: 'Lunar Base', prompt: 'on a high-tech moon base looking at Earth' },
+    { id: 'rain', label: 'Acid Rain', prompt: 'in a rainy, dark industrial city with flickering signs' },
+    { id: 'server', label: 'Mainframe', prompt: 'inside a high-density server room with glowing blue wires' },
+    { id: 'void', label: 'The Void', prompt: 'in a dark minimalist abyss with neon highlights' },
+    { id: 'sunset', label: 'Synthwave Sun', prompt: 'against a massive retro-grid 80s sunset' },
+  ],
+  outfit: [
+    { id: 'detective', label: 'Noir Trench', prompt: 'wearing a classic noir detective trench coat' },
+    { id: 'hoodie_black', label: 'Tech Hoodie (Black)', prompt: 'wearing a black oversized techwear hoodie' },
+    { id: 'hoodie_white', label: 'Tech Hoodie (White)', prompt: 'wearing a crisp white oversized techwear hoodie' },
+    { id: 'suit_80s', label: 'Sharp Suit', prompt: 'wearing a crisp 80s business suit with narrow tie' },
+    { id: 'armor_heavy', label: 'Exo-Plate', prompt: 'wearing heavy glowing mechanical plated body armor' },
+    { id: 'robe_cyber', label: 'Cultist Robe', prompt: 'wearing a flowing high-tech digital monk robe' },
+    { id: 'tactical', label: 'Combat Vest', prompt: 'wearing a utility tactical combat vest' },
+    { id: 'kimono', label: 'Cyber Kimono', prompt: 'wearing a neon-lined futuristic silk kimono' },
+    { id: 'hawaiian', label: 'Degen Shirt', prompt: 'wearing a colorful glitchy hawaiian shirt' },
+    { id: 'leather', label: 'Biker Leather', prompt: 'wearing a studded black leather jacket with neon patches' },
+  ],
+  eyes: [
+    { id: 'none', label: 'Clean', prompt: 'no eyewear' },
+    { id: 'noir', label: 'Noir Shades', prompt: 'wearing dark black classic sunglasses' },
+    { id: 'visor', label: 'HUD Visor', prompt: 'wearing a glowing tactical data visor' },
+    { id: 'monocle', label: 'Elite Lens', prompt: 'wearing a glowing digital monocle' },
+    { id: 'aviators', label: 'Degen Pilots', prompt: 'wearing gold rimmed aviator sunglasses' },
+    { id: 'red_glow', label: 'Cyber Sockets', prompt: 'with glowing red robotic eyes' },
+    { id: 'laser', label: 'Laser Eyes', prompt: 'with intense red laser beams shooting from eyes', vip: true },
+    { id: 'third_eye', label: 'Third Eye', prompt: 'with a glowing vertical eye in the center of the forehead', vip: true },
+  ],
+  mask: [
+    { id: 'none', label: 'No Mask', prompt: 'no face cover' },
+    { id: 'gas', label: 'Gas Mask', prompt: 'wearing a futuristic industrial gas mask' },
+    { id: 'kabuki', label: 'Oni Mask', prompt: 'wearing a cybernetic japanese oni demon mask' },
+    { id: 'bandana', label: 'Bandit Rail', prompt: 'wearing a silk bandana over the lower face' },
+    { id: 'respirator', label: 'Breather', prompt: 'wearing a sleek dual-filter respirator' },
+    { id: 'scarf', label: 'Cyber Scarf', prompt: 'with a high collar technical fabric scarf' },
+    { id: 'digital', label: 'Data Veil', prompt: 'lower face obscured by a glowing data mesh', vip: true },
+  ],
+  head: [
+    { id: 'none', label: 'No Cap', prompt: 'no headgear' },
+    { id: 'fedora', label: 'Detective', prompt: 'wearing a classic wide-brimmed fedora' },
+    { id: 'beanie', label: 'Hacker Hat', prompt: 'wearing a snug black digital beanie' },
+    { id: 'horns', label: 'Cyber Horns', prompt: 'with glowing mechanical horns' },
+    { id: 'halo', label: 'Digital Halo', prompt: 'with a floating ring of golden light above the head' },
+    { id: 'headset', label: 'Comm-Link', prompt: 'wearing a large tactical communication headset' },
+    { id: 'crown', label: 'IT Crown', prompt: 'wearing a jagged crown of gold silicon chips', vip: true },
+  ],
+  aura: [
+    { id: 'none', label: 'Stable', prompt: 'no atmospheric effects' },
+    { id: 'glitch', label: 'Phase Shift', prompt: 'with digital glitch artifacts and double exposure effects' },
+    { id: 'smoke', label: 'Cyber Smoke', prompt: 'surrounded by thick neon-lit vapor' },
+    { id: 'sparks', label: 'Energy Arc', prompt: 'with electrical sparks jumping around the body' },
+    { id: 'fire', label: 'Inferno', prompt: 'surrounded by stylzed blue spirit flames' },
+    { id: 'wind', label: 'Digital Wind', prompt: 'with data particles swirling around', vip: true },
+  ],
+  vibe: [
+    { id: 'stoic', label: 'Stoic', prompt: 'with a calm focused expression' },
+    { id: 'grin', label: 'Bullish', prompt: 'with a confident mischievous grin' },
+    { id: 'smirk', label: 'Smirking', prompt: 'with a cynical detective smirk' },
+    { id: 'pipe', label: 'Pipe Hit', prompt: 'smoking a futuristic digital glowing pipe' },
+    { id: 'serious', label: 'Shadowed', prompt: 'eyes hidden in heavy cinematic shadow' },
+  ]
+};
+
+
+const ForgeItApp = () => {
+  const [user, setUser] = useState(null);
+  const [tokenBalance, setTokenBalance] = useState(0);
+  const [hasAccess, setHasAccess] = useState(false);
+  const [dailyCount, setDailyCount] = useState(0);
+  
+  // API Key for Gemini / Imagen (Provided by environment or set manually for external use)
+  const apiKey = ""; 
+
+  // Forge State
+  const [selections, setSelections] = useState({
+    bg: PFP_TRAITS.bg[0], outfit: PFP_TRAITS.outfit[0], eyes: PFP_TRAITS.eyes[0],
+    mask: PFP_TRAITS.mask[0], head: PFP_TRAITS.head[0], aura: PFP_TRAITS.aura[0], vibe: PFP_TRAITS.vibe[0],
+  });
+  const [activeCat, setActiveCat] = useState('bg');
+  const [generatedImg, setGeneratedImg] = useState(null);
+  const [isForging, setIsForging] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [logs, setLogs] = useState(["NEURAL_LINK_ESTABLISHED", "WAITING_FOR_TRAIT_SIGNAL..."]);
+  const [error, setError] = useState(null);
+  const [lore, setLore] = useState(null);
+  const [isWritingLore, setIsWritingLore] = useState(false);
+
+  // --- AUTH & SYNC ---
+  useEffect(() => {
+    const initAuth = async () => {
+      if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+        await signInWithCustomToken(auth, __initial_auth_token);
+      } else {
+        await signInAnonymously(auth);
+      }
+    };
+    initAuth();
+    const unsubscribe = onAuthStateChanged(auth, setUser);
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    const handleKernelSync = (e) => {
+      const { balance } = e.detail;
+      setTokenBalance(balance);
+      setHasAccess(balance >= UNLIMITED_THRESHOLD);
+    };
+    window.addEventListener('IT_OS_BALANCE_UPDATE', handleKernelSync);
+    return () => window.removeEventListener('IT_OS_BALANCE_UPDATE', handleKernelSync);
+  }, []);
+
+  // --- FIRESTORE USAGE ---
+  useEffect(() => {
+    if (!user) return;
+    const today = new Date().toISOString().split('T')[0];
+    const usageRef = doc(db, 'artifacts', APP_ID, 'users', user.uid, 'usage', 'forge_limits');
+    const unsubUsage = onSnapshot(usageRef, (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        if (data.lastDate === today) setDailyCount(data.count);
+        else setDailyCount(0);
+      }
+    }, (err) => console.error(err));
+    return () => unsubUsage();
+  }, [user]);
+
+  const addLog = (msg) => setLogs(prev => [msg, ...prev].slice(0, 4));
+
+  // --- FORGE LOGIC ---
+  const handleForge = async () => {
+    if (isForging) return;
+    if (!hasAccess && dailyCount >= DAILY_LIMIT) {
+      setError("DAILY_LIMIT_REACHED: Hold 3M $IT for unlimited forges.");
+      return;
+    }
+
+    setIsForging(true);
+    setGeneratedImg(null);
+    setLore(null);
+    setProgress(0);
+    setLogs(["INIT_NEURAL_CONSTRUCTION...", "EXTRACTING_GEAR_VECTORS..."]);
+
+    const progTimer = setInterval(() => {
+      setProgress(prev => {
+        if (prev < 30) addLog("INTERPRETING_CYBER_TRAITS...");
+        if (prev > 60 && prev < 65) addLog("ASSEMBLING_PIXELS_IN_VOID...");
+        return prev < 95 ? prev + Math.random() * 8 : prev;
+      });
+    }, 600);
+
+    try {
+      const traitList = Object.values(selections).map(s => s.prompt).join(', ');
+      // STRENGHTENED PROMPT: Strictly maintaining character model consistency
+      const masterPrompt = `A high-detail 90s retro anime style PFP strictly using the provided cybernetic cat character model as the static base. Maintain the EXACT same body pose, facial structure, and physical proportions as the base character. ONLY layer or modify the following specific traits: ${traitList}. Thick ink outlines, flat vibrant cel-shading, professional character art, 4k resolution, clean composition.`;
+
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict?key=${apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ instances: { prompt: masterPrompt }, parameters: { sampleCount: 1 } })
+      });
+
+      const result = await response.json();
+      if (result.predictions?.[0]?.bytesBase64Encoded) {
+        setGeneratedImg(`data:image/png;base64,${result.predictions[0].bytesBase64Encoded}`);
+        setProgress(100);
+        addLog("MATERIALIZATION_COMPLETE.");
+        
+        if (!hasAccess) {
+          const today = new Date().toISOString().split('T')[0];
+          const usageRef = doc(db, 'artifacts', APP_ID, 'users', user.uid, 'usage', 'forge_limits');
+          await setDoc(usageRef, { count: dailyCount + 1, lastDate: today }, { merge: true });
+        }
+      } else { throw new Error("EMPTY_BUFFER"); }
+    } catch (err) {
+      setError("FORGE_FAILURE: Connection lost.");
+      addLog("ERROR: BUFFER_OVERFLOW");
+    } finally {
+      clearInterval(progTimer);
+      setIsForging(false);
+    }
+  };
+
+  const generateLore = async () => {
+    if (isWritingLore || !generatedImg) return;
+    setIsWritingLore(true);
+    addLog("DECRYPTING_BIOMETRIC_DATA...");
+    try {
+      const traitString = Object.values(selections).map(s => s.label).join(', ');
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: `Generate a 2-sentence mysterious dossier for a character with traits: ${traitString}` }] }]
+        })
+      });
+      const data = await response.json();
+      const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      setLore(text || "DATA_CORRUPT");
+      addLog("DOSSIER_DECRYPTED.");
+    } catch (e) { 
+      console.error(e); 
+      setError("LORE_FAILURE: Neural link interrupted.");
+    }
+    finally { setIsWritingLore(false); }
+  };
+
+  const downloadPFP = () => {
+    if (!generatedImg) return;
+    const link = document.createElement('a');
+    link.href = generatedImg;
+    link.download = `IT_CULT_ID_${Date.now()}.png`;
+    link.click();
+  };
+
+  return (
+    <div className="flex flex-col h-full bg-[#020202] text-zinc-300 font-mono overflow-hidden selection:bg-emerald-500 selection:text-black">
+      {/* HUD HEADER */}
+      <header className="h-14 border-b border-emerald-900/40 bg-black flex items-center justify-between px-6 shrink-0 z-20">
+        <div className="flex items-center gap-4">
+          <div className="p-2 border border-emerald-500/40 rounded-sm bg-black"><Cpu size={18} className="text-emerald-400" /></div>
+          <div>
+            <h1 className="text-xs font-black uppercase tracking-[0.3em] text-white italic leading-none">Forge IT Cult</h1>
+            <p className="text-[7px] text-zinc-600 font-bold uppercase tracking-tighter mt-1">Identity_Materializer_v3.2.1</p>
+          </div>
+        </div>
+        <div className={`flex items-center gap-3 px-4 py-1.5 border rounded-sm ${hasAccess ? 'border-emerald-500/20 bg-emerald-500/5 text-emerald-400' : 'border-yellow-600/20 bg-yellow-600/5 text-yellow-600'}`}>
+          <div className="text-right">
+            <p className="text-[9px] font-black uppercase leading-none">{hasAccess ? 'VIP_ARCHITECT' : 'LIMITED_FORGER'}</p>
+            {!hasAccess && <p className="text-[8px] opacity-60 mt-1 uppercase tracking-widest">FORGES: {DAILY_LIMIT - dailyCount}</p>}
+          </div>
+          {hasAccess && <Crown size={14} className="animate-pulse" />}
+        </div>
+      </header>
+
+      <main className="flex-1 flex min-h-0 relative">
+        {/* LEFT SIDE: GEAR & SUBJECT BLUEPRINT */}
+        <div className="w-1/2 flex flex-col border-r border-emerald-900/20 bg-[#050505] relative">
+          
+          {/* SUBJECT BLUEPRINT VIEWPORT - Resized h-1/3 to give traits more room */}
+          <div className="h-[220px] relative overflow-hidden bg-black border-b border-emerald-900/20 group shrink-0">
+             {/* Holographic Background */}
+             <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,#10b98115_0%,transparent_70%)] animate-pulse" />
+             <div className="absolute inset-0 pointer-events-none opacity-20 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(0,255,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[length:100%_4px,4px_100%]" />
+             
+             {/* Character Image */}
+             <img 
+               src={BASE_CHARACTER} 
+               alt="Subject Blueprint" 
+               className="w-full h-full object-cover grayscale opacity-50 group-hover:opacity-70 transition-all duration-1000 scale-[1.1] group-hover:scale-100" 
+             />
+
+             {/* UI Overlays */}
+             <div className="absolute top-4 left-4 flex flex-col gap-1">
+                <div className="flex items-center gap-2 text-[8px] font-black text-emerald-500 uppercase bg-black/80 px-2 py-1 border border-emerald-500/30">
+                  <Crosshair size={10} /> SOURCE_IDENTITY_BLUEPRINT
+                </div>
+                <div className="flex items-center gap-2 text-[6px] font-bold text-zinc-500 uppercase bg-black/60 px-2 py-0.5">
+                  <Fingerprint size={8} /> UID: {user?.uid?.slice(0, 12)}
+                </div>
+             </div>
+
+             <div className="absolute bottom-4 right-4 text-right">
+                <div className="text-[7px] font-black text-emerald-700 uppercase">SUBJECT_BIO_STABLE</div>
+                <div className="flex gap-1 mt-1 justify-end">
+                   <div className="w-4 h-0.5 bg-emerald-500/40" />
+                   <div className="w-4 h-0.5 bg-emerald-500" />
+                   <div className="w-1 h-0.5 bg-emerald-500" />
+                </div>
+             </div>
+
+             {/* Moving Scanline */}
+             <div className="absolute top-0 inset-x-0 h-0.5 bg-emerald-500/40 shadow-[0_0_15px_#10b981] animate-[blueprint-scan_4s_linear_infinite] z-10" />
+          </div>
+
+          {/* GEAR SELECTOR TABS */}
+          <div className="grid grid-cols-7 border-b border-emerald-900/20 shrink-0">
+            {PFP_CATEGORIES.map(cat => (
+              <button
+                key={cat.id}
+                onClick={() => setActiveCat(cat.id)}
+                className={`p-3.5 flex flex-col items-center gap-1.5 transition-all relative ${activeCat === cat.id ? 'bg-emerald-500/10 text-emerald-400' : 'text-zinc-700 hover:text-zinc-500'}`}
+              >
+                <cat.icon size={14} />
+                <span className="text-[7px] font-black uppercase tracking-widest text-center leading-none">{cat.label}</span>
+                {activeCat === cat.id && <div className="absolute bottom-0 inset-x-0 h-0.5 bg-emerald-500 shadow-[0_0_10px_#10b981]" />}
+              </button>
+            ))}
+          </div>
+
+          {/* TRAIT LIST */}
+          <div className="flex-1 overflow-y-auto p-3 space-y-1.5 custom-scrollbar">
+            <div className="grid grid-cols-1 gap-1">
+              {PFP_TRAITS[activeCat].map(trait => {
+                const isLocked = trait.vip && !hasAccess;
+                const isSelected = selections[activeCat].id === trait.id;
+                return (
+                  <button
+                    key={trait.id}
+                    disabled={isLocked}
+                    onClick={() => setSelections(prev => ({ ...prev, [activeCat]: trait }))}
+                    className={`group px-3.5 py-3 border rounded-sm text-left transition-all flex items-center justify-between relative overflow-hidden ${
+                      isSelected 
+                        ? 'bg-emerald-500/10 border-emerald-500/60 text-emerald-300' 
+                        : 'bg-[#080808] border-zinc-900 text-zinc-600 hover:border-zinc-700 hover:text-zinc-400'
+                    } ${isLocked ? 'opacity-30 grayscale cursor-not-allowed' : ''}`}
+                  >
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-tighter">{trait.label}</p>
+                      <p className="text-[7px] opacity-40 uppercase truncate max-w-[200px] mt-0.5">{trait.prompt}</p>
+                    </div>
+                    {isSelected && <div className="w-1 h-1 bg-emerald-500 rounded-full shadow-[0_0_8px_#10b981]" />}
+                    {isLocked && <Lock size={12} className="text-yellow-600" />}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* ACTION FOOTER - Scaled down py-3.5 instead of py-5 */}
+          <div className="p-3 bg-black border-t border-emerald-900/30 shrink-0">
+            <button
+              onClick={handleForge}
+              disabled={isForging}
+              className={`w-full py-3.5 font-black italic text-lg tracking-[0.2em] transition-all relative overflow-hidden group border-b-4 ${
+                isForging 
+                  ? 'bg-zinc-900 text-zinc-700 border-zinc-800' 
+                  : 'bg-emerald-500 text-black hover:bg-emerald-400 border-emerald-600 shadow-[0_0_30px_rgba(16,185,129,0.2)]'
+              }`}
+            >
+              <span className="relative z-10 flex items-center justify-center gap-2">
+                {isForging ? <RefreshCw className="animate-spin" size={16}/> : <Zap size={16} />}
+                {isForging ? 'MATERIALIZING...' : 'FORGE IT'}
+              </span>
+            </button>
+          </div>
+        </div>
+
+        {/* RIGHT SIDE: NEURAL CHAMBER */}
+        <div className="flex-1 bg-[#020202] flex flex-col p-8 items-center justify-center relative">
+          <div className="absolute top-8 left-8 text-zinc-800 pointer-events-none">
+            <div className="flex items-center gap-2 mb-2">
+              <Activity size={12} className="text-emerald-500/30" />
+              <span className="text-[8px] font-black uppercase">CHAMBER_OUTPUT</span>
+            </div>
+            <div className="space-y-1">
+              {logs.map((log, i) => (
+                <p key={i} className={`text-[7px] font-bold uppercase transition-all ${i === 0 ? 'text-zinc-500' : 'text-zinc-800'}`}>
+                  {`> ${log}`}
+                </p>
+              ))}
+            </div>
+          </div>
+
+          {isForging ? (
+            <div className="flex flex-col items-center gap-8 animate-in fade-in duration-500">
+              <div className="relative w-80 h-80 border border-emerald-500/20 rounded-sm flex items-center justify-center overflow-hidden">
+                <div className="absolute inset-0 bg-[radial-gradient(circle,rgba(16,185,129,0.1)_0%,transparent_70%)] animate-pulse" />
+                <Scan size={80} className="text-emerald-500/20 animate-pulse" strokeWidth={0.5} />
+                <div className="absolute bottom-0 left-0 w-full h-[2px] bg-emerald-500 animate-[scan_2s_linear_infinite]" />
+              </div>
+              <div className="w-64 space-y-2">
+                <div className="flex justify-between text-[8px] font-black text-emerald-500 italic">
+                  <span>NEURAL_FLOW</span>
+                  <span>{Math.round(progress)}%</span>
+                </div>
+                <div className="h-1 bg-zinc-950 rounded-full overflow-hidden border border-zinc-900">
+                  <div className="h-full bg-emerald-500 transition-all duration-300" style={{ width: `${progress}%` }} />
+                </div>
+              </div>
+            </div>
+          ) : generatedImg ? (
+            <div className="w-full max-w-sm space-y-6 animate-in zoom-in-95 duration-1000">
+              <div className="relative group p-1 bg-zinc-950 border border-white/10 shadow-2xl">
+                <img src={generatedImg} className="w-full aspect-square object-cover" />
+                <div className="absolute top-4 right-4 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                   <button onClick={downloadPFP} className="p-3 bg-white text-black hover:bg-emerald-400 transition-colors">
+                      <Download size={18} />
+                   </button>
+                </div>
+              </div>
+
+              <div className="space-y-4 bg-zinc-900/30 p-5 border border-zinc-800 rounded-sm relative">
+                {lore ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-[9px] font-black text-emerald-400 uppercase tracking-widest">
+                      <Dna size={12} /> BIOMETRIC_DOSSIER
+                    </div>
+                    <p className="text-[10px] leading-relaxed italic text-zinc-400">"{lore}"</p>
+                  </div>
+                ) : (
+                  <button 
+                    onClick={generateLore}
+                    disabled={isWritingLore}
+                    className="w-full py-2 flex items-center justify-center gap-2 text-[10px] font-black uppercase text-zinc-500 hover:text-white transition-colors"
+                  >
+                    {isWritingLore ? <RefreshCw className="animate-spin" size={12}/> : <Search size={12}/>}
+                    {isWritingLore ? 'EXTRACTING...' : 'DECRYPT_SUBJECT_HISTORY'}
+                  </button>
+                )}
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <button 
+                  onClick={downloadPFP}
+                  className="w-full py-4 flex items-center justify-center gap-3 font-black text-[11px] uppercase tracking-[0.2em] transition-all border border-white bg-white text-black hover:bg-emerald-400"
+                >
+                  <Download size={16} /> SAVE_FORGE
+                </button>
+                <button 
+                  onClick={() => setGeneratedImg(null)}
+                  className="w-full py-2 text-[9px] font-black uppercase tracking-widest text-zinc-700 hover:text-white transition-all"
+                >
+                  ABORT_CURRENT_MATRIX
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center gap-8 opacity-10 group hover:opacity-30 transition-all duration-1000">
+              <div className="p-24 border border-dashed border-emerald-900/50 rounded-full relative">
+                <Palette size={100} strokeWidth={0.5} className="relative z-10" />
+                <div className="absolute top-0 right-0 animate-bounce"><Sparkles size={32} className="text-emerald-500" /></div>
+              </div>
+              <div className="text-center space-y-2">
+                <p className="text-[11px] font-black uppercase tracking-[0.6em] text-white italic">Chamber_Standby</p>
+                <p className="text-[8px] font-bold uppercase text-zinc-600">Sync traits in the Blueprint Matrix to proceed</p>
+              </div>
+            </div>
+          )}
+        </div>
+      </main>
+
+      {/* ERROR TOAST */}
+      {error && (
+        <div className="fixed bottom-6 right-6 w-96 bg-red-950/90 border border-red-500 p-4 flex items-start gap-4 text-white animate-in slide-in-from-right-10 z-[200]">
+          <AlertTriangle size={24} className="shrink-0 text-red-500" />
+          <div className="flex-1 space-y-1">
+            <p className="text-[10px] font-black uppercase">SYSTEM_INTERRUPT</p>
+            <p className="text-[9px] opacity-70 leading-relaxed font-bold uppercase">{error}</p>
+          </div>
+          <button onClick={() => setError(null)} className="p-1 hover:bg-white/10"><X size={16}/></button>
+        </div>
+      )}
+
+      {/* STYLES */}
+      <style>{`
+        @keyframes scan {
+          0% { transform: translateY(-100%); }
+          100% { transform: translateY(600%); }
+        }
+        @keyframes blueprint-scan {
+          0% { transform: translateY(0); opacity: 0.1; }
+          50% { opacity: 0.8; }
+          100% { transform: translateY(220px); opacity: 0.1; }
+        }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #111; border-radius: 0px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #10b981; }
+      `}</style>
+    </div>
+  );
+};
 
 
 
@@ -4531,12 +4976,16 @@ export default function UltimateOS() {
 
   const openApp = (type) => {
     const id = os_gen_id();
-    const titles = { paint: 'Paint IT', terminal: 'Terminal IT', tunes: 'Tune IT', rugsweeper: 'Stack IT', notepad: 'Write IT', memes: 'Memes', trollbox: 'Trollbox IT', mememind: 'Meme Mind IT', mergeit: 'Merge IT', wallet: 'Wallet IT' };
+    const titles = { 
+      paint: 'Paint IT', terminal: 'Terminal IT', tunes: 'Tune IT', rugsweeper: 'Stack IT', 
+      notepad: 'Write IT', memes: 'Memes', trollbox: 'Trollbox IT', mememind: 'Meme Mind IT', 
+      mergeit: 'Merge IT', wallet: 'Wallet IT', forgeit: 'Forge IT' 
+    };
     const isMobile = window.innerWidth < 768;
     const isPhoneApp = ['rugsweeper', 'trollbox', 'mememind', 'mergeit', 'wallet'].includes(type);
-    const isWideApp = ['paint', 'memes'].includes(type);
-    const defaultW = isWideApp ? 640 : (isPhoneApp ? 340 : 500);
-    const defaultH = isWideApp ? 480 : (isPhoneApp ? 580 : 400);
+    const isWideApp = ['paint', 'memes', 'forgeit'].includes(type);
+    const defaultW = isWideApp ? 740 : (isPhoneApp ? 340 : 500);
+    const defaultH = isWideApp ? 540 : (isPhoneApp ? 580 : 400);
 
     const newWin = { 
       id, type, title: titles[type] || 'App', 
@@ -4585,7 +5034,7 @@ export default function UltimateOS() {
   if (!booted) return (
     <div className="w-full h-screen bg-black text-green-500 font-mono flex flex-col items-center justify-center relative overflow-hidden">
       <div className="absolute inset-0 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[length:100%_4px,3px_100%] pointer-events-none z-10"></div>
-      <h1 className="text-4xl font-bold mb-4 animate-pulse tracking-tighter">OS_IT</h1>
+      <h1 className="text-4xl font-bold mb-4 animate-pulse tracking-tighter italic">OS_IT</h1>
       <div className="w-64 h-4 border-2 border-green-500 p-0.5"><div className="h-full bg-green-500 animate-[widthLoad_2s_ease-out_forwards]" style={{width: '0%'}}></div></div>
       <style>{`@keyframes widthLoad { from { width: 0%; } to { width: 100%; } }`}</style>
     </div>
@@ -4593,11 +5042,11 @@ export default function UltimateOS() {
 
   return (
     <div className="w-full h-screen relative overflow-hidden font-sans select-none text-black">
-      {/* Background & Icons */}
-      <div className="absolute inset-0 z-0 bg-cover bg-center" style={{ backgroundImage: `url(${ASSETS.wallpaper})`, backgroundColor: '#008080' }}></div>
+      <div className="absolute inset-0 z-0 bg-cover bg-center bg-[#008080]" style={{ backgroundImage: `url(${ASSETS.wallpaper})` }}></div>
       <div className="absolute top-0 left-0 p-4 z-0 flex flex-col gap-4 flex-wrap max-h-full content-start">
         <DesktopIcon icon={Terminal} label="Terminal" onClick={() => openApp('terminal')} />
         <DesktopIcon icon={Lightbulb} label="Meme Mind" onClick={() => openApp('mememind')} />
+        <DesktopIcon icon={Sparkles} label="Forge IT" onClick={() => openApp('forgeit')} />
         <DesktopIcon icon={Joystick} label="Merge IT" onClick={() => openApp('mergeit')} />
         <DesktopIcon icon={Gamepad2} label="Stack IT" onClick={() => openApp('rugsweeper')} />
         <DesktopIcon icon={Paintbrush} label="Paint IT" onClick={() => openApp('paint')} />
@@ -4608,125 +5057,35 @@ export default function UltimateOS() {
         <DesktopIcon icon={Wallet} label="Wallet" onClick={() => openApp('wallet')} />
       </div>
 
-      {/* HUD Background (z-5) */}
       <SystemResourceMonitor wallet={wallet} balance={dexData.balance} hasAccess={hasAccess} />
       
-      {/* Assistant Shippy */}
-      {typeof Shippy !== 'undefined' && <Shippy hidden={isAnyWindowMaximized} dexData={dexData} />}
-{windows.map(win => (
+      {windows.map(win => (
         <DraggableWindow 
           key={win.id} win={win} isActive={win.id === activeWindowId} 
           onFocus={() => focusWindow(win.id)} onClose={() => closeWindow(win.id)} 
           onMaximize={() => toggleMax(win.id)} onMinimize={() => minimizeWindow(win.id)} 
           onMove={moveWindow}
         >
-          {win.type === 'paint' && <PaintApp isHolder={hasAccess} />}
-          {win.type === 'terminal' && <TerminalApp dexData={dexData} />}
-          {win.type === 'tunes' && (
-             <AmpTunesApp isHolder={hasAccess} onLocked={() => showAlert("HOLD IT TO SKIP TRACKS")} />
-          )}
-          {win.type === 'rugsweeper' && <RugSweeperApp />}
-          {win.type === 'notepad' && <NotepadApp />}
-          {win.type === 'trollbox' && (
-            <ChatApp dexData={dexData} wallet={wallet} onLocked={() => showAlert("HOLD IT TO CHAT / SET PFP")} />
-          )}
-          {win.type === 'memes' && <MemesApp />}
-          {win.type === 'mememind' && <MemeMindApp />}
-          {win.type === 'mergeit' && <MergeItApp />}
-          
+          {win.type === 'forgeit' && <ForgeItApp />}
+          {win.type === 'terminal' && <div className="p-4 bg-black h-full text-green-500 font-mono text-[10px]">SYSTEM READY...</div>}
           {win.type === 'wallet' && (
             <div className="p-4 bg-black h-full font-mono flex flex-col gap-4 text-emerald-500 overflow-y-auto relative selection:bg-emerald-500 selection:text-black">
-              {/* CRT Scanline Overlay */}
-              <div className="absolute inset-0 pointer-events-none opacity-[0.07] bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,252,0.06))] bg-[length:100%_2px,3px_100%] z-20" />
-              
-              <div className="flex justify-between items-center border-b border-emerald-900/50 pb-2 z-10">
-                <div className="flex items-center gap-2">
-                  <Activity size={14} className="animate-pulse text-emerald-400" />
-                  <span className="text-[10px] font-black uppercase tracking-widest text-emerald-700">Wallet Monitor</span>
-                </div>
-                <div className={`px-2 py-0.5 rounded-sm text-[8px] font-black uppercase ${wallet ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400 animate-pulse'}`}>
-                  {wallet ? 'Connected' : 'Disconnected'}
-                </div>
+              <div className="flex justify-between items-center border-b border-emerald-900/50 pb-2">
+                <div className="flex items-center gap-2"><Activity size={14} className="text-emerald-400" /> <span className="text-[10px] uppercase font-black">Wallet Monitor</span></div>
+                <div className="text-[8px] font-black uppercase">{wallet ? 'Connected' : 'Disconnected'}</div>
               </div>
-
-              {/* Balances Section */}
-              <div className="grid grid-cols-1 gap-3 z-10">
-                <div className="bg-[#050505] border border-emerald-900/30 p-4 relative group hover:border-emerald-500/50 transition-all duration-300">
-                  <div className="absolute top-2 right-2 opacity-10 group-hover:opacity-30 transition-opacity"><Zap size={12} /></div>
-                  <span className="text-[9px] font-bold text-emerald-800 uppercase tracking-tighter block mb-1">Your SOL</span>
-                  <div className="flex justify-between items-baseline">
-                    <span className="text-3xl font-black text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.25)]">{(solBalance || 0).toFixed(4)}</span>
-                    <span className="text-xs font-black text-emerald-600 ml-2">SOL</span>
-                  </div>
-                </div>
-
-                <div className="bg-[#050505] border border-blue-900/30 p-4 relative group hover:border-blue-500/50 transition-all duration-300">
-                  <div className="absolute top-2 right-2 opacity-10 group-hover:opacity-30 transition-opacity"><Crown size={12} /></div>
-                  <span className="text-[9px] font-bold text-blue-800 uppercase tracking-tighter block mb-1">Your IT</span>
-                  <div className="flex justify-between items-baseline">
-                    <span className="text-2xl font-black text-blue-400 drop-shadow-[0_0_10px_rgba(59,130,246,0.3)]">{(dexData.balance || 0).toLocaleString()}</span>
-                    <span className="text-xs font-black text-blue-600 ml-2">IT</span>
-                  </div>
-                  {!hasAccess && (
-                    <div className="mt-3 h-1 w-full bg-blue-950/50 rounded-full overflow-hidden">
-                      <div 
-                        className="h-full bg-blue-500 transition-all duration-1000" 
-                        style={{ width: `${Math.min(100, (dexData.balance / ACCESS_THRESHOLD) * 100)}%` }} 
-                      />
-                    </div>
-                  )}
-                </div>
+              <div className="bg-[#050505] border border-emerald-900/30 p-4">
+                <span className="text-[9px] font-bold text-emerald-800 uppercase block mb-1">Your IT Balance</span>
+                <span className="text-3xl font-black text-white">{dexData.balance.toLocaleString()}</span>
               </div>
-
-              {/* Status Banner */}
-              <div className={`p-3 border-2 transition-all z-10 flex items-center gap-4 ${hasAccess ? 'border-emerald-500/50 bg-emerald-950/10' : 'border-yellow-600/50 bg-yellow-900/10 animate-pulse'}`}>
-                <div className="shrink-0 p-2 bg-black/40 border border-current rounded-sm">
-                  {hasAccess ? <ShieldCheck className="text-emerald-400" size={24} /> : <Lock className="text-yellow-500" size={24} />}
-                </div>
-                <div className="flex flex-col">
-                  <span className={`text-[11px] font-black uppercase tracking-[0.1em] ${hasAccess ? 'text-emerald-400' : 'text-yellow-500'}`}>
-                    {hasAccess ? 'VIP Access Unlocked' : 'Access Locked'}
-                  </span>
-                  <span className="text-[8px] text-white/50 uppercase leading-tight mt-0.5">
-                    {hasAccess ? 'You are a verified holder. Enjoy the perks!' : 'Hold 500k $IT to unlock all features.'}
-                  </span>
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="mt-auto flex flex-col gap-2 pb-2 z-10">
-                <button 
-                  onClick={connect} 
-                  disabled={connecting}
-                  className={`w-full py-4 font-black text-[11px] tracking-[0.2em] uppercase transition-all flex items-center justify-center gap-3 border-2 active:scale-[0.98] shadow-lg
-                    ${wallet 
-                      ? 'bg-red-950/20 border-red-900 text-red-500 hover:bg-red-900/40 hover:text-red-400' 
-                      : 'bg-emerald-950/20 border-emerald-900 text-emerald-400 hover:bg-emerald-900/40 hover:text-emerald-300'}`}
-                >
-                  {connecting ? <RefreshCw className="animate-spin" size={14}/> : (wallet ? <LogOut size={16}/> : <Wallet size={16}/>)}
-                  {connecting ? 'Connecting...' : (wallet ? 'Disconnect IT' : 'Connect IT')}
-                </button>
-                
-                {wallet && (
-                  <div className="flex flex-col gap-1 p-2 bg-emerald-950/5 border border-emerald-900/20">
-                    <span className="text-[7px] text-emerald-900 font-black uppercase block text-center">Your Wallet</span>
-                    <span className="text-[8px] text-emerald-600/80 font-mono text-center break-all px-2">{wallet}</span>
-                  </div>
-                )}
-              </div>
-
-              <div className="text-[7px] text-zinc-600 text-center font-bold uppercase tracking-widest opacity-40 py-2 border-t border-emerald-900/10">
-                Secure Connection. <br/>Keys remain local to device.
-              </div>
+              <button onClick={connect} className="w-full py-4 bg-emerald-900/20 border-2 border-emerald-900 text-emerald-400 font-black uppercase text-[10px]">{wallet ? 'Disconnect' : 'Connect'}</button>
             </div>
           )}
         </DraggableWindow>
       ))}
-
       
       <div id="start-menu-container"><StartMenu isOpen={isStartOpen} onClose={() => setIsStartOpen(false)} onOpenApp={openApp} /></div>
 
-      {/* Taskbar */}
       <div className="absolute bottom-0 left-0 w-full h-10 bg-[#c0c0c0] border-t-2 border-white flex items-center px-1 z-[9998] shadow-2xl">
         <button id="start-button" onClick={() => setIsStartOpen(!isStartOpen)} className={`flex items-center gap-1 px-3 py-1 h-8 border-2 font-bold italic text-sm mr-2 ${isStartOpen ? 'border-gray-600 bg-[#a0a0a0] border-t-black border-l-black shadow-inner' : 'border-white border-b-gray-600 border-r-gray-600 shadow-sm hover:bg-gray-100'}`}><Globe size={16} /> START</button>
         <div className="flex-1 flex gap-1 overflow-x-auto no-scrollbar">
@@ -4735,8 +5094,8 @@ export default function UltimateOS() {
           ))}
         </div>
         <div className="flex items-center gap-2 px-2 py-1 border-2 border-gray-500 bg-[#c0c0c0] border-t-gray-700 border-l-gray-700 ml-auto h-8 shadow-inner">
-          <button className={`h-6 text-[10px] font-mono px-2 border border-gray-600 ${caCopied ? 'bg-green-200 text-green-800' : 'bg-[#d0d0d0]'}`} onClick={handleCopyCA}>{caCopied ? 'COPIED!' : 'CA_KEY'}</button>
-          <button onClick={connect} className="text-[10px] px-2 h-6 border border-gray-600 bg-[#d0d0d0] shadow-sm font-bold">{wallet ? `${wallet.slice(0,4)}..` : "LINK_SOL"}</button>
+          <button className="h-6 text-[10px] font-mono px-2 border border-gray-600 bg-[#d0d0d0]" onClick={handleCopyCA}>{caCopied ? 'COPIED!' : 'CA_KEY'}</button>
+          <button onClick={connect} className="text-[10px] px-2 h-6 border border-gray-600 bg-[#d0d0d0] font-bold">{wallet ? `${wallet.slice(0,4)}..` : "LINK_SOL"}</button>
           <span className="text-[10px] font-bold hidden sm:block ml-2 opacity-60">{new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>
         </div>
       </div>
@@ -4748,9 +5107,7 @@ const DesktopIcon = ({ icon: Icon, label, onClick, hasAlert }) => (
   <div onClick={onClick} className="flex flex-col items-center gap-1 w-20 cursor-pointer p-1 group">
     <div className="relative">
       <Icon size={32} className="text-white drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)]" strokeWidth={1.5} />
-      {hasAlert && (
-        <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-600 border border-white rounded-full shadow-[0_0_8px_rgba(220,38,38,0.8)] animate-pulse z-10" />
-      )}
+      {hasAlert && <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-600 border border-white rounded-full z-10" />}
     </div>
     <span className="text-white text-[10px] text-center font-bold drop-shadow-[0_1px_2px_rgba(0,0,0,1)] bg-[#035a23] px-1 rounded truncate w-full group-hover:bg-[#047a30]">{label}</span>
   </div>
@@ -4763,7 +5120,6 @@ const DraggableWindow = ({ win, isActive, children, onFocus, onClose, onMaximize
   const startDrag = (clientX, clientY) => {
     if (win.isMaximized) return;
     onFocus();
-    
     const element = document.getElementById(`win-${win.id}`);
     if(!element) return;
     const rect = element.getBoundingClientRect();
@@ -4771,48 +5127,29 @@ const DraggableWindow = ({ win, isActive, children, onFocus, onClose, onMaximize
     setOffset({ x: clientX - rect.left, y: clientY - rect.top });
   };
 
-  const handleMouseDown = (e) => {
-    if (e.target.closest('.overflow-auto') || e.target.closest('button') || e.target.closest('input')) return;
-    startDrag(e.clientX, e.clientY);
-  };
-
-  const handleTouchStart = (e) => {
-    if (e.target.closest('.overflow-auto') || e.target.closest('button') || e.target.closest('input')) return;
-    startDrag(e.touches[0].clientX, e.touches[0].clientY);
-  };
-
   useEffect(() => {
     const handleMouseMove = (e) => { 
       if (!isDragging || win.isMaximized) return; 
       onMove(win.id, e.clientX - offset.x, e.clientY - offset.y); 
     };
-    const handleTouchMove = (e) => {
-      if (!isDragging || win.isMaximized) return;
-      if (e.cancelable) e.preventDefault(); 
-      onMove(win.id, e.touches[0].clientX - offset.x, e.touches[0].clientY - offset.y);
-    };
-
     const stopDrag = () => setIsDragging(false);
-    
     if (isDragging) { 
       window.addEventListener('mousemove', handleMouseMove); 
       window.addEventListener('mouseup', stopDrag);
-      window.addEventListener('touchmove', handleTouchMove, { passive: false });
-      window.addEventListener('touchend', stopDrag);
     }
     return () => { 
       window.removeEventListener('mousemove', handleMouseMove); 
       window.removeEventListener('mouseup', stopDrag);
-      window.removeEventListener('touchmove', handleTouchMove);
-      window.removeEventListener('touchend', stopDrag);
     };
   }, [isDragging, win.isMaximized, offset, win.id, onMove]);
 
   return (
     <div 
       id={`win-${win.id}`} 
-      onMouseDown={handleMouseDown} 
-      onTouchStart={handleTouchStart} 
+      onMouseDown={(e) => {
+        if (e.target.closest('.overflow-auto') || e.target.closest('button')) return;
+        startDrag(e.clientX, e.clientY);
+      }} 
       className="absolute flex flex-col shadow-2xl transition-[left,top,width,height] duration-75" 
       style={{ zIndex: win.z, display: win.isMinimized ? 'none' : 'flex', left: win.isMaximized ? 0 : win.x, top: win.isMaximized ? 0 : win.y, width: win.isMaximized ? '100%' : win.w, height: win.isMaximized ? 'calc(100% - 40px)' : win.h }}
     >
