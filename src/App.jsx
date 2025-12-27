@@ -4551,7 +4551,6 @@ const ForgeItApp = () => {
   const [hasAccess, setHasAccess] = useState(false);
   const [dailyCount, setDailyCount] = useState(0);
   
-  // API Key for Gemini / Imagen (Provided by environment or set manually for external use)
   const apiKey = ""; 
 
   // Forge State
@@ -4607,7 +4606,7 @@ const ForgeItApp = () => {
     return () => unsubUsage();
   }, [user]);
 
-  const addLog = (msg) => setLogs(prev => [msg, ...prev].slice(0, 4));
+  const addLog = (msg) => setLogs(prev => [msg, ...prev].slice(0, 3));
 
   // --- FORGE LOGIC ---
   const handleForge = async () => {
@@ -4633,7 +4632,6 @@ const ForgeItApp = () => {
 
     try {
       const traitList = Object.values(selections).map(s => s.prompt).join(', ');
-      // STRENGHTENED PROMPT: Strictly maintaining character model consistency
       const masterPrompt = `A high-detail 90s retro anime style PFP strictly using the provided cybernetic cat character model as the static base. Maintain the EXACT same body pose, facial structure, and physical proportions as the base character. ONLY layer or modify the following specific traits: ${traitList}. Thick ink outlines, flat vibrant cel-shading, professional character art, 4k resolution, clean composition.`;
 
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict?key=${apiKey}`, {
@@ -4698,81 +4696,40 @@ const ForgeItApp = () => {
   return (
     <div className="flex flex-col h-full bg-[#020202] text-zinc-300 font-mono overflow-hidden selection:bg-emerald-500 selection:text-black">
       {/* HUD HEADER */}
-      <header className="h-14 border-b border-emerald-900/40 bg-black flex items-center justify-between px-6 shrink-0 z-20">
-        <div className="flex items-center gap-4">
-          <div className="p-2 border border-emerald-500/40 rounded-sm bg-black"><Cpu size={18} className="text-emerald-400" /></div>
-          <div>
-            <h1 className="text-xs font-black uppercase tracking-[0.3em] text-white italic leading-none">Forge IT Cult</h1>
-            <p className="text-[7px] text-zinc-600 font-bold uppercase tracking-tighter mt-1">Identity_Materializer_v3.2.1</p>
-          </div>
+      <header className="h-12 md:h-14 border-b border-emerald-900/40 bg-black flex items-center justify-between px-4 md:px-6 shrink-0 z-20">
+        <div className="flex items-center gap-3">
+          <div className="p-1.5 border border-emerald-500/40 rounded-sm bg-black"><Cpu size={16} className="text-emerald-400" /></div>
+          <h1 className="text-[10px] md:text-xs font-black uppercase tracking-[0.2em] text-white italic leading-none">Forge IT Cult</h1>
         </div>
-        <div className={`flex items-center gap-3 px-4 py-1.5 border rounded-sm ${hasAccess ? 'border-emerald-500/20 bg-emerald-500/5 text-emerald-400' : 'border-yellow-600/20 bg-yellow-600/5 text-yellow-600'}`}>
-          <div className="text-right">
-            <p className="text-[9px] font-black uppercase leading-none">{hasAccess ? 'VIP_ARCHITECT' : 'LIMITED_FORGER'}</p>
-            {!hasAccess && <p className="text-[8px] opacity-60 mt-1 uppercase tracking-widest">FORGES: {DAILY_LIMIT - dailyCount}</p>}
-          </div>
-          {hasAccess && <Crown size={14} className="animate-pulse" />}
+        <div className={`flex items-center gap-2 px-3 py-1 border rounded-sm ${hasAccess ? 'border-emerald-500/20 bg-emerald-500/5 text-emerald-400' : 'border-yellow-600/20 bg-yellow-600/5 text-yellow-600'}`}>
+          <span className="text-[8px] md:text-[9px] font-black uppercase">{hasAccess ? 'VIP' : `FORGES: ${DAILY_LIMIT - dailyCount}`}</span>
+          {hasAccess && <Crown size={12} className="animate-pulse" />}
         </div>
       </header>
 
-      <main className="flex-1 flex min-h-0 relative">
-        {/* LEFT SIDE: GEAR & SUBJECT BLUEPRINT */}
-        <div className="w-1/2 flex flex-col border-r border-emerald-900/20 bg-[#050505] relative">
+      <main className="flex-1 flex flex-col md:flex-row min-h-0 relative">
+        
+        {/* LEFT / TOP: GEAR MATRIX */}
+        <div className="flex-1 flex flex-col border-r border-emerald-900/20 bg-[#050505] relative min-h-0">
           
-          {/* SUBJECT BLUEPRINT VIEWPORT - Resized h-1/3 to give traits more room */}
-          <div className="h-[220px] relative overflow-hidden bg-black border-b border-emerald-900/20 group shrink-0">
-             {/* Holographic Background */}
-             <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,#10b98115_0%,transparent_70%)] animate-pulse" />
-             <div className="absolute inset-0 pointer-events-none opacity-20 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(0,255,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[length:100%_4px,4px_100%]" />
-             
-             {/* Character Image */}
-             <img 
-               src={BASE_CHARACTER} 
-               alt="Subject Blueprint" 
-               className="w-full h-full object-cover grayscale opacity-50 group-hover:opacity-70 transition-all duration-1000 scale-[1.1] group-hover:scale-100" 
-             />
-
-             {/* UI Overlays */}
-             <div className="absolute top-4 left-4 flex flex-col gap-1">
-                <div className="flex items-center gap-2 text-[8px] font-black text-emerald-500 uppercase bg-black/80 px-2 py-1 border border-emerald-500/30">
-                  <Crosshair size={10} /> SOURCE_IDENTITY_BLUEPRINT
-                </div>
-                <div className="flex items-center gap-2 text-[6px] font-bold text-zinc-500 uppercase bg-black/60 px-2 py-0.5">
-                  <Fingerprint size={8} /> UID: {user?.uid?.slice(0, 12)}
-                </div>
-             </div>
-
-             <div className="absolute bottom-4 right-4 text-right">
-                <div className="text-[7px] font-black text-emerald-700 uppercase">SUBJECT_BIO_STABLE</div>
-                <div className="flex gap-1 mt-1 justify-end">
-                   <div className="w-4 h-0.5 bg-emerald-500/40" />
-                   <div className="w-4 h-0.5 bg-emerald-500" />
-                   <div className="w-1 h-0.5 bg-emerald-500" />
-                </div>
-             </div>
-
-             {/* Moving Scanline */}
-             <div className="absolute top-0 inset-x-0 h-0.5 bg-emerald-500/40 shadow-[0_0_15px_#10b981] animate-[blueprint-scan_4s_linear_infinite] z-10" />
-          </div>
-
-          {/* GEAR SELECTOR TABS */}
-          <div className="grid grid-cols-7 border-b border-emerald-900/20 shrink-0">
+          {/* CATEGORY TABS (Horizontal on Mobile, Grid on Desktop) */}
+          <div className="flex md:grid md:grid-cols-7 border-b border-emerald-900/20 shrink-0 overflow-x-auto no-scrollbar bg-black">
             {PFP_CATEGORIES.map(cat => (
               <button
                 key={cat.id}
                 onClick={() => setActiveCat(cat.id)}
-                className={`p-3.5 flex flex-col items-center gap-1.5 transition-all relative ${activeCat === cat.id ? 'bg-emerald-500/10 text-emerald-400' : 'text-zinc-700 hover:text-zinc-500'}`}
+                className={`p-3 md:p-4 min-w-[70px] flex-1 flex flex-col items-center gap-1 md:gap-2 transition-all relative ${activeCat === cat.id ? 'bg-emerald-500/10 text-emerald-400' : 'text-zinc-700 hover:text-zinc-500'}`}
               >
-                <cat.icon size={14} />
-                <span className="text-[7px] font-black uppercase tracking-widest text-center leading-none">{cat.label}</span>
+                <cat.icon size={16} />
+                <span className="text-[6px] md:text-[7px] font-black uppercase tracking-widest text-center leading-none">{cat.label}</span>
                 {activeCat === cat.id && <div className="absolute bottom-0 inset-x-0 h-0.5 bg-emerald-500 shadow-[0_0_10px_#10b981]" />}
               </button>
             ))}
           </div>
 
           {/* TRAIT LIST */}
-          <div className="flex-1 overflow-y-auto p-3 space-y-1.5 custom-scrollbar">
-            <div className="grid grid-cols-1 gap-1">
+          <div className="flex-1 overflow-y-auto p-3 md:p-4 space-y-1.5 custom-scrollbar bg-[#050505]">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5">
               {PFP_TRAITS[activeCat].map(trait => {
                 const isLocked = trait.vip && !hasAccess;
                 const isSelected = selections[activeCat].id === trait.id;
@@ -4781,30 +4738,30 @@ const ForgeItApp = () => {
                     key={trait.id}
                     disabled={isLocked}
                     onClick={() => setSelections(prev => ({ ...prev, [activeCat]: trait }))}
-                    className={`group px-3.5 py-3 border rounded-sm text-left transition-all flex items-center justify-between relative overflow-hidden ${
+                    className={`group px-3 py-3 border rounded-sm text-left transition-all flex items-center justify-between relative overflow-hidden ${
                       isSelected 
-                        ? 'bg-emerald-500/10 border-emerald-500/60 text-emerald-300' 
+                        ? 'bg-emerald-500/10 border-emerald-500/60 text-emerald-300 shadow-[inset_0_0_15px_rgba(16,185,129,0.05)]' 
                         : 'bg-[#080808] border-zinc-900 text-zinc-600 hover:border-zinc-700 hover:text-zinc-400'
                     } ${isLocked ? 'opacity-30 grayscale cursor-not-allowed' : ''}`}
                   >
-                    <div>
-                      <p className="text-[10px] font-black uppercase tracking-tighter">{trait.label}</p>
-                      <p className="text-[7px] opacity-40 uppercase truncate max-w-[200px] mt-0.5">{trait.prompt}</p>
+                    <div className="flex flex-col">
+                      <span className="text-[9px] md:text-[10px] font-black uppercase tracking-tighter">{trait.label}</span>
+                      <span className="text-[6px] md:text-[7px] opacity-30 uppercase truncate max-w-[120px] md:max-w-[160px] mt-0.5">{trait.prompt}</span>
                     </div>
                     {isSelected && <div className="w-1 h-1 bg-emerald-500 rounded-full shadow-[0_0_8px_#10b981]" />}
-                    {isLocked && <Lock size={12} className="text-yellow-600" />}
+                    {isLocked && <Lock size={10} className="text-yellow-600" />}
                   </button>
                 );
               })}
             </div>
           </div>
 
-          {/* ACTION FOOTER - Scaled down py-3.5 instead of py-5 */}
-          <div className="p-3 bg-black border-t border-emerald-900/30 shrink-0">
+          {/* FORGE BUTTON (Desktop: Part of Sidebar, Mobile: Fixed Bottom) */}
+          <div className="p-3 md:p-4 bg-black border-t border-emerald-900/30 shrink-0 md:relative fixed bottom-0 left-0 right-0 z-30 md:z-0">
             <button
               onClick={handleForge}
               disabled={isForging}
-              className={`w-full py-3.5 font-black italic text-lg tracking-[0.2em] transition-all relative overflow-hidden group border-b-4 ${
+              className={`w-full py-3 md:py-4 font-black italic text-base md:text-lg tracking-[0.2em] transition-all relative overflow-hidden group border-b-2 md:border-b-4 ${
                 isForging 
                   ? 'bg-zinc-900 text-zinc-700 border-zinc-800' 
                   : 'bg-emerald-500 text-black hover:bg-emerald-400 border-emerald-600 shadow-[0_0_30px_rgba(16,185,129,0.2)]'
@@ -4818,109 +4775,105 @@ const ForgeItApp = () => {
           </div>
         </div>
 
-        {/* RIGHT SIDE: NEURAL CHAMBER */}
-        <div className="flex-1 bg-[#020202] flex flex-col p-8 items-center justify-center relative">
-          <div className="absolute top-8 left-8 text-zinc-800 pointer-events-none">
-            <div className="flex items-center gap-2 mb-2">
-              <Activity size={12} className="text-emerald-500/30" />
-              <span className="text-[8px] font-black uppercase">CHAMBER_OUTPUT</span>
-            </div>
-            <div className="space-y-1">
-              {logs.map((log, i) => (
-                <p key={i} className={`text-[7px] font-bold uppercase transition-all ${i === 0 ? 'text-zinc-500' : 'text-zinc-800'}`}>
-                  {`> ${log}`}
-                </p>
-              ))}
-            </div>
+        {/* RIGHT: BLUEPRINT & CHAMBER VIEWPORT */}
+        <div className="w-full md:w-[380px] lg:w-[450px] bg-[#020202] flex flex-col border-l border-emerald-900/20 shrink-0 min-h-0 pb-[60px] md:pb-0">
+          
+          {/* SOURCE BLUEPRINT (Top Section on Desktop, Toggleable/Small on Mobile) */}
+          <div className="h-[140px] md:h-[180px] relative overflow-hidden bg-black border-b border-emerald-900/20 group shrink-0">
+             <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,#10b98108_0%,transparent_70%)] animate-pulse" />
+             <img src={BASE_CHARACTER} className="w-full h-full object-cover grayscale opacity-40 group-hover:opacity-60 transition-all duration-1000" />
+             <div className="absolute top-3 left-3 flex flex-col gap-1">
+                <div className="flex items-center gap-1.5 text-[7px] font-black text-emerald-500/80 uppercase bg-black/60 px-2 py-0.5 border border-emerald-500/20">
+                  <Crosshair size={8} /> SOURCE_IDENTITY
+                </div>
+             </div>
+             <div className="absolute inset-x-0 top-0 h-px bg-emerald-500/30 animate-[blueprint-scan_5s_linear_infinite]" />
           </div>
 
-          {isForging ? (
-            <div className="flex flex-col items-center gap-8 animate-in fade-in duration-500">
-              <div className="relative w-80 h-80 border border-emerald-500/20 rounded-sm flex items-center justify-center overflow-hidden">
-                <div className="absolute inset-0 bg-[radial-gradient(circle,rgba(16,185,129,0.1)_0%,transparent_70%)] animate-pulse" />
-                <Scan size={80} className="text-emerald-500/20 animate-pulse" strokeWidth={0.5} />
-                <div className="absolute bottom-0 left-0 w-full h-[2px] bg-emerald-500 animate-[scan_2s_linear_infinite]" />
-              </div>
-              <div className="w-64 space-y-2">
-                <div className="flex justify-between text-[8px] font-black text-emerald-500 italic">
-                  <span>NEURAL_FLOW</span>
-                  <span>{Math.round(progress)}%</span>
-                </div>
-                <div className="h-1 bg-zinc-950 rounded-full overflow-hidden border border-zinc-900">
-                  <div className="h-full bg-emerald-500 transition-all duration-300" style={{ width: `${progress}%` }} />
-                </div>
+          {/* NEURAL CHAMBER OUTPUT */}
+          <div className="flex-1 flex flex-col p-4 md:p-6 items-center justify-center relative overflow-hidden">
+            <div className="absolute top-4 left-4 text-zinc-800 pointer-events-none hidden md:block">
+              <div className="space-y-1">
+                {logs.map((log, i) => (
+                  <p key={i} className={`text-[7px] font-bold uppercase transition-all ${i === 0 ? 'text-zinc-600' : 'text-zinc-800 opacity-40'}`}>
+                    {`> ${log}`}
+                  </p>
+                ))}
               </div>
             </div>
-          ) : generatedImg ? (
-            <div className="w-full max-w-sm space-y-6 animate-in zoom-in-95 duration-1000">
-              <div className="relative group p-1 bg-zinc-950 border border-white/10 shadow-2xl">
-                <img src={generatedImg} className="w-full aspect-square object-cover" />
-                <div className="absolute top-4 right-4 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                   <button onClick={downloadPFP} className="p-3 bg-white text-black hover:bg-emerald-400 transition-colors">
-                      <Download size={18} />
-                   </button>
-                </div>
-              </div>
 
-              <div className="space-y-4 bg-zinc-900/30 p-5 border border-zinc-800 rounded-sm relative">
-                {lore ? (
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-[9px] font-black text-emerald-400 uppercase tracking-widest">
-                      <Dna size={12} /> BIOMETRIC_DOSSIER
-                    </div>
-                    <p className="text-[10px] leading-relaxed italic text-zinc-400">"{lore}"</p>
+            {isForging ? (
+              <div className="flex flex-col items-center gap-4 md:gap-6 animate-in fade-in duration-500">
+                <div className="relative w-48 h-48 md:w-64 md:h-64 border border-emerald-500/10 rounded-sm flex items-center justify-center overflow-hidden">
+                  <Scan size={48} className="text-emerald-500/10 animate-pulse" strokeWidth={1} />
+                  <div className="absolute bottom-0 left-0 w-full h-[2px] bg-emerald-500 animate-[scan_2s_linear_infinite]" />
+                </div>
+                <div className="w-40 md:w-56 space-y-2">
+                  <div className="flex justify-between text-[7px] font-black text-emerald-500/60 uppercase">
+                    <span>NEURAL_LINK</span>
+                    <span>{Math.round(progress)}%</span>
                   </div>
-                ) : (
-                  <button 
-                    onClick={generateLore}
-                    disabled={isWritingLore}
-                    className="w-full py-2 flex items-center justify-center gap-2 text-[10px] font-black uppercase text-zinc-500 hover:text-white transition-colors"
-                  >
-                    {isWritingLore ? <RefreshCw className="animate-spin" size={12}/> : <Search size={12}/>}
-                    {isWritingLore ? 'EXTRACTING...' : 'DECRYPT_SUBJECT_HISTORY'}
-                  </button>
-                )}
+                  <div className="h-0.5 bg-zinc-950 rounded-full overflow-hidden border border-zinc-900">
+                    <div className="h-full bg-emerald-500 transition-all duration-300" style={{ width: `${progress}%` }} />
+                  </div>
+                </div>
               </div>
+            ) : generatedImg ? (
+              <div className="w-full max-w-[280px] md:max-w-xs space-y-4 md:space-y-6 animate-in zoom-in-95 duration-1000">
+                <div className="relative group p-0.5 bg-zinc-950 border border-white/5 shadow-2xl">
+                  <img src={generatedImg} className="w-full aspect-square object-cover" />
+                  <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                     <button onClick={downloadPFP} className="p-2.5 bg-white text-black hover:bg-emerald-400 transition-colors shadow-lg">
+                        <Download size={16} />
+                     </button>
+                  </div>
+                </div>
 
-              <div className="flex flex-col gap-2">
-                <button 
-                  onClick={downloadPFP}
-                  className="w-full py-4 flex items-center justify-center gap-3 font-black text-[11px] uppercase tracking-[0.2em] transition-all border border-white bg-white text-black hover:bg-emerald-400"
-                >
-                  <Download size={16} /> SAVE_FORGE
-                </button>
-                <button 
-                  onClick={() => setGeneratedImg(null)}
-                  className="w-full py-2 text-[9px] font-black uppercase tracking-widest text-zinc-700 hover:text-white transition-all"
-                >
-                  ABORT_CURRENT_MATRIX
-                </button>
+                <div className="space-y-3 bg-zinc-900/20 p-3 md:p-4 border border-zinc-800/40 rounded-sm">
+                  {lore ? (
+                    <p className="text-[9px] md:text-[10px] leading-relaxed italic text-zinc-400">"{lore}"</p>
+                  ) : (
+                    <button onClick={generateLore} disabled={isWritingLore} className="w-full py-1 text-[8px] md:text-[9px] font-black uppercase text-zinc-600 hover:text-white transition-colors flex items-center justify-center gap-2">
+                      {isWritingLore ? <RefreshCw className="animate-spin" size={10}/> : <Dna size={10}/>}
+                      {isWritingLore ? 'DECRYPTING...' : 'EXTRACT_DOSSIER'}
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <button onClick={downloadPFP} className="w-full py-3 flex items-center justify-center gap-2 font-black text-[10px] uppercase border border-white bg-white text-black hover:bg-emerald-400 transition-all">
+                    <Download size={14} /> SAVE_ID
+                  </button>
+                  <button onClick={() => setGeneratedImg(null)} className="w-full py-1.5 text-[8px] font-bold uppercase text-zinc-700 hover:text-white transition-all">
+                    DISCARD_RESULT
+                  </button>
+                </div>
               </div>
-            </div>
-          ) : (
-            <div className="flex flex-col items-center gap-8 opacity-10 group hover:opacity-30 transition-all duration-1000">
-              <div className="p-24 border border-dashed border-emerald-900/50 rounded-full relative">
-                <Palette size={100} strokeWidth={0.5} className="relative z-10" />
-                <div className="absolute top-0 right-0 animate-bounce"><Sparkles size={32} className="text-emerald-500" /></div>
+            ) : (
+              <div className="flex flex-col items-center gap-6 md:gap-8 opacity-10 group hover:opacity-20 transition-all duration-1000 p-8">
+                <div className="p-12 md:p-16 border border-dashed border-emerald-900/50 rounded-full relative">
+                  <Palette size={64} strokeWidth={0.5} className="relative z-10" />
+                  <div className="absolute top-0 right-0 animate-bounce"><Sparkles size={24} className="text-emerald-500" /></div>
+                </div>
+                <div className="text-center space-y-1">
+                  <p className="text-[9px] font-black uppercase tracking-[0.4em] text-white">Neural_Idle</p>
+                  <p className="text-[7px] font-bold uppercase text-zinc-600">Select Traits to Materialize</p>
+                </div>
               </div>
-              <div className="text-center space-y-2">
-                <p className="text-[11px] font-black uppercase tracking-[0.6em] text-white italic">Chamber_Standby</p>
-                <p className="text-[8px] font-bold uppercase text-zinc-600">Sync traits in the Blueprint Matrix to proceed</p>
-              </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </main>
 
       {/* ERROR TOAST */}
       {error && (
-        <div className="fixed bottom-6 right-6 w-96 bg-red-950/90 border border-red-500 p-4 flex items-start gap-4 text-white animate-in slide-in-from-right-10 z-[200]">
-          <AlertTriangle size={24} className="shrink-0 text-red-500" />
+        <div className="fixed bottom-20 md:bottom-6 right-4 left-4 md:left-auto md:w-96 bg-red-950/90 border border-red-500 p-4 flex items-start gap-4 text-white animate-in slide-in-from-bottom-4 z-[200]">
+          <AlertTriangle size={20} className="shrink-0 text-red-500" />
           <div className="flex-1 space-y-1">
-            <p className="text-[10px] font-black uppercase">SYSTEM_INTERRUPT</p>
-            <p className="text-[9px] opacity-70 leading-relaxed font-bold uppercase">{error}</p>
+            <p className="text-[9px] font-black uppercase tracking-widest">SYSTEM_INTERRUPT</p>
+            <p className="text-[8px] opacity-70 font-bold uppercase">{error}</p>
           </div>
-          <button onClick={() => setError(null)} className="p-1 hover:bg-white/10"><X size={16}/></button>
+          <button onClick={() => setError(null)} className="p-1 hover:bg-white/10"><X size={14}/></button>
         </div>
       )}
 
@@ -4932,16 +4885,19 @@ const ForgeItApp = () => {
         }
         @keyframes blueprint-scan {
           0% { transform: translateY(0); opacity: 0.1; }
-          50% { opacity: 0.8; }
-          100% { transform: translateY(220px); opacity: 0.1; }
+          50% { opacity: 0.6; }
+          100% { transform: translateY(180px); opacity: 0.1; }
         }
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar { width: 3px; height: 3px; background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #111; border-radius: 0px; }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #10b981; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
       `}</style>
     </div>
   );
 };
+
 
 
 
