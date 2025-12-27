@@ -4550,6 +4550,7 @@ const ForgeItApp = () => {
   const [tokenBalance, setTokenBalance] = useState(0);
   const [hasAccess, setHasAccess] = useState(false);
   const [dailyCount, setDailyCount] = useState(0);
+  const [showMobileBlueprint, setShowMobileBlueprint] = useState(false);
   
   const apiKey = ""; 
 
@@ -4709,18 +4710,44 @@ const ForgeItApp = () => {
 
       <main className="flex-1 flex flex-col md:flex-row min-h-0 relative">
         
+        {/* MOBILE SOURCE MONITOR (Sticky Small Bar) */}
+        <div 
+          onClick={() => setShowMobileBlueprint(!showMobileBlueprint)}
+          className="md:hidden flex items-center justify-between px-4 py-2 bg-zinc-950 border-b border-emerald-900/20 cursor-pointer hover:bg-zinc-900 transition-colors shrink-0"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-sm overflow-hidden border border-emerald-500/30">
+              <img src={BASE_CHARACTER} className="w-full h-full object-cover grayscale opacity-60" />
+            </div>
+            <div className="flex flex-col">
+              <span className="text-[8px] font-black text-emerald-500 uppercase leading-none tracking-tighter">Identity_Source</span>
+              <span className="text-[7px] text-zinc-600 uppercase font-bold mt-1">BIO_SIGNAL: STABLE</span>
+            </div>
+          </div>
+          {showMobileBlueprint ? <ChevronUp size={14} className="text-zinc-500" /> : <ChevronDown size={14} className="text-zinc-500" />}
+        </div>
+
+        {/* MOBILE COLLAPSIBLE BLUEPRINT */}
+        {showMobileBlueprint && (
+          <div className="md:hidden h-[180px] w-full relative overflow-hidden bg-black border-b border-emerald-900/40 animate-in slide-in-from-top-4 duration-300 shrink-0">
+             <img src={BASE_CHARACTER} className="w-full h-full object-cover grayscale opacity-40" />
+             <div className="absolute inset-x-0 top-0 h-px bg-emerald-500/30 animate-[blueprint-scan_4s_linear_infinite]" />
+             <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_center,#10b98108_0%,transparent_70%)]" />
+          </div>
+        )}
+
         {/* LEFT / TOP: GEAR MATRIX */}
         <div className="flex-1 flex flex-col border-r border-emerald-900/20 bg-[#050505] relative min-h-0">
           
-          {/* CATEGORY TABS (Horizontal on Mobile, Grid on Desktop) */}
+          {/* CATEGORY TABS (Tighter for Mobile) */}
           <div className="flex md:grid md:grid-cols-7 border-b border-emerald-900/20 shrink-0 overflow-x-auto no-scrollbar bg-black">
             {PFP_CATEGORIES.map(cat => (
               <button
                 key={cat.id}
                 onClick={() => setActiveCat(cat.id)}
-                className={`p-3 md:p-4 min-w-[70px] flex-1 flex flex-col items-center gap-1 md:gap-2 transition-all relative ${activeCat === cat.id ? 'bg-emerald-500/10 text-emerald-400' : 'text-zinc-700 hover:text-zinc-500'}`}
+                className={`p-2.5 md:p-4 min-w-[65px] flex-1 flex flex-col items-center gap-1 md:gap-2 transition-all relative ${activeCat === cat.id ? 'bg-emerald-500/10 text-emerald-400' : 'text-zinc-700 hover:text-zinc-500'}`}
               >
-                <cat.icon size={16} />
+                <cat.icon size={14} className="md:w-4 md:h-4" />
                 <span className="text-[6px] md:text-[7px] font-black uppercase tracking-widest text-center leading-none">{cat.label}</span>
                 {activeCat === cat.id && <div className="absolute bottom-0 inset-x-0 h-0.5 bg-emerald-500 shadow-[0_0_10px_#10b981]" />}
               </button>
@@ -4728,8 +4755,8 @@ const ForgeItApp = () => {
           </div>
 
           {/* TRAIT LIST */}
-          <div className="flex-1 overflow-y-auto p-3 md:p-4 space-y-1.5 custom-scrollbar bg-[#050505]">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5">
+          <div className="flex-1 overflow-y-auto p-2 md:p-4 space-y-1 custom-scrollbar bg-[#050505]">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-1 md:gap-1.5 pb-[80px] md:pb-0">
               {PFP_TRAITS[activeCat].map(trait => {
                 const isLocked = trait.vip && !hasAccess;
                 const isSelected = selections[activeCat].id === trait.id;
@@ -4738,7 +4765,7 @@ const ForgeItApp = () => {
                     key={trait.id}
                     disabled={isLocked}
                     onClick={() => setSelections(prev => ({ ...prev, [activeCat]: trait }))}
-                    className={`group px-3 py-3 border rounded-sm text-left transition-all flex items-center justify-between relative overflow-hidden ${
+                    className={`group px-3 py-2.5 md:py-3 border rounded-sm text-left transition-all flex items-center justify-between relative overflow-hidden ${
                       isSelected 
                         ? 'bg-emerald-500/10 border-emerald-500/60 text-emerald-300 shadow-[inset_0_0_15px_rgba(16,185,129,0.05)]' 
                         : 'bg-[#080808] border-zinc-900 text-zinc-600 hover:border-zinc-700 hover:text-zinc-400'
@@ -4746,7 +4773,7 @@ const ForgeItApp = () => {
                   >
                     <div className="flex flex-col">
                       <span className="text-[9px] md:text-[10px] font-black uppercase tracking-tighter">{trait.label}</span>
-                      <span className="text-[6px] md:text-[7px] opacity-30 uppercase truncate max-w-[120px] md:max-w-[160px] mt-0.5">{trait.prompt}</span>
+                      <span className="text-[6px] md:text-[7px] opacity-30 uppercase truncate max-w-[140px] md:max-w-[160px] mt-0.5">{trait.prompt}</span>
                     </div>
                     {isSelected && <div className="w-1 h-1 bg-emerald-500 rounded-full shadow-[0_0_8px_#10b981]" />}
                     {isLocked && <Lock size={10} className="text-yellow-600" />}
@@ -4756,30 +4783,30 @@ const ForgeItApp = () => {
             </div>
           </div>
 
-          {/* FORGE BUTTON (Desktop: Part of Sidebar, Mobile: Fixed Bottom) */}
-          <div className="p-3 md:p-4 bg-black border-t border-emerald-900/30 shrink-0 md:relative fixed bottom-0 left-0 right-0 z-30 md:z-0">
+          {/* FORGE BUTTON (Tighter on mobile) */}
+          <div className="p-2 md:p-4 bg-black/90 md:bg-black border-t border-emerald-900/30 shrink-0 md:relative fixed bottom-0 left-0 right-0 z-30 backdrop-blur-sm">
             <button
               onClick={handleForge}
               disabled={isForging}
-              className={`w-full py-3 md:py-4 font-black italic text-base md:text-lg tracking-[0.2em] transition-all relative overflow-hidden group border-b-2 md:border-b-4 ${
+              className={`w-full py-3 md:py-4 font-black italic text-sm md:text-lg tracking-[0.2em] transition-all relative overflow-hidden group border-b-2 md:border-b-4 ${
                 isForging 
                   ? 'bg-zinc-900 text-zinc-700 border-zinc-800' 
                   : 'bg-emerald-500 text-black hover:bg-emerald-400 border-emerald-600 shadow-[0_0_30px_rgba(16,185,129,0.2)]'
               }`}
             >
               <span className="relative z-10 flex items-center justify-center gap-2">
-                {isForging ? <RefreshCw className="animate-spin" size={16}/> : <Zap size={16} />}
+                {isForging ? <RefreshCw className="animate-spin" size={14}/> : <Zap size={14} />}
                 {isForging ? 'MATERIALIZING...' : 'FORGE IT'}
               </span>
             </button>
           </div>
         </div>
 
-        {/* RIGHT: BLUEPRINT & CHAMBER VIEWPORT */}
-        <div className="w-full md:w-[380px] lg:w-[450px] bg-[#020202] flex flex-col border-l border-emerald-900/20 shrink-0 min-h-0 pb-[60px] md:pb-0">
+        {/* RIGHT: BLUEPRINT (Desktop) & CHAMBER VIEWPORT */}
+        <div className="w-full md:w-[380px] lg:w-[450px] bg-[#020202] flex flex-col border-l border-emerald-900/20 shrink-0 min-h-0 pb-0 md:pb-0">
           
-          {/* SOURCE BLUEPRINT (Top Section on Desktop, Toggleable/Small on Mobile) */}
-          <div className="h-[140px] md:h-[180px] relative overflow-hidden bg-black border-b border-emerald-900/20 group shrink-0">
+          {/* SOURCE BLUEPRINT (Desktop Only) */}
+          <div className="hidden md:block h-[180px] relative overflow-hidden bg-black border-b border-emerald-900/20 group shrink-0">
              <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,#10b98108_0%,transparent_70%)] animate-pulse" />
              <img src={BASE_CHARACTER} className="w-full h-full object-cover grayscale opacity-40 group-hover:opacity-60 transition-all duration-1000" />
              <div className="absolute top-3 left-3 flex flex-col gap-1">
@@ -4791,7 +4818,8 @@ const ForgeItApp = () => {
           </div>
 
           {/* NEURAL CHAMBER OUTPUT */}
-          <div className="flex-1 flex flex-col p-4 md:p-6 items-center justify-center relative overflow-hidden">
+          <div className="flex-1 flex flex-col p-4 md:p-6 items-center justify-center relative overflow-hidden bg-[#020202]">
+            {/* CHAMBER LOGS (Desktop Only) */}
             <div className="absolute top-4 left-4 text-zinc-800 pointer-events-none hidden md:block">
               <div className="space-y-1">
                 {logs.map((log, i) => (
@@ -4804,7 +4832,7 @@ const ForgeItApp = () => {
 
             {isForging ? (
               <div className="flex flex-col items-center gap-4 md:gap-6 animate-in fade-in duration-500">
-                <div className="relative w-48 h-48 md:w-64 md:h-64 border border-emerald-500/10 rounded-sm flex items-center justify-center overflow-hidden">
+                <div className="relative w-40 h-40 md:w-64 md:h-64 border border-emerald-500/10 rounded-sm flex items-center justify-center overflow-hidden">
                   <Scan size={48} className="text-emerald-500/10 animate-pulse" strokeWidth={1} />
                   <div className="absolute bottom-0 left-0 w-full h-[2px] bg-emerald-500 animate-[scan_2s_linear_infinite]" />
                 </div>
@@ -4819,17 +4847,17 @@ const ForgeItApp = () => {
                 </div>
               </div>
             ) : generatedImg ? (
-              <div className="w-full max-w-[280px] md:max-w-xs space-y-4 md:space-y-6 animate-in zoom-in-95 duration-1000">
+              <div className="w-full max-w-[240px] md:max-w-xs space-y-4 animate-in zoom-in-95 duration-1000">
                 <div className="relative group p-0.5 bg-zinc-950 border border-white/5 shadow-2xl">
                   <img src={generatedImg} className="w-full aspect-square object-cover" />
-                  <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="absolute top-3 right-3 md:opacity-0 group-hover:opacity-100 transition-opacity">
                      <button onClick={downloadPFP} className="p-2.5 bg-white text-black hover:bg-emerald-400 transition-colors shadow-lg">
                         <Download size={16} />
                      </button>
                   </div>
                 </div>
 
-                <div className="space-y-3 bg-zinc-900/20 p-3 md:p-4 border border-zinc-800/40 rounded-sm">
+                <div className="space-y-3 bg-zinc-900/20 p-3 border border-zinc-800/40 rounded-sm">
                   {lore ? (
                     <p className="text-[9px] md:text-[10px] leading-relaxed italic text-zinc-400">"{lore}"</p>
                   ) : (
@@ -4840,24 +4868,24 @@ const ForgeItApp = () => {
                   )}
                 </div>
 
-                <div className="flex flex-col gap-2">
+                <div className="flex flex-col gap-1.5 md:gap-2">
                   <button onClick={downloadPFP} className="w-full py-3 flex items-center justify-center gap-2 font-black text-[10px] uppercase border border-white bg-white text-black hover:bg-emerald-400 transition-all">
                     <Download size={14} /> SAVE_ID
                   </button>
-                  <button onClick={() => setGeneratedImg(null)} className="w-full py-1.5 text-[8px] font-bold uppercase text-zinc-700 hover:text-white transition-all">
+                  <button onClick={() => setGeneratedImg(null)} className="w-full py-1 text-[8px] font-bold uppercase text-zinc-700 hover:text-white transition-all">
                     DISCARD_RESULT
                   </button>
                 </div>
               </div>
             ) : (
-              <div className="flex flex-col items-center gap-6 md:gap-8 opacity-10 group hover:opacity-20 transition-all duration-1000 p-8">
-                <div className="p-12 md:p-16 border border-dashed border-emerald-900/50 rounded-full relative">
-                  <Palette size={64} strokeWidth={0.5} className="relative z-10" />
-                  <div className="absolute top-0 right-0 animate-bounce"><Sparkles size={24} className="text-emerald-500" /></div>
+              <div className="flex flex-col items-center gap-4 md:gap-8 opacity-5 md:opacity-10 group hover:opacity-20 transition-all duration-1000 p-8">
+                <div className="p-10 md:p-16 border border-dashed border-emerald-900/50 rounded-full relative">
+                  <Palette size={48} md:size={64} strokeWidth={0.5} className="relative z-10" />
+                  <div className="absolute top-0 right-0 animate-bounce"><Sparkles size={20} className="text-emerald-500" /></div>
                 </div>
                 <div className="text-center space-y-1">
-                  <p className="text-[9px] font-black uppercase tracking-[0.4em] text-white">Neural_Idle</p>
-                  <p className="text-[7px] font-bold uppercase text-zinc-600">Select Traits to Materialize</p>
+                  <p className="text-[8px] md:text-[9px] font-black uppercase tracking-[0.4em] text-white">Neural_Idle</p>
+                  <p className="text-[6px] md:text-[7px] font-bold uppercase text-zinc-600">Select Traits to Materialize</p>
                 </div>
               </div>
             )}
