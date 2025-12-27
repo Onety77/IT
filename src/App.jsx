@@ -22,7 +22,7 @@ import {
   Wifi, Hash, Lock, Unlock, Sun, Moon, Database, Radio, Command, Palette, UserCircle,
   ShieldCheck, Shield, Reply, Quote, CornerDownRight, Heart, ThumbsUp, ThumbsDown, Anchor, Crown, Bell, BellOff, ChevronDown,
   ExternalLink, ShoppingCart, Minimize2, Circle, Layers, Eye, EyeOff, Tv, Ghost, Scan, Square as SquareIcon, StickyNote,
-  Shirt, Wind, ZapOff, Fingerprint, Crosshair, Dna
+  Shirt, Wind, ZapOff, Fingerprint, Crosshair, Dna, LayoutGrid, ChevronUp
 } from 'lucide-react';
 
 // --- CONFIGURATION ---
@@ -4563,7 +4563,7 @@ const ForgeItApp = () => {
   const [generatedImg, setGeneratedImg] = useState(null);
   const [isForging, setIsForging] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [logs, setLogs] = useState(["NEURAL_LINK_ESTABLISHED", "WAITING_FOR_TRAIT_SIGNAL..."]);
+  const [logs, setLogs] = useState(["NEURAL_LINK_ESTABLISHED", "WAITING_FOR_TRAIT_SIGNAL...", "MATRIX_RESERVES_STANDBY"]);
   const [error, setError] = useState(null);
   const [lore, setLore] = useState(null);
   const [isWritingLore, setIsWritingLore] = useState(false);
@@ -4607,7 +4607,7 @@ const ForgeItApp = () => {
     return () => unsubUsage();
   }, [user]);
 
-  const addLog = (msg) => setLogs(prev => [msg, ...prev].slice(0, 3));
+  const addLog = (msg) => setLogs(prev => [msg, ...prev].slice(0, 5));
 
   // --- FORGE LOGIC ---
   const handleForge = async () => {
@@ -4621,19 +4621,21 @@ const ForgeItApp = () => {
     setGeneratedImg(null);
     setLore(null);
     setProgress(0);
-    setLogs(["INIT_NEURAL_CONSTRUCTION...", "EXTRACTING_GEAR_VECTORS..."]);
+    setLogs(["INIT_NEURAL_CONSTRUCTION...", "EXTRACTING_GEAR_VECTORS...", "LOCKING_SUBJECT_BODY_MODEL"]);
 
     const progTimer = setInterval(() => {
       setProgress(prev => {
-        if (prev < 30) addLog("INTERPRETING_CYBER_TRAITS...");
-        if (prev > 60 && prev < 65) addLog("ASSEMBLING_PIXELS_IN_VOID...");
+        if (prev < 20) addLog("INTERPRETING_CYBER_TRAITS...");
+        if (prev > 40 && prev < 45) addLog("CALIBRATING_PROPORTIONS...");
+        if (prev > 70 && prev < 75) addLog("ASSEMBLING_PIXELS_IN_VOID...");
         return prev < 95 ? prev + Math.random() * 8 : prev;
       });
     }, 600);
 
     try {
       const traitList = Object.values(selections).map(s => s.prompt).join(', ');
-      const masterPrompt = `A high-detail 90s retro anime style PFP strictly using the provided cybernetic cat character model as the static base. Maintain the EXACT same body pose, facial structure, and physical proportions as the base character. ONLY layer or modify the following specific traits: ${traitList}. Thick ink outlines, flat vibrant cel-shading, professional character art, 4k resolution, clean composition.`;
+      // Detailed Prompt Logic to preserve main character pose
+      const masterPrompt = `A high-quality 90s retro anime style profile picture. THE SUBJECT: Use the exact cybernetic cat character from the source image. DO NOT change his pose, facial structure, or body shape. KEEP the thick ink outlines and flat vibrant cel-shading style. CHANGES: Add/Layer these specific modifications: ${traitList}. Render as a cinematic headshot with clean professional character sheet aesthetics.`;
 
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict?key=${apiKey}`, {
         method: 'POST',
@@ -4672,7 +4674,7 @@ const ForgeItApp = () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: `Generate a 2-sentence mysterious dossier for a character with traits: ${traitString}` }] }]
+          contents: [{ parts: [{ text: `Generate a 2-sentence mysterious dossier for a character with traits: ${traitString}. Use gritty tech-noir language.` }] }]
         })
       });
       const data = await response.json();
@@ -4695,16 +4697,28 @@ const ForgeItApp = () => {
   };
 
   return (
-    <div className="flex flex-col h-full bg-[#020202] text-zinc-300 font-mono overflow-hidden selection:bg-emerald-500 selection:text-black">
+    <div className="flex flex-col h-full bg-[#050505] text-zinc-300 font-mono overflow-hidden selection:bg-emerald-500 selection:text-black relative">
+      {/* CRT SCANLINE OVERLAY */}
+      <div className="absolute inset-0 pointer-events-none opacity-[0.03] bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,252,0.06))] bg-[length:100%_2px,3px_100%] z-[100]" />
+
       {/* HUD HEADER */}
-      <header className="h-12 md:h-14 border-b border-emerald-900/40 bg-black flex items-center justify-between px-4 md:px-6 shrink-0 z-20">
+      <header className="h-12 md:h-16 border-b border-emerald-900/40 bg-black flex items-center justify-between px-4 md:px-6 shrink-0 z-20">
         <div className="flex items-center gap-3">
-          <div className="p-1.5 border border-emerald-500/40 rounded-sm bg-black"><Cpu size={16} className="text-emerald-400" /></div>
-          <h1 className="text-[10px] md:text-xs font-black uppercase tracking-[0.2em] text-white italic leading-none">Forge IT Cult</h1>
+          <div className="p-1.5 md:p-2 border border-emerald-500/40 rounded-sm bg-black relative">
+             <div className="absolute inset-0 bg-emerald-500/10 blur-md animate-pulse" />
+             <Cpu size={18} className="text-emerald-400 relative z-10" />
+          </div>
+          <div className="flex flex-col">
+            <h1 className="text-[10px] md:text-xs font-black uppercase tracking-[0.3em] text-white italic leading-none">Forge IT Cult</h1>
+            <span className="text-[6px] md:text-[8px] text-zinc-500 font-bold uppercase mt-1 tracking-tighter">Art_Materializer_v3.5.2</span>
+          </div>
         </div>
-        <div className={`flex items-center gap-2 px-3 py-1 border rounded-sm ${hasAccess ? 'border-emerald-500/20 bg-emerald-500/5 text-emerald-400' : 'border-yellow-600/20 bg-yellow-600/5 text-yellow-600'}`}>
-          <span className="text-[8px] md:text-[9px] font-black uppercase">{hasAccess ? 'VIP' : `FORGES: ${DAILY_LIMIT - dailyCount}`}</span>
-          {hasAccess && <Crown size={12} className="animate-pulse" />}
+        <div className={`flex items-center gap-2 px-3 py-1.5 border rounded-sm transition-all ${hasAccess ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.1)]' : 'border-yellow-600/40 bg-yellow-600/10 text-yellow-600'}`}>
+          <div className="flex flex-col items-end">
+            <span className="text-[8px] md:text-[10px] font-black uppercase tracking-tighter leading-none">{hasAccess ? 'VIP_ARCHITECT' : 'LIMITED_MODE'}</span>
+            {!hasAccess && <span className="text-[6px] md:text-[7px] font-bold opacity-60 mt-0.5 tracking-widest uppercase">FORGES: {DAILY_LIMIT - dailyCount}</span>}
+          </div>
+          {hasAccess ? <Crown size={14} className="animate-pulse text-yellow-400" /> : <Lock size={12} className="opacity-50" />}
         </div>
       </header>
 
@@ -4713,50 +4727,60 @@ const ForgeItApp = () => {
         {/* MOBILE SOURCE MONITOR (Sticky Small Bar) */}
         <div 
           onClick={() => setShowMobileBlueprint(!showMobileBlueprint)}
-          className="md:hidden flex items-center justify-between px-4 py-2 bg-zinc-950 border-b border-emerald-900/20 cursor-pointer hover:bg-zinc-900 transition-colors shrink-0"
+          className="md:hidden flex items-center justify-between px-4 py-2.5 bg-black border-b border-emerald-900/30 cursor-pointer hover:bg-zinc-900 transition-colors shrink-0 z-30"
         >
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-sm overflow-hidden border border-emerald-500/30">
+            <div className="w-10 h-10 rounded-sm overflow-hidden border border-emerald-500/40 relative">
               <img src={BASE_CHARACTER} className="w-full h-full object-cover grayscale opacity-60" />
+              <div className="absolute inset-0 bg-emerald-500/10 animate-pulse" />
             </div>
             <div className="flex flex-col">
-              <span className="text-[8px] font-black text-emerald-500 uppercase leading-none tracking-tighter">Identity_Source</span>
-              <span className="text-[7px] text-zinc-600 uppercase font-bold mt-1">BIO_SIGNAL: STABLE</span>
+              <span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest">Source_Identity</span>
+              <div className="flex items-center gap-1 mt-1">
+                 <div className="w-1 h-1 bg-green-500 rounded-full animate-ping" />
+                 <span className="text-[7px] text-zinc-500 uppercase font-bold tracking-tighter">BIO_SIGNAL_LOCK: STABLE</span>
+              </div>
             </div>
           </div>
-          {showMobileBlueprint ? <ChevronUp size={14} className="text-zinc-500" /> : <ChevronDown size={14} className="text-zinc-500" />}
+          {showMobileBlueprint ? <ChevronUp size={16} className="text-emerald-500" /> : <ChevronDown size={16} className="text-zinc-600" />}
         </div>
 
         {/* MOBILE COLLAPSIBLE BLUEPRINT */}
         {showMobileBlueprint && (
-          <div className="md:hidden h-[180px] w-full relative overflow-hidden bg-black border-b border-emerald-900/40 animate-in slide-in-from-top-4 duration-300 shrink-0">
+          <div className="md:hidden h-[200px] w-full relative overflow-hidden bg-black border-b border-emerald-900/50 animate-in slide-in-from-top-4 duration-500 shrink-0 z-20">
              <img src={BASE_CHARACTER} className="w-full h-full object-cover grayscale opacity-40" />
-             <div className="absolute inset-x-0 top-0 h-px bg-emerald-500/30 animate-[blueprint-scan_4s_linear_infinite]" />
-             <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_center,#10b98108_0%,transparent_70%)]" />
+             <div className="absolute inset-x-0 top-0 h-[2px] bg-emerald-500/40 shadow-[0_0_20px_#10b981] animate-[blueprint-scan_3s_linear_infinite]" />
+             <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_center,rgba(16,185,129,0.1)_0%,transparent_80%)]" />
+             <div className="absolute top-2 left-2 px-2 py-0.5 bg-black/80 border border-emerald-500/20 text-[6px] font-black text-emerald-500 uppercase tracking-widest">Live_Blueprint_Sync</div>
           </div>
         )}
 
-        {/* LEFT / TOP: GEAR MATRIX */}
-        <div className="flex-1 flex flex-col border-r border-emerald-900/20 bg-[#050505] relative min-h-0">
+        {/* LEFT / TOP: GEAR MATRIX (THE DECORATION WINDOW) */}
+        <div className="flex-1 flex flex-col border-r border-emerald-900/20 bg-[#080808] relative min-h-0">
           
-          {/* CATEGORY TABS (Tighter for Mobile) */}
-          <div className="flex md:grid md:grid-cols-7 border-b border-emerald-900/20 shrink-0 overflow-x-auto no-scrollbar bg-black">
+          {/* CATEGORY TABS */}
+          <div className="flex md:grid md:grid-cols-7 border-b border-emerald-900/30 shrink-0 overflow-x-auto no-scrollbar bg-black/60 backdrop-blur-md sticky top-0 z-40">
             {PFP_CATEGORIES.map(cat => (
               <button
                 key={cat.id}
                 onClick={() => setActiveCat(cat.id)}
-                className={`p-2.5 md:p-4 min-w-[65px] flex-1 flex flex-col items-center gap-1 md:gap-2 transition-all relative ${activeCat === cat.id ? 'bg-emerald-500/10 text-emerald-400' : 'text-zinc-700 hover:text-zinc-500'}`}
+                className={`p-3 md:p-5 min-w-[75px] flex-1 flex flex-col items-center gap-1.5 md:gap-2 transition-all relative group ${activeCat === cat.id ? 'bg-emerald-500/10 text-emerald-400' : 'text-zinc-600 hover:text-zinc-400'}`}
               >
-                <cat.icon size={14} className="md:w-4 md:h-4" />
-                <span className="text-[6px] md:text-[7px] font-black uppercase tracking-widest text-center leading-none">{cat.label}</span>
-                {activeCat === cat.id && <div className="absolute bottom-0 inset-x-0 h-0.5 bg-emerald-500 shadow-[0_0_10px_#10b981]" />}
+                <cat.icon size={18} className={`transition-transform duration-300 ${activeCat === cat.id ? 'scale-110' : 'group-hover:scale-105'}`} />
+                <span className="text-[6px] md:text-[8px] font-black uppercase tracking-[0.2em] text-center leading-none">{cat.label}</span>
+                {activeCat === cat.id && <div className="absolute bottom-0 inset-x-0 h-1 bg-emerald-500 shadow-[0_0_15px_#10b981]" />}
               </button>
             ))}
           </div>
 
-          {/* TRAIT LIST */}
-          <div className="flex-1 overflow-y-auto p-2 md:p-4 space-y-1 custom-scrollbar bg-[#050505]">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-1 md:gap-1.5 pb-[80px] md:pb-0">
+          {/* TRAIT LIST - Expansive Scroll Area */}
+          <div className="flex-1 overflow-y-auto p-3 md:p-5 space-y-2 custom-scrollbar bg-[#050505] relative">
+            <div className="flex items-center gap-2 mb-4 opacity-40">
+              <Terminal size={12} className="text-emerald-500" />
+              <span className="text-[8px] font-black uppercase tracking-widest leading-none">Configuring_{activeCat.toUpperCase()}_Matrix...</span>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 md:gap-2.5 pb-[90px] md:pb-0">
               {PFP_TRAITS[activeCat].map(trait => {
                 const isLocked = trait.vip && !hasAccess;
                 const isSelected = selections[activeCat].id === trait.id;
@@ -4765,65 +4789,96 @@ const ForgeItApp = () => {
                     key={trait.id}
                     disabled={isLocked}
                     onClick={() => setSelections(prev => ({ ...prev, [activeCat]: trait }))}
-                    className={`group px-3 py-2.5 md:py-3 border rounded-sm text-left transition-all flex items-center justify-between relative overflow-hidden ${
+                    className={`group px-4 py-4 md:py-5 border rounded-sm text-left transition-all flex items-center justify-between relative overflow-hidden active:scale-95 ${
                       isSelected 
-                        ? 'bg-emerald-500/10 border-emerald-500/60 text-emerald-300 shadow-[inset_0_0_15px_rgba(16,185,129,0.05)]' 
-                        : 'bg-[#080808] border-zinc-900 text-zinc-600 hover:border-zinc-700 hover:text-zinc-400'
-                    } ${isLocked ? 'opacity-30 grayscale cursor-not-allowed' : ''}`}
+                        ? 'bg-emerald-500/15 border-emerald-500 text-emerald-300 shadow-[inset_0_0_20px_rgba(16,185,129,0.1)]' 
+                        : 'bg-white/5 border-white/5 text-zinc-600 hover:border-white/20 hover:text-zinc-200'
+                    } ${isLocked ? 'opacity-20 grayscale cursor-not-allowed border-dashed' : ''}`}
                   >
-                    <div className="flex flex-col">
-                      <span className="text-[9px] md:text-[10px] font-black uppercase tracking-tighter">{trait.label}</span>
-                      <span className="text-[6px] md:text-[7px] opacity-30 uppercase truncate max-w-[140px] md:max-w-[160px] mt-0.5">{trait.prompt}</span>
+                    <div className="flex flex-col relative z-10">
+                      <span className="text-[10px] md:text-[11px] font-black uppercase tracking-tighter leading-none">{trait.label}</span>
+                      <span className="text-[6px] md:text-[8px] opacity-40 uppercase truncate max-w-[150px] md:max-w-[200px] mt-1.5 tracking-tighter">{trait.prompt}</span>
                     </div>
-                    {isSelected && <div className="w-1 h-1 bg-emerald-500 rounded-full shadow-[0_0_8px_#10b981]" />}
-                    {isLocked && <Lock size={10} className="text-yellow-600" />}
+                    
+                    <div className="relative z-10">
+                      {isSelected ? (
+                        <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full shadow-[0_0_10px_#10b981] animate-pulse" />
+                      ) : isLocked ? (
+                        <Lock size={12} className="text-yellow-600/50" />
+                      ) : trait.vip ? (
+                        <Crown size={12} className="text-yellow-400/30 group-hover:text-yellow-400 transition-colors" />
+                      ) : null}
+                    </div>
+
+                    {/* Button Glitch Hover Effect */}
+                    <div className="absolute inset-0 bg-white/5 translate-x-[-100%] group-hover:translate-x-0 transition-transform duration-500 pointer-events-none" />
                   </button>
                 );
               })}
             </div>
           </div>
 
-          {/* FORGE BUTTON (Tighter on mobile) */}
-          <div className="p-2 md:p-4 bg-black/90 md:bg-black border-t border-emerald-900/30 shrink-0 md:relative fixed bottom-0 left-0 right-0 z-30 backdrop-blur-sm">
+          {/* FORGE BUTTON */}
+          <div className="p-3 md:p-6 bg-black border-t border-emerald-900/40 shrink-0 md:relative fixed bottom-0 left-0 right-0 z-50 backdrop-blur-md">
             <button
               onClick={handleForge}
               disabled={isForging}
-              className={`w-full py-3 md:py-4 font-black italic text-sm md:text-lg tracking-[0.2em] transition-all relative overflow-hidden group border-b-2 md:border-b-4 ${
+              className={`w-full py-4 md:py-6 font-black italic text-base md:text-xl tracking-[0.4em] transition-all relative overflow-hidden group border-b-2 md:border-b-8 active:translate-y-1 active:border-b-0 ${
                 isForging 
                   ? 'bg-zinc-900 text-zinc-700 border-zinc-800' 
-                  : 'bg-emerald-500 text-black hover:bg-emerald-400 border-emerald-600 shadow-[0_0_30px_rgba(16,185,129,0.2)]'
+                  : 'bg-emerald-500 text-black hover:bg-emerald-400 border-emerald-700 shadow-[0_0_40px_rgba(16,185,129,0.3)]'
               }`}
             >
-              <span className="relative z-10 flex items-center justify-center gap-2">
-                {isForging ? <RefreshCw className="animate-spin" size={14}/> : <Zap size={14} />}
+              <span className="relative z-10 flex items-center justify-center gap-3">
+                {isForging ? <RefreshCw className="animate-spin" size={20}/> : <Zap size={20} />}
                 {isForging ? 'MATERIALIZING...' : 'FORGE IT'}
               </span>
+              {!isForging && <div className="absolute top-0 -left-full w-full h-full bg-white/20 -skew-x-12 group-hover:left-full transition-all duration-1000 pointer-events-none" />}
             </button>
           </div>
         </div>
 
         {/* RIGHT: BLUEPRINT (Desktop) & CHAMBER VIEWPORT */}
-        <div className="w-full md:w-[380px] lg:w-[450px] bg-[#020202] flex flex-col border-l border-emerald-900/20 shrink-0 min-h-0 pb-0 md:pb-0">
+        <div className="w-full md:w-[400px] lg:w-[480px] bg-[#020202] flex flex-col border-l border-emerald-900/30 shrink-0 min-h-0">
           
-          {/* SOURCE BLUEPRINT (Desktop Only) */}
-          <div className="hidden md:block h-[180px] relative overflow-hidden bg-black border-b border-emerald-900/20 group shrink-0">
-             <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,#10b98108_0%,transparent_70%)] animate-pulse" />
-             <img src={BASE_CHARACTER} className="w-full h-full object-cover grayscale opacity-40 group-hover:opacity-60 transition-all duration-1000" />
-             <div className="absolute top-3 left-3 flex flex-col gap-1">
-                <div className="flex items-center gap-1.5 text-[7px] font-black text-emerald-500/80 uppercase bg-black/60 px-2 py-0.5 border border-emerald-500/20">
-                  <Crosshair size={8} /> SOURCE_IDENTITY
+          {/* SOURCE BLUEPRINT (Desktop View) */}
+          <div className="hidden md:block h-[200px] relative overflow-hidden bg-black border-b border-emerald-900/40 group shrink-0">
+             <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(16,185,129,0.08)_0%,transparent_70%)] animate-pulse" />
+             <img src={BASE_CHARACTER} className="w-full h-full object-cover grayscale opacity-40 group-hover:opacity-70 transition-all duration-1000 scale-[1.05] group-hover:scale-100" />
+             
+             <div className="absolute top-4 left-4 flex flex-col gap-1.5">
+                <div className="flex items-center gap-2 text-[8px] font-black text-emerald-400 uppercase bg-black/80 px-2 py-1 border border-emerald-500/30 backdrop-blur-sm">
+                  <Crosshair size={10} className="text-emerald-500 animate-pulse" /> SOURCE_IDENTITY_BLUEPRINT
+                </div>
+                <div className="flex items-center gap-2 text-[6px] font-bold text-zinc-500 uppercase bg-black/60 px-2 py-0.5 tracking-widest">
+                  <Fingerprint size={8} /> UID: {user?.uid?.slice(0, 16)}
                 </div>
              </div>
-             <div className="absolute inset-x-0 top-0 h-px bg-emerald-500/30 animate-[blueprint-scan_5s_linear_infinite]" />
+
+             <div className="absolute bottom-4 right-4 flex items-end flex-col gap-1">
+                <div className="text-[7px] font-black text-emerald-900 uppercase tracking-widest italic group-hover:text-emerald-500 transition-colors">BIO_SIGNAL: STABLE</div>
+                <div className="flex gap-1">
+                   <div className="w-6 h-0.5 bg-emerald-500/20" />
+                   <div className="w-6 h-0.5 bg-emerald-500" />
+                   <div className="w-1 h-0.5 bg-emerald-500/40" />
+                </div>
+             </div>
+
+             <div className="absolute inset-x-0 top-0 h-[2px] bg-emerald-500/40 shadow-[0_0_20px_#10b981] animate-[blueprint-scan_6s_linear_infinite] z-10" />
           </div>
 
-          {/* NEURAL CHAMBER OUTPUT */}
-          <div className="flex-1 flex flex-col p-4 md:p-6 items-center justify-center relative overflow-hidden bg-[#020202]">
-            {/* CHAMBER LOGS (Desktop Only) */}
-            <div className="absolute top-4 left-4 text-zinc-800 pointer-events-none hidden md:block">
-              <div className="space-y-1">
+          {/* NEURAL CHAMBER OUTPUT AREA */}
+          <div className="flex-1 flex flex-col p-6 md:p-10 items-center justify-center relative overflow-hidden bg-[#020202]">
+            
+            {/* LIVE CONSOLE LOGS */}
+            <div className="absolute top-6 left-6 text-zinc-800 pointer-events-none hidden lg:block">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse shadow-[0_0_10px_red]" />
+                <span className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-700">Live_Chamber_Output</span>
+              </div>
+              <div className="space-y-1.5 border-l border-zinc-900 pl-4 py-2">
                 {logs.map((log, i) => (
-                  <p key={i} className={`text-[7px] font-bold uppercase transition-all ${i === 0 ? 'text-zinc-600' : 'text-zinc-800 opacity-40'}`}>
+                  <p key={i} className={`text-[8px] font-bold uppercase transition-all duration-500 ${i === 0 ? 'text-zinc-500' : 'text-zinc-800 opacity-30 translate-x-1'}`}>
                     {`> ${log}`}
                   </p>
                 ))}
@@ -4831,61 +4886,83 @@ const ForgeItApp = () => {
             </div>
 
             {isForging ? (
-              <div className="flex flex-col items-center gap-4 md:gap-6 animate-in fade-in duration-500">
-                <div className="relative w-40 h-40 md:w-64 md:h-64 border border-emerald-500/10 rounded-sm flex items-center justify-center overflow-hidden">
-                  <Scan size={48} className="text-emerald-500/10 animate-pulse" strokeWidth={1} />
-                  <div className="absolute bottom-0 left-0 w-full h-[2px] bg-emerald-500 animate-[scan_2s_linear_infinite]" />
+              <div className="flex flex-col items-center gap-6 md:gap-8 animate-in fade-in duration-500 w-full">
+                <div className="relative w-56 h-56 md:w-80 md:h-80 border border-emerald-500/10 rounded-sm flex items-center justify-center overflow-hidden bg-black shadow-[0_0_50px_rgba(16,185,129,0.05)]">
+                  <div className="absolute inset-0 bg-[radial-gradient(circle,rgba(16,185,129,0.15)_0%,transparent_70%)] animate-pulse" />
+                  <Scan size={100} className="text-emerald-500/10 animate-pulse" strokeWidth={0.5} />
+                  
+                  {/* Holographic Circular Progress */}
+                  <div className="absolute inset-0 flex items-center justify-center">
+                     <svg className="w-48 h-48 md:w-64 md:h-64 rotate-[-90deg] opacity-20">
+                        <circle cx="50%" cy="50%" r="45%" fill="none" stroke="#10b981" strokeWidth="1" strokeDasharray="1000" strokeDashoffset={1000 - (progress * 10)} className="transition-all duration-300" />
+                     </svg>
+                  </div>
+
+                  <div className="absolute bottom-0 left-0 w-full h-[3px] bg-emerald-500 shadow-[0_0_20px_#10b981] animate-[scan_2s_linear_infinite]" />
                 </div>
-                <div className="w-40 md:w-56 space-y-2">
-                  <div className="flex justify-between text-[7px] font-black text-emerald-500/60 uppercase">
-                    <span>NEURAL_LINK</span>
+                
+                <div className="w-48 md:w-64 space-y-3">
+                  <div className="flex justify-between text-[9px] font-black text-emerald-500 uppercase italic tracking-[0.2em]">
+                    <span className="animate-pulse">Materializing...</span>
                     <span>{Math.round(progress)}%</span>
                   </div>
-                  <div className="h-0.5 bg-zinc-950 rounded-full overflow-hidden border border-zinc-900">
-                    <div className="h-full bg-emerald-500 transition-all duration-300" style={{ width: `${progress}%` }} />
+                  <div className="h-1 bg-zinc-950 rounded-full overflow-hidden border border-zinc-900 p-[1px]">
+                    <div className="h-full bg-emerald-500 transition-all duration-300 shadow-[0_0_15px_#10b981]" style={{ width: `${progress}%` }} />
                   </div>
                 </div>
               </div>
             ) : generatedImg ? (
-              <div className="w-full max-w-[240px] md:max-w-xs space-y-4 animate-in zoom-in-95 duration-1000">
-                <div className="relative group p-0.5 bg-zinc-950 border border-white/5 shadow-2xl">
-                  <img src={generatedImg} className="w-full aspect-square object-cover" />
-                  <div className="absolute top-3 right-3 md:opacity-0 group-hover:opacity-100 transition-opacity">
-                     <button onClick={downloadPFP} className="p-2.5 bg-white text-black hover:bg-emerald-400 transition-colors shadow-lg">
-                        <Download size={16} />
+              <div className="w-full max-w-[280px] md:max-w-sm space-y-6 md:space-y-8 animate-in zoom-in-95 duration-1000">
+                <div className="relative group p-1 bg-zinc-950 border border-white/10 shadow-[0_0_50px_rgba(0,0,0,1)]">
+                  <div className="absolute -inset-1 bg-gradient-to-tr from-emerald-500/20 to-blue-500/20 blur opacity-40 group-hover:opacity-100 transition duration-1000" />
+                  <img src={generatedImg} className="w-full aspect-square object-cover relative z-10" />
+                  
+                  <div className="absolute top-4 right-4 z-20 opacity-0 group-hover:opacity-100 transition-all duration-300 scale-90 group-hover:scale-100">
+                     <button onClick={downloadPFP} className="p-3 bg-white text-black hover:bg-emerald-400 transition-all shadow-2xl active:scale-90">
+                        <Download size={20} />
                      </button>
                   </div>
                 </div>
 
-                <div className="space-y-3 bg-zinc-900/20 p-3 border border-zinc-800/40 rounded-sm">
+                <div className="space-y-4 bg-emerald-950/5 p-4 md:p-6 border border-emerald-900/20 rounded-sm relative overflow-hidden">
+                  <div className="absolute top-0 right-0 p-2 opacity-10"><Info size={14}/></div>
                   {lore ? (
-                    <p className="text-[9px] md:text-[10px] leading-relaxed italic text-zinc-400">"{lore}"</p>
+                    <div className="space-y-3">
+                       <div className="flex items-center gap-2 text-[10px] font-black text-emerald-400 uppercase tracking-widest">
+                         <Dna size={14} /> Subject_Profile_Decrypted
+                       </div>
+                       <p className="text-[10px] md:text-[11px] leading-relaxed italic text-zinc-400 font-medium">"{lore}"</p>
+                    </div>
                   ) : (
-                    <button onClick={generateLore} disabled={isWritingLore} className="w-full py-1 text-[8px] md:text-[9px] font-black uppercase text-zinc-600 hover:text-white transition-colors flex items-center justify-center gap-2">
-                      {isWritingLore ? <RefreshCw className="animate-spin" size={10}/> : <Dna size={10}/>}
-                      {isWritingLore ? 'DECRYPTING...' : 'EXTRACT_DOSSIER'}
+                    <button onClick={generateLore} disabled={isWritingLore} className="w-full py-2 text-[9px] md:text-[10px] font-black uppercase text-zinc-500 hover:text-emerald-400 transition-colors flex items-center justify-center gap-2 tracking-[0.2em]">
+                      {isWritingLore ? <RefreshCw className="animate-spin" size={12}/> : <Search size={12}/>}
+                      {isWritingLore ? 'Decrypting...' : 'Extract_Identity_Dossier'}
                     </button>
                   )}
                 </div>
 
-                <div className="flex flex-col gap-1.5 md:gap-2">
-                  <button onClick={downloadPFP} className="w-full py-3 flex items-center justify-center gap-2 font-black text-[10px] uppercase border border-white bg-white text-black hover:bg-emerald-400 transition-all">
-                    <Download size={14} /> SAVE_ID
+                <div className="flex flex-col gap-3">
+                  <button onClick={downloadPFP} className="w-full py-4 flex items-center justify-center gap-3 font-black text-[11px] uppercase border border-white bg-white text-black hover:bg-emerald-400 hover:border-emerald-400 transition-all tracking-[0.3em] active:scale-95 shadow-xl">
+                    <Download size={16} /> Save_Forged_ID
                   </button>
-                  <button onClick={() => setGeneratedImg(null)} className="w-full py-1 text-[8px] font-bold uppercase text-zinc-700 hover:text-white transition-all">
-                    DISCARD_RESULT
+                  <button onClick={() => setGeneratedImg(null)} className="w-full py-2 text-[9px] font-black uppercase tracking-widest text-zinc-700 hover:text-red-400 transition-all flex items-center justify-center gap-2 group">
+                    <X size={12} className="group-hover:rotate-90 transition-transform"/> Purge_Matrix_Buffer
                   </button>
                 </div>
               </div>
             ) : (
-              <div className="flex flex-col items-center gap-4 md:gap-8 opacity-5 md:opacity-10 group hover:opacity-20 transition-all duration-1000 p-8">
-                <div className="p-10 md:p-16 border border-dashed border-emerald-900/50 rounded-full relative">
-                  <Palette size={48} md:size={64} strokeWidth={0.5} className="relative z-10" />
-                  <div className="absolute top-0 right-0 animate-bounce"><Sparkles size={20} className="text-emerald-500" /></div>
+              <div className="flex flex-col items-center gap-8 md:gap-12 opacity-5 md:opacity-10 group hover:opacity-30 transition-all duration-1000 p-8 md:p-12 text-center">
+                <div className="relative">
+                  <div className="absolute inset-0 bg-emerald-500/20 blur-[80px] rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <div className="p-16 md:p-24 border border-dashed border-emerald-900/50 rounded-full relative z-10">
+                    <Palette size={100} md:size={140} strokeWidth={0.3} className="relative z-10 text-emerald-500/40" />
+                    <div className="absolute top-4 right-4 animate-bounce"><Sparkles size={32} className="text-emerald-500/60" /></div>
+                    <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 px-4 py-1 bg-[#020202] text-[10px] font-black text-zinc-800 uppercase tracking-[0.4em] whitespace-nowrap">Neural_Idle</div>
+                  </div>
                 </div>
-                <div className="text-center space-y-1">
-                  <p className="text-[8px] md:text-[9px] font-black uppercase tracking-[0.4em] text-white">Neural_Idle</p>
-                  <p className="text-[6px] md:text-[7px] font-bold uppercase text-zinc-600">Select Traits to Materialize</p>
+                <div className="max-w-[240px] space-y-3">
+                  <p className="text-[10px] font-black uppercase tracking-[0.6em] text-white">Chamber_Standby</p>
+                  <p className="text-[8px] font-bold uppercase text-zinc-600 leading-relaxed">Configure Identity traits in the Gear Matrix to initiate materialization sequence.</p>
                 </div>
               </div>
             )}
@@ -4895,13 +4972,13 @@ const ForgeItApp = () => {
 
       {/* ERROR TOAST */}
       {error && (
-        <div className="fixed bottom-20 md:bottom-6 right-4 left-4 md:left-auto md:w-96 bg-red-950/90 border border-red-500 p-4 flex items-start gap-4 text-white animate-in slide-in-from-bottom-4 z-[200]">
-          <AlertTriangle size={20} className="shrink-0 text-red-500" />
+        <div className="fixed bottom-24 md:bottom-10 right-4 left-4 md:left-auto md:w-[400px] bg-red-950/90 border-l-4 border-red-500 p-5 flex items-start gap-4 text-white animate-in slide-in-from-right-10 z-[200] backdrop-blur-xl shadow-2xl">
+          <AlertTriangle size={24} className="shrink-0 text-red-500" />
           <div className="flex-1 space-y-1">
-            <p className="text-[9px] font-black uppercase tracking-widest">SYSTEM_INTERRUPT</p>
-            <p className="text-[8px] opacity-70 font-bold uppercase">{error}</p>
+            <p className="text-[11px] font-black uppercase tracking-widest leading-none">Critical_System_Interrupt</p>
+            <p className="text-[9px] opacity-70 font-bold uppercase mt-2 leading-tight">{error}</p>
           </div>
-          <button onClick={() => setError(null)} className="p-1 hover:bg-white/10"><X size={14}/></button>
+          <button onClick={() => setError(null)} className="p-1.5 hover:bg-white/10 rounded-full transition-colors"><X size={18}/></button>
         </div>
       )}
 
@@ -4909,14 +4986,14 @@ const ForgeItApp = () => {
       <style>{`
         @keyframes scan {
           0% { transform: translateY(-100%); }
-          100% { transform: translateY(600%); }
+          100% { transform: translateY(800%); }
         }
         @keyframes blueprint-scan {
           0% { transform: translateY(0); opacity: 0.1; }
           50% { opacity: 0.6; }
-          100% { transform: translateY(180px); opacity: 0.1; }
+          100% { transform: translateY(200px); opacity: 0.1; }
         }
-        .custom-scrollbar::-webkit-scrollbar { width: 3px; height: 3px; background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #111; border-radius: 0px; }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #10b981; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
