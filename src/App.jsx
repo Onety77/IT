@@ -174,6 +174,7 @@ const useDexData = (ca, userWallet) => {
     if (!ca || ca.length < 32) return;
     try {
       const response = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${ca}`);
+      if (!response.ok) return;
       const result = await response.json();
       if (result.pairs && result.pairs[0]) {
         setData(prev => ({ 
@@ -183,12 +184,15 @@ const useDexData = (ca, userWallet) => {
           error: null
         }));
       }
-    } catch (err) { setData(prev => ({ ...prev, error: "Price Error" })); }
+    } catch (err) { 
+      setData(prev => ({ ...prev, error: "Price Error" })); 
+    }
   }, [ca]);
 
   const fetchTokenBalance = useCallback(async () => {
     if (!userWallet || !ca || ca.length < 32) return;
     
+    // Attempt multiple endpoints for redundancy
     for (const endpoint of RPC_ENDPOINTS) {
       try {
         const response = await fetch(endpoint, {
@@ -206,32 +210,55 @@ const useDexData = (ca, userWallet) => {
           })
         });
         
+        if (!response.ok) continue;
         const result = await response.json();
+
+        // Case 1: Token account found with balance
         if (result.result && result.result.value && result.result.value.length > 0) {
           const accountData = result.result.value[0].account.data;
           
           if (accountData.parsed) {
-             const uiAmount = accountData.parsed.info.tokenAmount.uiAmount;
-             setData(prev => ({ ...prev, balance: uiAmount }));
-             return; 
-          } else {
-             continue;
+            const uiAmount = accountData.parsed.info.tokenAmount.uiAmount;
+            setData(prev => ({ ...prev, balance: uiAmount }));
+
+            // --- KERNEL EVENT DISPATCH ---
+            // This "shouts" the balance to the whole OS
+            window.dispatchEvent(new CustomEvent('IT_OS_BALANCE_UPDATE', {
+              detail: {
+                balance: uiAmount,
+                hasAccess: uiAmount >= 500000 // Threshold defined here for global sync
+              }
+            }));
+            
+            return; 
           }
-        } else if (result.result && result.result.value) {
+        } 
+        // Case 2: No token account found (Balance is 0)
+        else if (result.result && result.result.value) {
           setData(prev => ({ ...prev, balance: 0 }));
+          
+          // Dispatch zero balance event
+          window.dispatchEvent(new CustomEvent('IT_OS_BALANCE_UPDATE', {
+            detail: { balance: 0, hasAccess: false }
+          }));
           return;
         }
-      } catch (err) { continue; }
+      } catch (err) { 
+        // Continue to next endpoint on failure
+        continue; 
+      }
     }
   }, [userWallet, ca]);
 
   useEffect(() => {
     fetchPrice();
     if (userWallet) fetchTokenBalance();
+
     const interval = setInterval(() => {
       fetchPrice();
       if (userWallet) fetchTokenBalance();
     }, 20000);
+
     return () => clearInterval(interval);
   }, [fetchPrice, fetchTokenBalance, userWallet]);
 
@@ -3095,7 +3122,7 @@ const MemesApp = () => {
   );
 };
 
-// --- ASSETS ---
+// --- ASSETS & CONSTANTS ---
 const AVATAR_LIST = [
   { id: 'pepe', name: 'PEPE', url: '/pfps/pepe.jpg' },
   { id: 'doge', name: 'DOGE', url: '/pfps/doge.jpg' },
@@ -3118,13 +3145,13 @@ const CHAT_PLAYLIST = [
   { title: "GET_IT_STARTED", file: "GET_IT_STARTED.mp3" },
   { title: "PUMP_IT", file: "https://firebasestorage.googleapis.com/v0/b/it-token.firebasestorage.app/o/music%2Fpump_it.mp3?alt=media&token=050c599d-1894-494d-b380-d14b51405d6c" },
   { title: "PUMP_IT_UP", file: "PUMP_IT_UP.mp3" },
-   { title: "PUMP_IT_UP_00", file: "https://firebasestorage.googleapis.com/v0/b/it-token.firebasestorage.app/o/music%2Fpump_it_up2.mp3?alt=media&token=d14da2fe-ba13-40bc-8fc2-055b7a46b23c" },
+  { title: "PUMP_IT_UP_00", file: "https://firebasestorage.googleapis.com/v0/b/it-token.firebasestorage.app/o/music%2Fpump_it_up2.mp3?alt=media&token=d14da2fe-ba13-40bc-8fc2-055b7a46b23c" },
   { title: "LA_LA_LA", file: "https://firebasestorage.googleapis.com/v0/b/it-token.firebasestorage.app/o/music%2FLALALA.mp3?alt=media&token=11a3bc8c-8498-458a-92b8-140d18575228" },
   { title: "BIG_DAWGS", file: "https://firebasestorage.googleapis.com/v0/b/it-token.firebasestorage.app/o/music%2Fbig_dawgs.mp3?alt=media&token=69bdcaa4-8283-4379-9516-93323bd61f43" },
   { title: "DILIH", file: "https://firebasestorage.googleapis.com/v0/b/it-token.firebasestorage.app/o/music%2FDILIH.mp3?alt=media&token=3694cbb2-0da0-42af-9c90-7c7457b890e9" },
   { title: "BEAT_IT", file: "https://firebasestorage.googleapis.com/v0/b/it-token.firebasestorage.app/o/music%2Fbeat_it.mp3?alt=media&token=9069b2e4-44bc-4f8d-b119-e5b324b24700" },
-   { title: "CANT_HOLD_US", file: "https://firebasestorage.googleapis.com/v0/b/it-token.firebasestorage.app/o/music%2Fcant_hold_us.mp3?alt=media&token=e20bbdc8-df20-41a3-b1aa-4ab9bf59019b" },
-    { title: "MEME_IT", file: "MEME_IT.mp3" }
+  { title: "CANT_HOLD_US", file: "https://firebasestorage.googleapis.com/v0/b/it-token.firebasestorage.app/o/music%2Fcant_hold_us.mp3?alt=media&token=e20bbdc8-df20-41a3-b1aa-4ab9bf59019b" },
+  { title: "MEME_IT", file: "MEME_IT.mp3" }
 ];
 
 const SOUNDS = {
@@ -3132,7 +3159,31 @@ const SOUNDS = {
   out: "/notis/msg_out.mp3"
 };
 
-const ChatApp = ({ hasAccess, tokenBalance = 0, onRefreshAccess }) => {
+
+const ChatApp = ({ hasAccess: initialAccess, tokenBalance: initialBalance = 0, onRefreshAccess }) => {
+  // --- KERNEL EVENT LISTENER (SHIPPY METHOD) ---
+  const [hasAccess, setHasAccess] = useState(initialAccess);
+  const [tokenBalance, setTokenBalance] = useState(initialBalance);
+
+  useEffect(() => {
+    // Listen for the global "shout" from the useDexData hook
+    const handleKernelSync = (e) => {
+      const { balance, hasAccess: accessStatus } = e.detail;
+      setTokenBalance(balance);
+      setHasAccess(accessStatus);
+      console.log(`[CHAT_KERNEL] Sync Success: ${balance} IT`);
+    };
+
+    window.addEventListener('IT_OS_BALANCE_UPDATE', handleKernelSync);
+    return () => window.removeEventListener('IT_OS_BALANCE_UPDATE', handleKernelSync);
+  }, []);
+
+  // Update if props change (fallback mechanism)
+  useEffect(() => {
+    setHasAccess(initialAccess);
+    setTokenBalance(initialBalance);
+  }, [initialAccess, initialBalance]);
+
   // --- CORE STATE ---
   const [messages, setMessages] = useState([]);
   const [pendingMessages, setPendingMessages] = useState([]);
@@ -3146,7 +3197,6 @@ const ChatApp = ({ hasAccess, tokenBalance = 0, onRefreshAccess }) => {
   const [user, setUser] = useState(null);
   const [error, setError] = useState(null);
   const [theme, setTheme] = useState('dark');
-  const [booting, setBooting] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   
   // Audio Controls
@@ -3155,7 +3205,6 @@ const ChatApp = ({ hasAccess, tokenBalance = 0, onRefreshAccess }) => {
   
   // Navigation State
   const [showScrollArrow, setShowScrollArrow] = useState(false);
-  
   const [activeMenu, setActiveMenu] = useState(null); 
   const [replyingTo, setReplyingTo] = useState(null); 
   const [contextMenu, setContextMenu] = useState(null); 
@@ -3190,7 +3239,7 @@ const ChatApp = ({ hasAccess, tokenBalance = 0, onRefreshAccess }) => {
     const pinnedMsg = {
         id: 'pinned-ca',
         user: 'KERNEL_SYSTEM',
-        text: CA_ADDRESS,
+        text: typeof CA_ADDRESS !== 'undefined' ? CA_ADDRESS : 'N/A',
         color: '#10b981',
         avatar: '/pfps/mask.jpg',
         _sortTs: -1, 
@@ -3206,19 +3255,14 @@ const ChatApp = ({ hasAccess, tokenBalance = 0, onRefreshAccess }) => {
     if (isRefreshing) return;
     setIsRefreshing(true);
     playSfx('in');
-    
-    // Trigger external logic to fetch balance
     if (onRefreshAccess) onRefreshAccess();
-
-    setTimeout(() => {
-      setIsRefreshing(false);
-    }, 1500);
+    setTimeout(() => setIsRefreshing(false), 1500);
   };
 
   const handleCopyCA = (e) => {
     e?.stopPropagation();
     const textArea = document.createElement("textarea");
-    textArea.value = CA_ADDRESS;
+    textArea.value = typeof CA_ADDRESS !== 'undefined' ? CA_ADDRESS : '';
     document.body.appendChild(textArea);
     textArea.select();
     document.execCommand('copy');
@@ -3230,27 +3274,20 @@ const ChatApp = ({ hasAccess, tokenBalance = 0, onRefreshAccess }) => {
   const playSfx = (type) => {
     if (isNotiMuted) return;
     const sound = type === 'in' ? sfxInRef.current : sfxOutRef.current;
-    if (sound) {
-        sound.currentTime = 0;
-        sound.play().catch(() => {});
-    }
+    if (sound) { sound.currentTime = 0; sound.play().catch(() => {}); }
   };
 
   const handleReaction = async (msgId, emojiKey) => {
     setContextMenu(null);
-    if (!user) return;
+    if (!user || typeof db === 'undefined') return;
     const msgRef = doc(db, 'artifacts', appId, 'public', 'data', 'trollbox_messages', msgId);
     try {
         const snap = await getDoc(msgRef);
         if (!snap.exists() && msgId === 'pinned-ca') {
-            await setDoc(msgRef, {
-                user: 'KERNEL_SYSTEM', text: CA_ADDRESS, _sortTs: -1,
-                reactions: { heart: 0, up: 0, down: 0 }
-            });
+            await setDoc(msgRef, { user: 'KERNEL_SYSTEM', text: CA_ADDRESS, _sortTs: -1, reactions: { heart: 0, up: 0, down: 0 } });
         }
         const storageKey = `reacted_${msgId}_${emojiKey}`;
-        const alreadyReacted = localStorage.getItem(storageKey);
-        if (alreadyReacted) {
+        if (localStorage.getItem(storageKey)) {
             await updateDoc(msgRef, { [`reactions.${emojiKey}`]: increment(-1) });
             localStorage.removeItem(storageKey);
         } else {
@@ -3266,14 +3303,19 @@ const ChatApp = ({ hasAccess, tokenBalance = 0, onRefreshAccess }) => {
     const text = inputText.trim().slice(0, 240);
     const currentReply = replyingTo;
     const tempId = "temp_" + Date.now();
+    
+    // Force identity defaults if hasAccess is false
+    const finalAvatar = hasAccess ? userAvatar : '/pfps/mask.jpg';
+    const finalColor = hasAccess ? userColor : COLOR_LIST[0].hex;
+
     setPendingMessages(prev => [...prev, {
-        id: tempId, text, user: username, color: userColor, avatar: userAvatar, _sortTs: Date.now(), replyTo: currentReply, pending: true, reactions: { heart:0, up:0, down:0 }
+        id: tempId, text, user: username, color: finalColor, avatar: finalAvatar, _sortTs: Date.now(), replyTo: currentReply, pending: true, reactions: { heart:0, up:0, down:0 }
     }]);
     setInputText(""); setReplyingTo(null); setCooldown(2); playSfx('out');
     setTimeout(() => inputRef.current?.focus(), 10);
     try {
       await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'trollbox_messages'), {
-        text, user: username, color: userColor, avatar: userAvatar, timestamp: serverTimestamp(), uid: user.uid, replyTo: currentReply || null,
+        text, user: username, color: finalColor, avatar: finalAvatar, timestamp: serverTimestamp(), uid: user.uid, replyTo: currentReply || null,
         reactions: { heart: 0, up: 0, down: 0 }
       });
     } catch (err) { 
@@ -3284,26 +3326,14 @@ const ChatApp = ({ hasAccess, tokenBalance = 0, onRefreshAccess }) => {
     const inv = setInterval(() => { t--; setCooldown(t); if (t <= 0) clearInterval(inv); }, 1000);
   };
 
-  const startReply = (msg) => {
-    setReplyingTo({ user: String(msg.user), text: String(msg.text), id: msg.id });
-    setContextMenu(null);
-    setTimeout(() => inputRef.current?.focus(), 50);
-  };
-
   const handleInitialize = () => {
     const name = username.trim().toUpperCase();
-    const forbidden = ["ADMIN", "SYSTEM", "KERNEL", "IT_OS", "MOD"];
     if (name.length < 2) { setError("ALIAS_TOO_SHORT"); return; }
-    if (forbidden.some(word => name.includes(word))) { setError("RESERVED_IDENTITY_BLOCK"); return; }
-
-    // Save intended choices
     localStorage.setItem('tbox_alias', name);
-    localStorage.setItem('tbox_color', userColor);
-    localStorage.setItem('tbox_avatar', userAvatar);
-
-    if (sfxInRef.current) { sfxInRef.current.volume = 0; sfxInRef.current.play().then(() => { sfxInRef.current.pause(); sfxInRef.current.volume = 0.4; }).catch(() => {}); }
-    if (sfxOutRef.current) { sfxOutRef.current.volume = 0; sfxOutRef.current.play().then(() => { sfxOutRef.current.pause(); sfxOutRef.current.volume = 0.4; }).catch(() => {}); }
-    
+    if (hasAccess) {
+      localStorage.setItem('tbox_color', userColor);
+      localStorage.setItem('tbox_avatar', userAvatar);
+    }
     setIsSetup(true);
   };
 
@@ -3316,13 +3346,28 @@ const ChatApp = ({ hasAccess, tokenBalance = 0, onRefreshAccess }) => {
     }
   };
 
-  const scrollToLive = () => {
-    if (scrollRef.current) {
-        scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
-    }
-  };
+  const scrollToLive = () => { if (scrollRef.current) scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' }); };
+  const startReply = (msg) => { setReplyingTo({ user: String(msg.user), text: String(msg.text), id: msg.id }); setContextMenu(null); setTimeout(() => inputRef.current?.focus(), 50); };
 
-  // --- FIREBASE SYNC ---
+  // --- PREFERENCE SYNC ---
+  useEffect(() => {
+    const savedName = localStorage.getItem('tbox_alias');
+    const savedColor = localStorage.getItem('tbox_color');
+    const savedAvatar = localStorage.getItem('tbox_avatar');
+    
+    if (savedName) {
+      setUsername(savedName);
+      if (hasAccess) {
+        if (savedColor) setUserColor(savedColor);
+        if (savedAvatar) setUserAvatar(savedAvatar);
+      } else {
+        setUserColor(COLOR_LIST[0].hex);
+        setUserAvatar('/pfps/mask.jpg');
+      }
+      setIsSetup(true);
+    }
+  }, [hasAccess]);
+
   useEffect(() => {
     const initAuth = async () => {
       try {
@@ -3336,33 +3381,8 @@ const ChatApp = ({ hasAccess, tokenBalance = 0, onRefreshAccess }) => {
     return () => unsubscribe();
   }, []);
 
-  // AGGRESSIVE SYNC: Ensuring preferences are restored or locked based on prop reactivity
   useEffect(() => {
-    const savedName = localStorage.getItem('tbox_alias');
-    const savedColor = localStorage.getItem('tbox_color');
-    const savedAvatar = localStorage.getItem('tbox_avatar');
-    
-    if (savedName) {
-      setUsername(savedName);
-      
-      if (hasAccess) {
-        // UNLOCK: Apply saved preferences from storage
-        if (savedColor) setUserColor(savedColor);
-        if (savedAvatar) setUserAvatar(savedAvatar);
-        console.log('🔓 VIP_UPLINK_ESTABLISHED: Identity Unlocked');
-      } else {
-        // LOCK: Force defaults visually
-        setUserColor(COLOR_LIST[0].hex);
-        setUserAvatar(AVATAR_LIST[5].url);
-        console.log('🔒 GUEST_MODE_ACTIVE: Identity Restricted');
-      }
-      
-      setIsSetup(true);
-    }
-  }, [hasAccess]);
-
-  useEffect(() => {
-    if (!user) return;
+    if (!user || typeof db === 'undefined') return;
     const chatRef = collection(db, 'artifacts', appId, 'public', 'data', 'trollbox_messages');
     const unsubscribe = onSnapshot(chatRef, (snapshot) => {
       const msgs = snapshot.docs.map(doc => {
@@ -3373,10 +3393,7 @@ const ChatApp = ({ hasAccess, tokenBalance = 0, onRefreshAccess }) => {
       const sorted = msgs.sort((a, b) => a._sortTs - b._sortTs).slice(-100);
       if (!isInitialLoad.current) {
           snapshot.docChanges().forEach(change => {
-            if (change.type === 'added') {
-                const addedData = change.doc.data();
-                if (addedData.uid !== user.uid) playSfx('in');
-            }
+            if (change.type === 'added' && change.doc.data().uid !== user.uid) playSfx('in');
           });
       }
       isInitialLoad.current = false;
@@ -3387,35 +3404,28 @@ const ChatApp = ({ hasAccess, tokenBalance = 0, onRefreshAccess }) => {
     return () => unsubscribe();
   }, [user]);
 
-  // SMART AUTO SCROLL & ARROW TOGGLE
   const handleOnScroll = () => {
     if (scrollRef.current) {
         const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
-        const isUp = scrollHeight - scrollTop - clientHeight > 300;
-        setShowScrollArrow(isUp);
+        setShowScrollArrow(scrollHeight - scrollTop - clientHeight > 300);
     }
   };
 
   useEffect(() => {
     if (scrollRef.current) {
         const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
-        const isAtBottom = scrollHeight - scrollTop - clientHeight < 150; 
-        if (isAtBottom || messages.length <= 1) {
+        if (scrollHeight - scrollTop - clientHeight < 150 || messages.length <= 1) {
             scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
         }
     }
   }, [combinedMessages, pendingMessages]);
 
   useEffect(() => {
-    if (isSetup && !isMuted) {
+    if (isSetup && !isMuted && CHAT_PLAYLIST[trackIndex]?.file) {
       const currentFile = CHAT_PLAYLIST[trackIndex].file;
-      if (!audioRef.current) {
-        audioRef.current = new Audio(currentFile);
-        audioRef.current.volume = 0.2;
-      } else { audioRef.current.src = currentFile; }
-      audioRef.current.onended = () => {
-        if (hasAccess) setTrackIndex(prev => (prev + 1) % CHAT_PLAYLIST.length);
-      };
+      if (!audioRef.current) { audioRef.current = new Audio(currentFile); audioRef.current.volume = 0.2; } 
+      else { audioRef.current.src = currentFile; }
+      audioRef.current.onended = () => { if (hasAccess) setTrackIndex(prev => (prev + 1) % CHAT_PLAYLIST.length); };
       audioRef.current.play().catch(() => {});
     } else if (audioRef.current) { audioRef.current.pause(); }
     return () => { if (audioRef.current) audioRef.current.pause(); };
@@ -3423,44 +3433,33 @@ const ChatApp = ({ hasAccess, tokenBalance = 0, onRefreshAccess }) => {
 
   // --- GESTURES ---
   const onMsgContextMenu = (e, msg) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, msg }); };
-  
   const handleTouchStart = (e, msg) => { 
     touchStartPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
     if (longPressTimer.current) clearTimeout(longPressTimer.current);
-    longPressTimer.current = setTimeout(() => { 
-        setContextMenu({ x: window.innerWidth / 2 - 80, y: window.innerHeight / 2 - 100, msg }); 
-    }, 800); 
+    longPressTimer.current = setTimeout(() => { setContextMenu({ x: window.innerWidth / 2 - 80, y: window.innerHeight / 2 - 100, msg }); }, 800); 
   };
-
   const handleTouchMove = (e) => {
     const moveX = Math.abs(e.touches[0].clientX - touchStartPos.current.x);
     const moveY = Math.abs(e.touches[0].clientY - touchStartPos.current.y);
     if (moveX > 10 || moveY > 10) { if (longPressTimer.current) clearTimeout(longPressTimer.current); }
   };
-
   const handleTouchEnd = () => { if (longPressTimer.current) clearTimeout(longPressTimer.current); };
 
-  // IDENTITY SELECTOR UI
   const identitySection = (
     <div className="space-y-4 p-4 bg-black border-2 border-green-900 rounded shadow-inner" onClick={e => e.stopPropagation()}>
         <div className="space-y-2 text-center">
             <label className="text-[9px] text-emerald-600 font-black tracking-widest uppercase block text-center">Faction Avatar</label>
-            {!hasAccess && <div className="text-[8px] text-yellow-500 font-bold uppercase tracking-tighter mb-1 animate-pulse">[ IDENTITY_LOCK: BUY $IT TO UNLOCK ]</div>}
+            {!hasAccess && <div className="text-[8px] text-yellow-500 font-bold uppercase animate-pulse">[ IDENTITY_LOCK: BUY $IT ]</div>}
             <div className="grid grid-cols-3 gap-2">
             {AVATAR_LIST.map((av) => (
                 <button key={av.id} type="button" 
                   onPointerDown={(e) => { 
                     e.stopPropagation(); 
-                    if (hasAccess) {
-                        setUserAvatar(av.url); 
-                        localStorage.setItem('tbox_avatar', av.url);
-                    } else {
-                        setError("LOCKED: HOLD 500K $IT TO CHOOSE PFPS");
-                        setTimeout(() => setError(null), 3000);
-                    }
+                    if (hasAccess) { setUserAvatar(av.url); localStorage.setItem('tbox_avatar', av.url); } 
+                    else { setError("LOCKED: HOLD 500K $IT"); setTimeout(() => setError(null), 3000); } 
                   }} 
-                  className={`aspect-square border-2 transition-all p-1 bg-zinc-900 ${userAvatar === av.url ? 'border-emerald-500 scale-105 shadow-[0_0_10px_#10b981]' : `border-zinc-800 opacity-40 hover:opacity-100 ${!hasAccess ? 'grayscale opacity-20' : ''}`}`}>
-                    <img src={av.url} alt={av.name} className="w-full h-full object-cover pointer-events-none" />
+                  className={`aspect-square border-2 transition-all p-1 bg-zinc-900 ${userAvatar === av.url ? 'border-emerald-500 scale-105 shadow-[0_0_10px_#10b981]' : `border-zinc-800 opacity-40 hover:opacity-100 ${!hasAccess ? 'grayscale' : ''}`}`}>
+                    <img src={av.url} alt="" className="w-full h-full object-cover pointer-events-none" />
                 </button>
             ))}
             </div>
@@ -3472,13 +3471,8 @@ const ChatApp = ({ hasAccess, tokenBalance = 0, onRefreshAccess }) => {
                 <button key={col.id} type="button" 
                   onPointerDown={(e) => { 
                     e.stopPropagation(); 
-                    if (hasAccess) {
-                        setUserColor(col.hex); 
-                        localStorage.setItem('tbox_color', col.hex);
-                    } else {
-                        setError("LOCKED: HOLD 500K $IT TO CHANGE COLORS");
-                        setTimeout(() => setError(null), 3000);
-                    }
+                    if (hasAccess) { setUserColor(col.hex); localStorage.setItem('tbox_color', col.hex); } 
+                    else { setError("LOCKED: HOLD 500K $IT"); setTimeout(() => setError(null), 3000); } 
                   }} 
                   className={`w-8 h-8 border-2 transition-all ${userColor === col.hex ? 'border-white scale-110 shadow-lg' : 'border-black/40'} ${!hasAccess ? 'opacity-20' : ''}`} style={{ backgroundColor: col.hex }} />
             ))}
@@ -3490,41 +3484,20 @@ const ChatApp = ({ hasAccess, tokenBalance = 0, onRefreshAccess }) => {
   if (!isSetup) {
     return (
       <div className={`h-full ${style.bg} flex items-center justify-center p-4 font-mono overflow-hidden`}>
-        <div className={`w-full max-w-lg border-2 border-black bg-[#c0c0c0] shadow-2xl transition-all ${booting ? 'scale-110 blur-xl opacity-0' : 'scale-100'}`}>
-          <div className="bg-[#000080] text-white p-2 flex items-center gap-2 font-bold border-b-2 border-white uppercase italic tracking-tighter">
+        <div className={`w-full max-w-lg border-2 border-black bg-[#c0c0c0] shadow-2xl`}>
+          <div className="bg-[#000080] text-white p-2 flex items-center gap-2 font-bold border-b-2 border-white uppercase italic tracking-tighter shrink-0">
             <Terminal size={16} /> Identity_Initialization.EXE
           </div>
-          <div className="bg-black p-6 space-y-6 text-white">
+          <div className="bg-black p-6 space-y-6 text-white overflow-y-auto max-h-[70vh] scrollbar-classic">
             <div className="space-y-2 text-center">
               <label className="text-[9px] text-emerald-700 font-black tracking-[0.2em] uppercase block">Assign Alias</label>
-              <input autoFocus value={username} onChange={(e) => setUsername(e.target.value.toUpperCase())} className="w-full bg-black border-b-2 border-emerald-900 text-emerald-400 p-3 text-center text-xl font-black outline-none focus:border-emerald-500" placeholder="NAME_IT" />
-              {error && <div className="text-[8px] text-red-500 font-bold animate-pulse mt-2 tracking-widest uppercase">{String(error)}</div>}
-            </div>
-            
-            {/* Diagnostic Status indicator with detected balance display */}
-            <div 
-              onClick={handleManualCheck}
-              className={`text-center p-3 border-2 cursor-pointer transition-all active:scale-95 group ${hasAccess ? 'border-green-500 bg-green-950/20' : 'border-yellow-600 bg-yellow-900/20 hover:border-yellow-500'}`}
-            >
-              <div className={`text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 ${hasAccess ? 'text-green-400' : 'text-yellow-400'}`}>
-                {isRefreshing ? <RefreshCw size={12} className="animate-spin"/> : (hasAccess ? <ShieldCheck size={12}/> : <Lock size={12}/>)}
-                {isRefreshing ? 'SCANNING_BALANCES...' : (hasAccess ? '✓ FULL ACCESS GRANTED' : '⚠ LIMITED ACCESS MODE')}
+              <input autoFocus value={username} onChange={(e) => setUsername(e.target.value.toUpperCase())} className="w-full bg-black border-b-2 border-emerald-900 text-emerald-400 p-3 text-center text-xl font-black outline-none focus:border-emerald-500 uppercase" placeholder="NAME_IT" />
+              <div className={`text-[10px] font-black uppercase mt-2 ${hasAccess ? 'text-green-500' : 'text-yellow-600'}`}>
+                {hasAccess ? `[ ACCESS_GRANTED: ${tokenBalance.toLocaleString()} $IT ]` : '[ ACCESS_RESTRICTED: GUEST ]'}
               </div>
-              <div className="mt-2 pt-2 border-t border-white/5 space-y-1">
-                <div className="text-[8px] font-mono font-bold opacity-60 uppercase tracking-tighter flex justify-between px-2">
-                    <span>DETECTED_RESOURCES:</span>
-                    <span className={tokenBalance > 0 ? "text-emerald-400" : "text-red-400"}>{tokenBalance.toLocaleString()} $IT</span>
-                </div>
-                <div className="text-[8px] font-mono font-bold opacity-60 uppercase tracking-tighter flex justify-between px-2">
-                    <span>ACCESS_PROP:</span>
-                    <span className={hasAccess ? "text-emerald-400" : "text-yellow-400"}>{hasAccess ? "TRUE" : "FALSE"}</span>
-                </div>
-              </div>
-              {!hasAccess && !isRefreshing && <div className="text-[7px] text-yellow-600 mt-2 uppercase font-bold group-hover:text-yellow-400 transition-colors underline">[ TAP TO FORCE RE-SCAN ]</div>}
             </div>
-
             {identitySection}
-            <button onClick={handleInitialize} className="w-full bg-[#c0c0c0] text-black border-2 border-gray-400 border-l-white border-t-white py-4 font-black text-sm active:translate-y-1 hover:bg-white transition-colors uppercase">Establish Uplink</button>
+            <button onClick={handleInitialize} className="w-full bg-[#c0c0c0] text-black border-2 border-gray-400 border-l-white border-t-white py-4 font-black text-sm active:translate-y-1 hover:bg-white transition-colors uppercase italic tracking-widest">Establish Uplink</button>
           </div>
         </div>
       </div>
@@ -3536,36 +3509,21 @@ const ChatApp = ({ hasAccess, tokenBalance = 0, onRefreshAccess }) => {
       
       <div className={`flex justify-between items-center px-3 py-1.5 border-b shrink-0 ${isDarkMode ? 'border-black bg-black/40' : 'border-zinc-400 bg-white/40'} backdrop-blur-md z-[100]`}>
         <div className="flex gap-4 text-[9px] font-black text-zinc-500 uppercase tracking-widest truncate">
-          <span className="flex items-center gap-1.5"><Wifi size={10} className={isConnected ? 'text-emerald-500' : 'text-red-500'}/> {isConnected ? 'Link_Live' : 'Syncing...'}</span>
-          
+          <span className="flex items-center gap-1.5"><Wifi size={10} className={isConnected ? 'text-emerald-500' : 'text-red-500'}/> {isConnected ? 'Live' : 'Sync...'}</span>
           <button 
             onClick={(e) => { e.stopPropagation(); handleManualCheck(); }}
-            className={`flex items-center gap-1.5 font-black uppercase transition-all active:scale-95 outline-none ${hasAccess ? 'text-green-400' : 'text-yellow-600 hover:text-white'}`}
+            className={`flex items-center gap-1.5 px-2 py-0.5 border rounded-sm transition-all active:scale-95 ${hasAccess ? 'text-green-500 border-green-900/40 bg-green-900/10' : 'text-yellow-600 border-yellow-900/40 bg-yellow-900/10'}`}
           >
-            {isRefreshing ? <RefreshCw size={10} className="animate-spin"/> : (hasAccess ? <ShieldCheck size={10}/> : <Lock size={10}/>)} 
-            {isRefreshing ? 'SCAN' : (hasAccess ? `VIP [${tokenBalance.toLocaleString()}]` : `GUEST [${tokenBalance.toLocaleString()}]`)}
+            {isRefreshing ? <RefreshCw size={10} className="animate-spin" /> : (hasAccess ? <ShieldCheck size={10}/> : <Lock size={10}/>)}
+            {hasAccess ? 'VIP' : 'GUEST'} [{tokenBalance.toLocaleString()}]
           </button>
         </div>
         <div className="flex items-center gap-3">
           <div className="flex items-center bg-black/20 rounded px-1.5 py-0.5 border border-white/10 gap-2">
-            <button 
-              onClick={(e) => {
-                e.stopPropagation(); 
-                if (hasAccess) {
-                    setTrackIndex(prev => (prev + 1) % CHAT_PLAYLIST.length);
-                } else {
-                    setError("LOCKED: HOLD 500K $IT TO SKIP TUNES");
-                    setTimeout(() => setError(null), 3000);
-                }
-              }} 
-              className={`text-emerald-500 hover:text-white transition-colors ${!hasAccess ? 'opacity-20 cursor-not-allowed' : ''}`}
-            >
-              <SkipForward size={14}/>
-            </button>
+            <button onClick={(e) => { e.stopPropagation(); if (hasAccess) setTrackIndex(prev => (prev + 1) % CHAT_PLAYLIST.length); else { setError("HOLD 500K IT TO SKIP"); setTimeout(()=>setError(null), 3000); } }} className={`text-emerald-500 hover:text-white transition-colors ${!hasAccess ? 'opacity-20 cursor-not-allowed' : ''}`}><SkipForward size={14}/></button>
             <button onClick={(e) => {e.stopPropagation(); setIsMuted(!isMuted)}} className={`p-1 transition-all ${isMuted ? 'text-red-400' : 'text-emerald-500 animate-pulse'}`}>{isMuted ? <VolumeX size={14}/> : <Volume2 size={14}/>}</button>
             <button onClick={(e) => {e.stopPropagation(); setIsNotiMuted(!isNotiMuted)}} className={`p-1 transition-all ${isNotiMuted ? 'text-red-400' : 'text-emerald-500'}`}>{isNotiMuted ? <BellOff size={14}/> : <Bell size={14}/>}</button>
           </div>
-          <div className="w-px h-3 bg-zinc-700" />
           <button onClick={(e) => {e.stopPropagation(); setActiveMenu(activeMenu === 'options' ? null : 'options')}} className={`p-1 transition-all ${activeMenu === 'options' ? 'text-white scale-125' : 'text-emerald-500 hover:rotate-90'}`}><Settings size={16}/></button>
           <button onClick={(e) => {e.stopPropagation(); setTheme(isDarkMode ? 'light' : 'dark')}} className={`w-10 h-5 rounded-full p-0.5 relative transition-colors ${isDarkMode ? 'bg-emerald-900' : 'bg-zinc-400'}`}>
             <div className={`w-3.5 h-3.5 rounded-full transition-all ${isDarkMode ? 'translate-x-5 bg-emerald-400 shadow-[0_0_8px_#10b981]' : 'translate-x-0 bg-white'}`} />
@@ -3574,49 +3532,30 @@ const ChatApp = ({ hasAccess, tokenBalance = 0, onRefreshAccess }) => {
       </div>
 
       {activeMenu === 'options' && (
-          <div className="absolute top-10 right-2 w-56 bg-[#c0c0c0] border-2 border-white border-r-black border-b-black shadow-2xl z-[150] p-1 animate-in zoom-in-95 duration-100 text-black" onClick={e=>e.stopPropagation()}>
-              <div className="bg-[#000080] text-white text-[9px] font-bold px-2 py-1 flex items-center justify-between font-mono">
-                <span className="flex items-center gap-1 uppercase tracking-widest"><Settings size={10}/> OPTIONS_MENU</span>
+          <div className="absolute top-10 right-2 w-56 bg-[#c0c0c0] border-2 border-white border-r-black border-b-black shadow-2xl z-[150] p-1 animate-in zoom-in-95 text-black" onClick={e=>e.stopPropagation()}>
+              <div className="bg-[#000080] text-white text-[9px] font-bold px-2 py-1 flex items-center justify-between uppercase italic">
+                <span className="flex items-center gap-1"><Settings size={10}/> OPTIONS_MENU</span>
                 <X size={10} className="cursor-pointer" onClick={() => setActiveMenu(null)} />
               </div>
               <div className="p-1 space-y-1">
-                  {error && <div className="text-[7px] text-red-700 font-black text-center mb-1 bg-red-100 p-1 border border-red-300 uppercase animate-pulse">{error}</div>}
+                  {error && <div className="text-[7px] text-red-600 font-black text-center mb-1 bg-red-50 p-1 border border-red-200 animate-pulse uppercase">{error}</div>}
                   <div className={`p-2 bg-black border border-white/10 rounded mb-2 text-center ${!hasAccess ? 'opacity-30' : ''}`}>
-                    <div className="text-[8px] font-black text-emerald-500 mb-2 truncate uppercase tracking-widest">{CHAT_PLAYLIST[trackIndex].title}</div>
+                    <div className="text-[8px] font-black text-emerald-500 mb-2 truncate uppercase tracking-widest">{CHAT_PLAYLIST[trackIndex]?.title || 'LOAD_PLAYLIST'}</div>
                     <div className="flex justify-center items-center gap-4 text-white">
-                        <button onClick={() => { if(hasAccess) setTrackIndex(p => (p-1+CHAT_PLAYLIST.length)%CHAT_PLAYLIST.length); else { setError("BUY $IT TO SKIP"); setTimeout(()=>setError(null), 2000); } }}><SkipBack size={16}/></button>
+                        <button onClick={() => { if(hasAccess) setTrackIndex(p => (p-1+CHAT_PLAYLIST.length)%CHAT_PLAYLIST.length); else { setError("HOLD 500K IT TO SKIP"); setTimeout(()=>setError(null), 2000); } }}><SkipBack size={16}/></button>
                         <button onClick={() => setIsMuted(!isMuted)}>{isMuted ? <Play size={16}/> : <Pause size={16}/>}</button>
-                        <button onClick={() => { if(hasAccess) setTrackIndex(p => (p+1)%CHAT_PLAYLIST.length); else { setError("BUY $IT TO SKIP"); setTimeout(()=>setError(null), 2000); } }}><SkipForward size={16}/></button>
+                        <button onClick={() => { if(hasAccess) setTrackIndex(p => (p+1)%CHAT_PLAYLIST.length); else { setError("HOLD 500K IT TO SKIP"); setTimeout(()=>setError(null), 2000); } }}><SkipForward size={16}/></button>
                     </div>
                   </div>
-                  <button onClick={() => setIsNotiMuted(!isNotiMuted)} className="w-full text-left px-2 py-1.5 hover:bg-[#000080] hover:text-white flex items-center gap-2 text-[10px] font-black uppercase border border-transparent hover:border-white transition-all">
-                    {isNotiMuted ? <Bell size={12}/> : <BellOff size={12}/>} {isNotiMuted ? "Unmute Notis" : "Mute Notis"}
-                  </button>
-                  
                   <button 
-                    onClick={() => {
-                        if (hasAccess) {
-                            setActiveMenu('appearance');
-                        } else {
-                            setError("LOCKED: HOLD 500K $IT TO ACCESS");
-                            setTimeout(() => setError(null), 3000);
-                        }
-                    }} 
-                    className={`w-full text-left px-2 py-1.5 hover:bg-[#000080] hover:text-white flex items-center gap-2 text-[10px] font-black uppercase border border-transparent hover:border-white transition-all ${!hasAccess ? 'opacity-30' : ''}`}
+                    onClick={() => { if(hasAccess) setActiveMenu('appearance'); else { setError("HOLD 500K IT TO ACCESS"); setTimeout(()=>setError(null), 3000); } }} 
+                    className={`w-full text-left px-2 py-1.5 hover:bg-[#000080] hover:text-white flex items-center gap-2 text-[10px] font-black uppercase transition-all ${!hasAccess ? 'opacity-30' : ''}`}
                   >
                     <Palette size={12}/> Appearance Settings
                   </button>
-                  
-                  <button onClick={() => {localStorage.removeItem('tbox_alias'); setIsSetup(false);}} className="w-full text-left px-2 py-1.5 hover:bg-[#000080] hover:text-white flex items-center gap-2 text-[10px] font-black uppercase border border-transparent hover:border-white transition-all"><LogOut size={12}/> Logout Link</button>
+                  <button onClick={() => {localStorage.removeItem('tbox_alias'); setIsSetup(false);}} className="w-full text-left px-2 py-1.5 hover:bg-[#000080] hover:text-white flex items-center gap-2 text-[10px] font-black uppercase transition-all"><LogOut size={12}/> Logout Link</button>
                   <div className="h-px bg-gray-500 my-1"></div>
-                  
-                  {!hasAccess && (
-                    <button onClick={handleManualCheck} className="w-full text-left px-2 py-1.5 hover:bg-emerald-700 hover:text-white text-emerald-800 flex items-center gap-2 text-[10px] font-black border border-transparent hover:border-white transition-all">
-                      <RefreshCw size={12} className={isRefreshing ? 'animate-spin' : ''}/> {isRefreshing ? "Scanning..." : "Re-Scan Balance"}
-                    </button>
-                  )}
-
-                  <button onClick={(e) => {localStorage.clear(); window.location.reload();}} className="w-full text-left px-2 py-1.5 hover:bg-red-700 hover:text-white text-red-800 flex items-center gap-2 text-[10px] font-black border border-transparent hover:border-white transition-all"><Trash2 size={12}/> Burn Identity</button>
+                  <button onClick={() => {localStorage.clear(); window.location.reload();}} className="w-full text-left px-2 py-1.5 hover:bg-red-700 hover:text-white text-red-800 flex items-center gap-2 text-[10px] font-black transition-all uppercase tracking-tighter"><Trash2 size={12}/> Burn Identity</button>
               </div>
           </div>
       )}
@@ -3624,60 +3563,39 @@ const ChatApp = ({ hasAccess, tokenBalance = 0, onRefreshAccess }) => {
       {activeMenu === 'appearance' && (
           <div className="absolute inset-0 bg-black/90 backdrop-blur-md z-[200] flex items-center justify-center p-4" onClick={e=>e.stopPropagation()}>
               <div className="w-full max-w-xs bg-[#c0c0c0] border-2 border-white border-r-black border-b-black p-1 shadow-2xl">
-                  <div className="bg-[#000080] text-white text-[10px] font-bold px-2 py-1 flex justify-between items-center font-mono uppercase tracking-widest">
-                      <span>UPDATE_IDENTITY.EXE</span>
-                      <X size={14} className="cursor-pointer hover:bg-red-600 p-0.5" onClick={() => setActiveMenu('options')} />
-                  </div>
-                  <div className="p-4 bg-black space-y-4">
-                        {error && <div className="text-[8px] text-red-500 font-bold animate-pulse text-center uppercase">{error}</div>}
-                        {identitySection}
-                        <button 
-                            onClick={() => {
-                                if (hasAccess) {
-                                    localStorage.setItem('tbox_color', userColor); 
-                                    localStorage.setItem('tbox_avatar', userAvatar); 
-                                    setActiveMenu(null);
-                                } else {
-                                    setError("BUY $IT TO APPLY CHANGES");
-                                    setTimeout(() => setError(null), 3000);
-                                }
-                            }} 
-                            className={`w-full bg-[#c0c0c0] text-black border-2 border-gray-400 border-l-white border-t-white py-3 font-black text-[10px] tracking-widest uppercase hover:bg-white transition-colors ${!hasAccess ? 'opacity-20 grayscale cursor-not-allowed' : ''}`}
-                        >
-                            Apply Changes
-                        </button>
-                  </div>
+                <div className="bg-[#000080] text-white text-[10px] font-bold px-2 py-1 flex justify-between items-center uppercase italic">
+                    <span>UPDATE_IDENTITY.EXE</span>
+                    <X size={14} className="cursor-pointer hover:bg-red-600 p-0.5" onClick={() => setActiveMenu('options')} />
+                </div>
+                <div className="p-4 bg-black space-y-4">
+                      {identitySection}
+                      <button onClick={() => { if (hasAccess) { localStorage.setItem('tbox_color', userColor); localStorage.setItem('tbox_avatar', userAvatar); setActiveMenu(null); } }} className="w-full bg-[#c0c0c0] text-black border-2 border-gray-400 border-l-white border-t-white py-3 font-black text-[10px] tracking-widest uppercase hover:bg-white transition-colors">Apply Changes</button>
+                </div>
               </div>
           </div>
       )}
 
       <div className="flex-1 relative overflow-hidden m-1 border-t-2 border-l-2 border-zinc-800 bg-transparent flex flex-col w-full">
-        <div className={`absolute inset-0 z-0 pointer-events-none bg-cover bg-center transition-all duration-700 block md:hidden ${isDarkMode ? 'opacity-15 grayscale brightness-[0.25]' : 'opacity-[0.06] grayscale brightness-125'}`} style={{ backgroundImage: `url('chatwall.jpg')` }} />
-        
         <div onClick={() => jumpToMessage('pinned-ca')} className={`sticky top-0 z-[60] w-full px-4 py-1.5 flex items-center justify-between cursor-pointer transition-colors border-b shadow-md backdrop-blur-sm ${isDarkMode ? 'bg-black/60 border-green-900/40 hover:bg-green-950/20' : 'bg-white/80 border-blue-100 hover:bg-blue-50'}`}>
-            <div className="flex items-center gap-1.5 text-[#10b981] font-black text-[7px] uppercase tracking-[0.2em] italic">PINNED MESSAGE:</div>
-            <div className={`text-[7px] font-mono font-bold truncate flex-1 px-4 ${isDarkMode ? 'text-green-500/60' : 'text-blue-900/60'}`}>{CA_ADDRESS}</div>
-            <div onClick={handleCopyCA} className="flex items-center gap-1 text-[7px] font-black opacity-40 hover:opacity-100 transition-opacity">{copiedCA ? <Check size={8} className="text-green-500"/> : <Copy size={8}/>} {copiedCA ? 'COPIED' : 'COPY'}</div>
+            <div className="flex items-center gap-1.5 text-[#10b981] font-black text-[7px] uppercase tracking-[0.2em] italic shrink-0">PINNED:</div>
+            <div className={`text-[7px] font-mono font-bold truncate flex-1 px-4 ${isDarkMode ? 'text-green-500/60' : 'text-blue-900/60'}`}>{typeof CA_ADDRESS !== 'undefined' ? CA_ADDRESS : 'N/A'}</div>
+            <div onClick={(e) => { e.stopPropagation(); handleCopyCA(); }} className="flex items-center gap-1 text-[7px] font-black opacity-40 hover:opacity-100 transition-opacity shrink-0">{copiedCA ? <Check size={8} className="text-green-500"/> : <Copy size={8}/>} {copiedCA ? 'COPIED' : 'COPY'}</div>
         </div>
 
-        <div ref={scrollRef} onScroll={handleOnScroll} className="flex-1 overflow-y-auto overflow-x-hidden p-4 scrollbar-classic space-y-6 scroll-smooth z-10 w-full box-border text-xs relative">
-          <div className="flex flex-col items-center py-6 border-b border-dashed border-zinc-800 mb-8 opacity-40 relative z-10 text-center">
+        <div ref={scrollRef} onScroll={handleOnScroll} className="flex-1 overflow-y-auto overflow-x-hidden p-4 scrollbar-classic space-y-6 scroll-smooth z-10 w-full box-border text-xs relative win-scroll-container">
+          <div className="flex flex-col items-center py-6 border-b border-dashed border-zinc-800 mb-8 opacity-40 text-center">
             <Shield size={20} className={isDarkMode ? 'text-emerald-500' : 'text-blue-900'} />
-            <span className="text-[7px] font-black uppercase tracking-[0.5em] mt-2 italic">Degen_Frequency_Broadcast_Live</span>
+            <span className="text-[7px] font-black uppercase mt-2 italic tracking-[0.5em]">Live_Transmission</span>
           </div>
 
           {combinedMessages.map((msg) => {
             const isMe = msg.uid === user?.uid || msg.user === username;
             const isSystem = msg.user === 'KERNEL_SYSTEM';
             const mColor = isSystem ? '#10b981' : (msg.color || '#3b82f6');
-            const reactions = msg.reactions || { heart: 0, up: 0, down: 0 };
-
             return (
               <div key={msg.id} id={`msg-${msg.id}`} 
                   onContextMenu={(e) => onMsgContextMenu(e, msg)} 
                   onTouchStart={(e) => handleTouchStart(e, msg)} 
-                  onTouchMove={handleTouchMove}
-                  onTouchEnd={handleTouchEnd}
                   onDoubleClick={(e) => { e.preventDefault(); handleReaction(msg.id, 'heart'); }}
                   className={`flex gap-3 animate-in fade-in slide-in-from-bottom-2 duration-300 transition-all max-w-full relative group ${isMe ? 'flex-row-reverse text-right' : 'flex-row'} ${msg.pending ? 'opacity-40 animate-pulse' : ''}`}
               >
@@ -3685,37 +3603,24 @@ const ChatApp = ({ hasAccess, tokenBalance = 0, onRefreshAccess }) => {
                   <img src={msg.avatar || '/pfps/mask.jpg'} alt="" className="w-full h-full object-cover" />
                 </div>
                 <div className={`flex flex-col min-w-0 max-w-[80vw] md:max-w-[70%] ${isMe ? 'items-end' : 'items-start'}`}>
-                  <div className={`flex items-center gap-2 mb-1 px-1 truncate ${isMe ? 'flex-row-reverse' : ''}`}>
-                    {isSystem ? (
-                        <div className="flex items-center gap-1.5 bg-green-950/40 px-2 py-0.5 rounded-sm border border-green-500/30 animate-pulse">
-                            <Crown size={10} className="text-emerald-400" />
-                            <span className="text-[10px] font-black text-emerald-400 tracking-widest drop-shadow-[0_0_5px_#10b981] uppercase px-1">ADMIN</span>
-                        </div>
-                    ) : (
-                        <>
-                            <span className="text-[10px] font-black uppercase tracking-tighter truncate" style={{ color: mColor }}>{String(msg.user)}</span>
-                            <span className="text-[7px] opacity-30">[{new Date(msg._sortTs).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}]</span>
-                        </>
-                    )}
-                  </div>
+                  {/* CLEAN UI: Top meta line removed as requested. Metadata moved to bottom info block. */}
                   <div className={`p-3 relative group transition-all duration-200 shadow-md w-fit max-w-full break-words ${isMe ? style.tileMe : style.tileOther} ${isSystem ? 'cursor-pointer border-emerald-500/50 bg-green-950/10' : ''}`}
-                      style={{ borderLeft: !isMe ? `3px solid ${mColor}` : undefined, borderRight: isMe ? `3px solid ${mColor}` : undefined }}
-                      onClick={isSystem ? handleCopyCA : undefined} >
+                      style={{ borderLeft: !isMe ? `3px solid ${mColor}` : undefined, borderRight: isMe ? `3px solid ${mColor}` : undefined }} >
                     {msg.replyTo && (
-                      <div onClick={(e) => { e.stopPropagation(); jumpToMessage(msg.replyTo.id); }} className="mb-2 p-2 border border-zinc-800 bg-black/40 text-gray-400 text-[9px] italic truncate cursor-pointer">
-                        <span className="font-bold uppercase text-[7px]">{String(msg.replyTo.user)}:</span> {String(msg.replyTo.text)}
-                      </div>
+                      <div onClick={(e) => { e.stopPropagation(); jumpToMessage(msg.replyTo.id); }} className="mb-2 p-2 border border-zinc-800 bg-black/40 text-gray-400 text-[9px] italic truncate cursor-pointer uppercase font-black tracking-tighter">REPLYING TO {msg.replyTo.user}</div>
                     )}
-                    <p className={`text-xs font-bold leading-relaxed break-words whitespace-pre-wrap ${isDarkMode ? 'text-white' : 'text-black'} ${isSystem ? 'text-emerald-400 font-black italic' : ''}`}>{String(msg.text)}</p>
+                    <p className={`text-xs font-black leading-relaxed whitespace-pre-wrap ${isSystem ? 'text-emerald-400 italic' : ''}`}>{String(msg.text)}</p>
+                    
                     {!isSystem && (
                         <div className={`absolute top-0 ${isMe ? '-left-8' : '-right-8'} opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer p-1 hidden md:block`} onClick={(e) => {e.stopPropagation(); startReply(msg)}}>
                             <Reply size={16} className={isDarkMode ? 'text-emerald-500' : 'text-blue-800'} />
                         </div>
                     )}
-                    {(reactions.heart > 0 || reactions.up > 0 || reactions.down > 0) && (
+
+                    {(msg.reactions && Object.values(msg.reactions).some(v => v > 0)) && (
                         <div className={`flex flex-wrap gap-1 mt-2 ${isMe ? 'justify-end' : 'justify-start'}`}>
-                            {Object.entries(reactions).map(([key, count]) => count > 0 && (
-                                <button key={key} onClick={(e) => {e.stopPropagation(); handleReaction(msg.id, key)}} className="flex items-center gap-1.5 px-2 py-0.5 bg-black/60 border border-white/20 rounded-full text-[9px] font-black text-white hover:bg-white/10 transition-all active:scale-110 shadow-lg">
+                            {Object.entries(msg.reactions).map(([key, count]) => count > 0 && (
+                                <button key={key} onClick={(e) => {e.stopPropagation(); handleReaction(msg.id, key)}} className="flex items-center gap-1.5 px-2 py-0.5 bg-black/60 border border-white/20 rounded-full text-[9px] font-black text-white hover:bg-white/10 active:scale-110 shadow-lg">
                                     {key === 'heart' ? '❤️' : key === 'up' ? '👌' : '👎'} 
                                     <span className="text-[8px] font-bold opacity-80">{count}</span>
                                 </button>
@@ -3723,33 +3628,31 @@ const ChatApp = ({ hasAccess, tokenBalance = 0, onRefreshAccess }) => {
                         </div>
                     )}
                   </div>
+                  <div className="flex gap-2 mt-1 px-1 opacity-30 text-[7px] font-black uppercase tracking-tighter">
+                     <span>{String(msg.user)}</span>
+                     <span>[{new Date(msg._sortTs).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}]</span>
+                  </div>
                 </div>
               </div>
             );
           })}
         </div>
-
-        {/* JUMP TO BOTTOM BUTTON */}
+        
         {showScrollArrow && (
-            <button 
-                onClick={scrollToLive}
-                className="absolute bottom-6 right-6 z-[70] p-2 rounded-full bg-emerald-500 text-black shadow-[0_0_15px_#10b981] animate-bounce hover:bg-white transition-all active:scale-90"
-            >
-                <ChevronDown size={20} strokeWidth={3}/>
-            </button>
+            <button onClick={scrollToLive} className="absolute bottom-6 right-6 z-[70] p-2 rounded-full bg-emerald-500 text-black shadow-[0_0_15px_#10b981] animate-bounce hover:bg-white transition-all active:scale-90"><ChevronDown size={20} strokeWidth={3}/></button>
         )}
       </div>
 
       <div className={`p-2 border-t-2 relative z-[100] shrink-0 ${isDarkMode ? 'bg-[#111] border-zinc-900' : 'bg-[#d4d0c8] border-white'}`}>
         {replyingTo && (
-            <div className="absolute -top-10 left-0 find w-full bg-emerald-950 text-emerald-400 p-2 text-[9px] font-black flex items-center justify-between border-t border-emerald-900 animate-in slide-in-from-bottom-1">
-                <div className="flex items-center gap-2 truncate pr-6"><Quote size={10} /><span>TARGETING {String(replyingTo.user)}:</span><span className="opacity-60 italic truncate">"{String(replyingTo.text)}"</span></div>
+            <div className="absolute -top-10 left-0 w-full bg-emerald-950 text-emerald-400 p-2 text-[9px] font-black flex items-center justify-between border-t border-emerald-900 animate-in slide-in-from-bottom-1">
+                <div className="flex items-center gap-2 truncate pr-6"><Quote size={10} /><span>REPLYING TO {String(replyingTo.user)}:</span><span className="opacity-60 italic truncate">"{String(replyingTo.text)}"</span></div>
                 <button onClick={() => setReplyingTo(null)} className="hover:text-white p-1"><X size={14}/></button>
             </div>
         )}
         <form onSubmit={handleSend} className="flex gap-2 h-12 w-full max-w-full overflow-hidden">
           <input ref={inputRef} value={inputText} onChange={(e) => setInputText(e.target.value)} disabled={cooldown > 0} placeholder={cooldown > 0 ? `LINK_THROTTLED: ${cooldown}S` : "Write IT..."}
-            className={`flex-1 min-w-0 h-full border-2 border-zinc-800 border-l-black border-t-black px-4 text-sm font-black outline-none ${style.input} focus:border-emerald-600`}
+            className={`flex-1 min-w-0 h-full border-2 border-zinc-800 border-l-black border-t-black px-4 text-sm font-black outline-none ${style.input} focus:border-emerald-600 shrink-0`}
           />
           <button type="submit" disabled={!inputText.trim() || cooldown > 0} className="w-12 h-12 shrink-0 border-2 flex items-center justify-center bg-[#c0c0c0] border-gray-400 border-l-white border-t-white active:translate-y-1 shadow-md">
             <Send size={20} className={inputText.trim() ? "text-blue-900" : "opacity-30"} />
@@ -3758,32 +3661,32 @@ const ChatApp = ({ hasAccess, tokenBalance = 0, onRefreshAccess }) => {
       </div>
 
       {contextMenu && (
-          <div className="fixed z-[10001] w-48 bg-[#c0c0c0] border-2 border-white border-r-black border-b-black shadow-2xl p-1 font-mono animate-in zoom-in-95 duration-100 text-black flex flex-col"
+          <div className="fixed z-[10001] w-48 bg-[#c0c0c0] border-2 border-white border-r-black border-b-black shadow-2xl p-1 font-mono animate-in zoom-in-95 text-black flex flex-col"
             style={{ left: Math.min(contextMenu.x, window.innerWidth - 200), top: Math.min(contextMenu.y, window.innerHeight - 250) }} onClick={(e) => e.stopPropagation()} >
-              <div className="flex justify-around p-2 bg-black mb-1">
+              <div className="flex justify-around p-2 bg-black mb-1 shrink-0">
                   <button onClick={() => handleReaction(contextMenu.msg.id, 'heart')} className="p-2 hover:bg-white/20 transition-all active:scale-150"><Heart size={20} fill="#ec4899" color="#ec4899" /></button>
                   <button onClick={() => handleReaction(contextMenu.msg.id, 'up')} className="p-2 hover:bg-white/20 transition-all active:scale-150"><ThumbsUp size={20} color="#3b82f6" /></button>
                   <button onClick={() => handleReaction(contextMenu.msg.id, 'down')} className="p-2 hover:bg-white/20 transition-all active:scale-150"><ThumbsDown size={20} color="#ef4444" /></button>
               </div>
               {!contextMenu.msg.isPinned && (
-                <button onClick={() => startReply(contextMenu.msg)} className="w-full text-left px-2 py-2 hover:bg-[#000080] hover:text-white flex items-center gap-2 text-[10px] font-black uppercase border border-transparent hover:border-white transition-all"><Reply size={14}/> Reply IT</button>
+                <button onClick={() => startReply(contextMenu.msg)} className="w-full text-left px-2 py-2 hover:bg-[#000080] hover:text-white flex items-center gap-2 text-[10px] font-black border border-transparent hover:border-white transition-all uppercase tracking-tighter"><Reply size={14}/> Reply IT</button>
               )}
-              <button onClick={() => { setInputText(prev => `@${String(contextMenu.msg.user)} ` + prev); setContextMenu(null); inputRef.current?.focus(); }} className="w-full text-left px-2 py-2 hover:bg-[#000080] hover:text-white flex items-center gap-2 text-[10px] font-black border border-transparent hover:border-white transition-all"><UserCircle size={14}/> Mention IT</button>
+              <button onClick={() => { setInputText(prev => `@${String(contextMenu.msg.user)} ` + prev); setContextMenu(null); inputRef.current?.focus(); }} className="w-full text-left px-2 py-2 hover:bg-[#000080] hover:text-white flex items-center gap-2 text-[10px] font-black border border-transparent hover:border-white transition-all uppercase tracking-tighter"><UserCircle size={14}/> Mention IT</button>
               <div className="h-px bg-gray-500 my-1"></div>
-              <button onClick={() => setContextMenu(null)} className="w-full text-left px-2 py-2 hover:bg-red-700 hover:text-white text-red-800 flex items-center gap-2 text-[10px] font-black border border-transparent hover:border-white uppercase transition-all"><X size={14}/> Abort</button>
+              <button onClick={() => setContextMenu(null)} className="w-full text-left px-2 py-2 hover:bg-red-700 hover:text-white text-red-800 flex items-center gap-2 text-[10px] font-black transition-all uppercase tracking-tighter"><X size={14}/> Abort</button>
           </div>
       )}
 
       <style>{`
-        body { overflow-x: hidden; position: fixed; width: 100%; height: 100%; }
         .scrollbar-classic::-webkit-scrollbar { width: 10px; background: #000; }
-        .scrollbar-classic::-webkit-scrollbar-thumb { background: ${isDarkMode ? '#111' : '#808080'}; border: 1px solid #444; }
+        .scrollbar-classic::-webkit-scrollbar-thumb { background: #111; border: 1px solid #444; }
         @keyframes highlight { 0% { outline: 4px solid #10b981; box-shadow: 0 0 20px #10b981; } 100% { outline: 0px solid transparent; } }
         .msg-highlight { animation: highlight 2s ease-out forwards; }
       `}</style>
     </div>
   );
 };
+
 
 const NotepadApp = () => {
   const [content, setContent] = useState("");
