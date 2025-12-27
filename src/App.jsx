@@ -22,7 +22,7 @@ import {
   Wifi, Hash, Lock, Unlock, Sun, Moon, Database, Radio, Command, Palette, UserCircle,
   ShieldCheck, Shield, Reply, Quote, CornerDownRight, Heart, ThumbsUp, ThumbsDown, Anchor, Crown, Bell, BellOff, ChevronDown,
   ExternalLink, ShoppingCart, Minimize2, Circle, Layers, Eye, EyeOff, Tv, Ghost, Scan, Square as SquareIcon, StickyNote,
-  Shirt, Wind, ZapOff, Fingerprint, Crosshair, Dna, LayoutGrid, ChevronUp
+  Shirt, Wind, ZapOff, Fingerprint, Crosshair, Dna, LayoutGrid, ChevronUp, Beer, Coffee, Pizza, Gift
 } from 'lucide-react';
 
 // --- CONFIGURATION ---
@@ -4461,114 +4461,88 @@ const MergeItApp = () => {
 const UNLIMITED_THRESHOLD = 3000000; 
 const DAILY_LIMIT = 5;
 const APP_ID = typeof __app_id !== 'undefined' ? __app_id : 'it-forge-cult';
+const BASE_CHARACTER_PATH = "main.jpg";
 
-// --- ASSETS ---
-const BASE_CHARACTER = "main.jpg";
-
-// --- EXPANDED TRAIT LIBRARY ---
+// --- MEME TRAIT LIBRARY (The "Stupid" Gear) ---
 const PFP_CATEGORIES = [
   { id: 'bg', label: 'WORLD', icon: Globe },
-  { id: 'outfit', label: 'GEAR', icon: Shirt },
-  { id: 'eyes', label: 'SPECS', icon: Eye },
-  { id: 'mask', label: 'COVER', icon: Ghost },
-  { id: 'head', label: 'CAP', icon: Terminal },
-  { id: 'aura', label: 'AURA', icon: Layers },
-  { id: 'vibe', label: 'MOOD', icon: Activity },
+  { id: 'outfit', label: 'FIT', icon: Shirt },
+  { id: 'eyes', label: 'EYES', icon: Eye },
+  { id: 'face', label: 'FACE', icon: Ghost },
+  { id: 'head', label: 'HAT', icon: Terminal },
+  { id: 'item', label: 'HELD', icon: Gift },
 ];
 
 const PFP_TRAITS = {
   bg: [
-    { id: 'neon', label: 'Neon Alley', prompt: 'in a glowing purple and teal cyberpunk alleyway' },
-    { id: 'matrix', label: 'Data Stream', prompt: 'surrounded by falling green matrix code' },
-    { id: 'chart', label: 'God Candle', prompt: 'in front of a massive green candle trading chart' },
-    { id: 'moon', label: 'Lunar Base', prompt: 'on a high-tech moon base looking at Earth' },
-    { id: 'rain', label: 'Acid Rain', prompt: 'in a rainy, dark industrial city with flickering signs' },
-    { id: 'server', label: 'Mainframe', prompt: 'inside a high-density server room with glowing blue wires' },
-    { id: 'void', label: 'The Void', prompt: 'in a dark minimalist abyss with neon highlights' },
-    { id: 'sunset', label: 'Synthwave Sun', prompt: 'against a massive retro-grid 80s sunset' },
+    { id: 'mcdonalds', label: 'Fast Food Job', prompt: 'standing inside a dirty 24-hour fast food joint' },
+    { id: 'basement', label: 'Moms Basement', prompt: 'in a dark messy basement with neon computer fans' },
+    { id: 'moon', label: 'Moon Landing', prompt: 'on the lunar surface but it looks like a fake movie set' },
+    { id: 'fire', label: 'Fine Room', prompt: 'inside a room that is completely on fire but he looks calm' },
+    { id: 'green', label: 'God Candle', prompt: 'in front of a massive vertical green trading chart candle' },
+    { id: 'trash', label: 'Garbage Can', prompt: 'sitting inside a giant dumpster filled with trash' },
   ],
   outfit: [
-    { id: 'detective', label: 'Noir Trench', prompt: 'wearing a classic noir detective trench coat' },
-    { id: 'hoodie_black', label: 'Tech Hoodie (Black)', prompt: 'wearing a black oversized techwear hoodie' },
-    { id: 'hoodie_white', label: 'Tech Hoodie (White)', prompt: 'wearing a crisp white oversized techwear hoodie' },
-    { id: 'suit_80s', label: 'Sharp Suit', prompt: 'wearing a crisp 80s business suit with narrow tie' },
-    { id: 'armor_heavy', label: 'Exo-Plate', prompt: 'wearing heavy glowing mechanical plated body armor' },
-    { id: 'robe_cyber', label: 'Cultist Robe', prompt: 'wearing a flowing high-tech digital monk robe' },
-    { id: 'tactical', label: 'Combat Vest', prompt: 'wearing a utility tactical combat vest' },
-    { id: 'kimono', label: 'Cyber Kimono', prompt: 'wearing a neon-lined futuristic silk kimono' },
-    { id: 'hawaiian', label: 'Degen Shirt', prompt: 'wearing a colorful glitchy hawaiian shirt' },
-    { id: 'leather', label: 'Biker Leather', prompt: 'wearing a studded black leather jacket with neon patches' },
+    { id: 'hoodie', label: 'Oversized Hoodie', prompt: 'wearing a dirty oversized grey hoodie' },
+    { id: 'suit', label: 'Cheap Suit', prompt: 'wearing a shiny, poorly fitted 80s business suit' },
+    { id: 'pajamas', label: 'Dino Onesie', prompt: 'wearing a bright green dinosaur pajama onesie' },
+    { id: 'tank', label: 'Wife Beater', prompt: 'wearing a stained white tank top' },
+    { id: 'tutu', label: 'Pink Tutu', prompt: 'wearing a frilly pink ballerina tutu' },
+    { id: 'naked', label: 'Just Fur', prompt: 'not wearing any clothes' },
   ],
   eyes: [
-    { id: 'none', label: 'Clean', prompt: 'no eyewear' },
-    { id: 'noir', label: 'Noir Shades', prompt: 'wearing dark black classic sunglasses' },
-    { id: 'visor', label: 'HUD Visor', prompt: 'wearing a glowing tactical data visor' },
-    { id: 'monocle', label: 'Elite Lens', prompt: 'wearing a glowing digital monocle' },
-    { id: 'aviators', label: 'Degen Pilots', prompt: 'wearing gold rimmed aviator sunglasses' },
-    { id: 'red_glow', label: 'Cyber Sockets', prompt: 'with glowing red robotic eyes' },
-    { id: 'laser', label: 'Laser Eyes', prompt: 'with intense red laser beams shooting from eyes', vip: true },
-    { id: 'third_eye', label: 'Third Eye', prompt: 'with a glowing vertical eye in the center of the forehead', vip: true },
+    { id: 'none', label: 'Normal', prompt: 'with his normal character eyes' },
+    { id: 'googly', label: 'Googly Eyes', prompt: 'with giant plastic googly eyes stuck on his face' },
+    { id: 'deal', label: 'Deal With It', prompt: 'wearing 8-bit black pixel sunglasses' },
+    { id: 'money', label: 'Dollar Signs', prompt: 'with golden dollar signs spinning in his eyes', vip: true },
+    { id: 'crying', label: 'Crying Meme', prompt: 'with giant anime-style waterfalls of tears' },
   ],
-  mask: [
-    { id: 'none', label: 'No Mask', prompt: 'no face cover' },
-    { id: 'gas', label: 'Gas Mask', prompt: 'wearing a futuristic industrial gas mask' },
-    { id: 'kabuki', label: 'Oni Mask', prompt: 'wearing a cybernetic japanese oni demon mask' },
-    { id: 'bandana', label: 'Bandit Rail', prompt: 'wearing a silk bandana over the lower face' },
-    { id: 'respirator', label: 'Breather', prompt: 'wearing a sleek dual-filter respirator' },
-    { id: 'scarf', label: 'Cyber Scarf', prompt: 'with a high collar technical fabric scarf' },
-    { id: 'digital', label: 'Data Veil', prompt: 'lower face obscured by a glowing data mesh', vip: true },
+  face: [
+    { id: 'none', label: 'Clean', prompt: 'no facial items' },
+    { id: 'clown', label: 'Clown Nose', prompt: 'wearing a round red foam clown nose' },
+    { id: 'drool', label: 'Heavy Drool', prompt: 'with a single long drop of drool coming from his mouth' },
+    { id: 'pacifier', label: 'Baby Binky', prompt: 'with a blue plastic baby pacifier in his mouth' },
+    { id: 'gold', label: 'Gold Tooth', prompt: 'with a single shiny gold front tooth' },
+    { id: 'mask_derp', label: 'Derp Smile', prompt: 'with a very wide, stupid-looking hand-drawn grin on his mask', vip: true },
   ],
   head: [
-    { id: 'none', label: 'No Cap', prompt: 'no headgear' },
-    { id: 'fedora', label: 'Detective', prompt: 'wearing a classic wide-brimmed fedora' },
-    { id: 'beanie', label: 'Hacker Hat', prompt: 'wearing a snug black digital beanie' },
-    { id: 'horns', label: 'Cyber Horns', prompt: 'with glowing mechanical horns' },
-    { id: 'halo', label: 'Digital Halo', prompt: 'with a floating ring of golden light above the head' },
-    { id: 'headset', label: 'Comm-Link', prompt: 'wearing a large tactical communication headset' },
-    { id: 'crown', label: 'IT Crown', prompt: 'wearing a jagged crown of gold silicon chips', vip: true },
+    { id: 'none', label: 'Bald', prompt: 'no headgear' },
+    { id: 'propeller', label: 'Propeller Hat', prompt: 'wearing a colorful beanie with a spinning propeller on top' },
+    { id: 'cone', label: 'Traffic Cone', prompt: 'wearing an orange traffic cone as a hat' },
+    { id: 'foil', label: 'Tin Foil Hat', prompt: 'wearing a crinkled tin foil hat to block signals' },
+    { id: 'bucket', label: 'KFC Bucket', prompt: 'wearing a fried chicken bucket on his head' },
+    { id: 'crown', label: 'Burger King', prompt: 'wearing a cheap paper cardboard crown', vip: true },
   ],
-  aura: [
-    { id: 'none', label: 'Stable', prompt: 'no atmospheric effects' },
-    { id: 'glitch', label: 'Phase Shift', prompt: 'with digital glitch artifacts and double exposure effects' },
-    { id: 'smoke', label: 'Cyber Smoke', prompt: 'surrounded by thick neon-lit vapor' },
-    { id: 'sparks', label: 'Energy Arc', prompt: 'with electrical sparks jumping around the body' },
-    { id: 'fire', label: 'Inferno', prompt: 'surrounded by stylzed blue spirit flames' },
-    { id: 'wind', label: 'Digital Wind', prompt: 'with data particles swirling around', vip: true },
-  ],
-  vibe: [
-    { id: 'stoic', label: 'Stoic', prompt: 'with a calm focused expression' },
-    { id: 'grin', label: 'Bullish', prompt: 'with a confident mischievous grin' },
-    { id: 'smirk', label: 'Smirking', prompt: 'with a cynical detective smirk' },
-    { id: 'pipe', label: 'Pipe Hit', prompt: 'smoking a futuristic digital glowing pipe' },
-    { id: 'serious', label: 'Shadowed', prompt: 'eyes hidden in heavy cinematic shadow' },
+  item: [
+    { id: 'none', label: 'Empty Hands', prompt: 'holding nothing' },
+    { id: 'chicken', label: 'Tendies', prompt: 'holding a greasy plate of chicken nuggets' },
+    { id: 'ledger', label: 'Ledger', prompt: 'holding a hardware wallet that is clearly broken' },
+    { id: 'bag', label: 'Heavy Bag', prompt: 'clutching a giant sack with a giant $ symbol on it' },
+    { id: 'pizza', label: 'Pizza Slice', prompt: 'holding a slice of pepperoni pizza with stringy cheese' },
   ]
 };
 
 
 const ForgeItApp = () => {
   const [user, setUser] = useState(null);
-  const [tokenBalance, setTokenBalance] = useState(0);
   const [hasAccess, setHasAccess] = useState(false);
   const [dailyCount, setDailyCount] = useState(0);
   const [showMobileBlueprint, setShowMobileBlueprint] = useState(false);
   
-  const apiKey = "AIzaSyC-6mPR5HK6uxWHRWaTldIO0-HRaMjWN6I"; 
+  const apiKey = "AIzaSyC-6mPR5HK6uxWHRWaTldIO0-HRaMjWN6I"; // Set your AI Studio key here
 
-  // Forge State
   const [selections, setSelections] = useState({
     bg: PFP_TRAITS.bg[0], outfit: PFP_TRAITS.outfit[0], eyes: PFP_TRAITS.eyes[0],
-    mask: PFP_TRAITS.mask[0], head: PFP_TRAITS.head[0], aura: PFP_TRAITS.aura[0], vibe: PFP_TRAITS.vibe[0],
+    face: PFP_TRAITS.face[0], head: PFP_TRAITS.head[0], item: PFP_TRAITS.item[0],
   });
+  
   const [activeCat, setActiveCat] = useState('bg');
   const [generatedImg, setGeneratedImg] = useState(null);
   const [isForging, setIsForging] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [logs, setLogs] = useState(["NEURAL_LINK_ESTABLISHED", "WAITING_FOR_TRAIT_SIGNAL...", "MATRIX_RESERVES_STANDBY"]);
+  const [logs, setLogs] = useState(["SYSTEM_READY", "CULT_VIBES_CALIBRATED..."]);
   const [error, setError] = useState(null);
-  const [lore, setLore] = useState(null);
-  const [isWritingLore, setIsWritingLore] = useState(false);
 
-  // --- AUTH & SYNC ---
   useEffect(() => {
     const initAuth = async () => {
       if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
@@ -4583,307 +4557,213 @@ const ForgeItApp = () => {
   }, []);
 
   useEffect(() => {
-    const handleKernelSync = (e) => {
-      const { balance } = e.detail;
-      setTokenBalance(balance);
-      setHasAccess(balance >= UNLIMITED_THRESHOLD);
-    };
+    const handleKernelSync = (e) => setHasAccess(e.detail.balance >= UNLIMITED_THRESHOLD);
     window.addEventListener('IT_OS_BALANCE_UPDATE', handleKernelSync);
     return () => window.removeEventListener('IT_OS_BALANCE_UPDATE', handleKernelSync);
   }, []);
 
-  // --- FIRESTORE USAGE ---
   useEffect(() => {
     if (!user) return;
     const today = new Date().toISOString().split('T')[0];
     const usageRef = doc(db, 'artifacts', APP_ID, 'users', user.uid, 'usage', 'forge_limits');
-    const unsubUsage = onSnapshot(usageRef, (snap) => {
+    const unsub = onSnapshot(usageRef, (snap) => {
       if (snap.exists()) {
         const data = snap.data();
         if (data.lastDate === today) setDailyCount(data.count);
         else setDailyCount(0);
       }
-    }, (err) => console.error(err));
-    return () => unsubUsage();
+    });
+    return () => unsub();
   }, [user]);
 
-  const addLog = (msg) => setLogs(prev => [msg, ...prev].slice(0, 5));
+  const addLog = (msg) => setLogs(prev => [msg, ...prev].slice(0, 4));
 
-  // --- FORGE LOGIC ---
+  // Helper to convert main.jpg to base64 so Gemini can "see" it
+  const getBaseCharacter64 = async () => {
+    try {
+      const response = await fetch(BASE_CHARACTER_PATH);
+      const blob = await response.blob();
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result.split(',')[1]);
+        reader.readAsDataURL(blob);
+      });
+    } catch (e) {
+      console.error("Failed to load local asset main.jpg", e);
+      return null;
+    }
+  };
+
   const handleForge = async () => {
     if (isForging) return;
     if (!hasAccess && dailyCount >= DAILY_LIMIT) {
-      setError("DAILY_LIMIT_REACHED: Hold 3M $IT for unlimited forges.");
+      setError("DAILY_LIMIT_REACHED: Hold 3M $IT for unlimited stupid PFPs.");
       return;
     }
 
-    setIsForging(true);
-    setGeneratedImg(null);
-    setLore(null);
-    setProgress(0);
-    setLogs(["INIT_NEURAL_CONSTRUCTION...", "EXTRACTING_GEAR_VECTORS...", "LOCKING_SUBJECT_BODY_MODEL"]);
+    setIsForging(true); setGeneratedImg(null); setProgress(0);
+    setLogs(["UPLOADING_CHARACTER_BLUEPRINT...", "LOCKING_CORE_SHAPE...", "APPLYING_DUMB_ITEMS..."]);
 
-    const progTimer = setInterval(() => {
-      setProgress(prev => {
-        if (prev < 20) addLog("INTERPRETING_CYBER_TRAITS...");
-        if (prev > 40 && prev < 45) addLog("CALIBRATING_PROPORTIONS...");
-        if (prev > 70 && prev < 75) addLog("ASSEMBLING_PIXELS_IN_VOID...");
-        return prev < 95 ? prev + Math.random() * 8 : prev;
-      });
-    }, 600);
+    const progTimer = setInterval(() => setProgress(p => p < 95 ? p + Math.random() * 5 : p), 600);
 
     try {
-      const traitList = Object.values(selections).map(s => s.prompt).join(', ');
-      // Detailed Prompt Logic to preserve main character pose
-      const masterPrompt = `A high-quality 90s retro anime style profile picture. THE SUBJECT: Use the exact cybernetic cat character from the source image. DO NOT change his pose, facial structure, or body shape. KEEP the thick ink outlines and flat vibrant cel-shading style. CHANGES: Add/Layer these specific modifications: ${traitList}. Render as a cinematic headshot with clean professional character sheet aesthetics.`;
+      const base64Image = await getBaseCharacter64();
+      if (!base64Image) throw new Error("IMAGE_NOT_LOADED");
 
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict?key=${apiKey}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ instances: { prompt: masterPrompt }, parameters: { sampleCount: 1 } })
-      });
+      const traitString = Object.values(selections).map(s => s.prompt).join(', ');
+      
+      // Image-to-Image Prompt: Extremely strict instructions
+      const promptText = `
+        This is the base character. 
+        DO NOT change his body shape, DO NOT change his pose, DO NOT change his facial structure.
+        Keep the 90s retro anime ink-and-flat-color style EXACTLY the same.
+        ONLY add the following meme items onto him: ${traitString}.
+        If a trait says "Moms Basement", change the background. 
+        If a trait says "Propeller Hat", put it on his head.
+        Make it look intentional and funny, but KEEP THE CHARACTER IDENTICAL.
+      `;
 
-      const result = await response.json();
-      if (result.predictions?.[0]?.bytesBase64Encoded) {
-        setGeneratedImg(`data:image/png;base64,${result.predictions[0].bytesBase64Encoded}`);
-        setProgress(100);
-        addLog("MATERIALIZATION_COMPLETE.");
-        
-        if (!hasAccess) {
-          const today = new Date().toISOString().split('T')[0];
-          const usageRef = doc(db, 'artifacts', APP_ID, 'users', user.uid, 'usage', 'forge_limits');
-          await setDoc(usageRef, { count: dailyCount + 1, lastDate: today }, { merge: true });
-        }
-      } else { throw new Error("EMPTY_BUFFER"); }
-    } catch (err) {
-      setError("FORGE_FAILURE: Connection lost.");
-      addLog("ERROR: BUFFER_OVERFLOW");
-    } finally {
-      clearInterval(progTimer);
-      setIsForging(false);
-    }
-  };
-
-  const generateLore = async () => {
-    if (isWritingLore || !generatedImg) return;
-    setIsWritingLore(true);
-    addLog("DECRYPTING_BIOMETRIC_DATA...");
-    try {
-      const traitString = Object.values(selections).map(s => s.label).join(', ');
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+      // Using gemini-2.5-flash-image-preview for Image-to-Image
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image-preview:generateContent?key=${apiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: `Generate a 2-sentence mysterious dossier for a character with traits: ${traitString}. Use gritty tech-noir language.` }] }]
+          contents: [{
+            parts: [
+              { text: promptText },
+              { inlineData: { mimeType: "image/png", data: base64Image } }
+            ]
+          }],
+          generationConfig: { responseModalities: ["TEXT", "IMAGE"] }
         })
       });
-      const data = await response.json();
-      const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-      setLore(text || "DATA_CORRUPT");
-      addLog("DOSSIER_DECRYPTED.");
-    } catch (e) { 
-      console.error(e); 
-      setError("LORE_FAILURE: Neural link interrupted.");
+
+      const result = await response.json();
+      const base64Result = result.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
+
+      if (base64Result) {
+        setGeneratedImg(`data:image/png;base64,${base64Result}`);
+        setProgress(100); addLog("FORGE_STUPID_SUCCESS.");
+        if (!hasAccess) {
+          const today = new Date().toISOString().split('T')[0];
+          await setDoc(doc(db, 'artifacts', APP_ID, 'users', user.uid, 'usage', 'forge_limits'), { count: dailyCount + 1, lastDate: today }, { merge: true });
+        }
+      } else { throw new Error("AI_COULDNT_RENDER"); }
+    } catch (err) {
+      setError("AI_LINK_FAILED: Ensure API key is valid and image-to-image is supported.");
+      addLog("ERROR: CULT_REJECTED_INPUT");
+    } finally {
+      clearInterval(progTimer); setIsForging(false);
     }
-    finally { setIsWritingLore(false); }
   };
 
   const downloadPFP = () => {
-    if (!generatedImg) return;
     const link = document.createElement('a');
     link.href = generatedImg;
-    link.download = `IT_CULT_ID_${Date.now()}.png`;
+    link.download = `CULT_ID_${Date.now()}.png`;
     link.click();
   };
 
   return (
-    <div className="flex flex-col h-full bg-[#050505] text-zinc-300 font-mono overflow-hidden selection:bg-emerald-500 selection:text-black relative">
-      {/* CRT SCANLINE OVERLAY */}
+    <div className="flex flex-col h-full bg-[#050505] text-zinc-300 font-mono overflow-hidden relative">
+      {/* CRT SCANLINE */}
       <div className="absolute inset-0 pointer-events-none opacity-[0.03] bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,252,0.06))] bg-[length:100%_2px,3px_100%] z-[100]" />
 
-      {/* HUD HEADER */}
-      <header className="h-12 md:h-16 border-b border-emerald-900/40 bg-black flex items-center justify-between px-4 md:px-6 shrink-0 z-[70]">
-        <div className="flex items-center gap-3">
-          <div className="p-1.5 md:p-2 border border-emerald-500/40 rounded-sm bg-black relative">
-             <div className="absolute inset-0 bg-emerald-500/10 blur-md animate-pulse" />
-             <Cpu size={18} className="text-emerald-400 relative z-10" />
-          </div>
+      <header className="h-12 border-b border-emerald-900/40 bg-black flex items-center justify-between px-4 shrink-0 z-[70]">
+        <div className="flex items-center gap-2">
+          <div className="p-1 border border-emerald-500/40 rounded-sm bg-black relative"><Cpu size={14} className="text-emerald-400" /></div>
           <div className="flex flex-col">
-            <h1 className="text-[10px] md:text-xs font-black uppercase tracking-[0.3em] text-white italic leading-none">Forge IT Cult</h1>
-            <span className="text-[6px] md:text-[8px] text-zinc-500 font-bold uppercase mt-1 tracking-tighter">Art_Materializer_v3.5.2</span>
+            <h1 className="text-[9px] font-black uppercase tracking-[0.3em] text-white italic leading-none">Forge_It_Cult</h1>
+            <span className="text-[6px] text-zinc-500 font-bold uppercase mt-1">Meme_Factory_v4.0</span>
           </div>
         </div>
-        <div className={`flex items-center gap-2 px-3 py-1.5 border rounded-sm transition-all ${hasAccess ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.1)]' : 'border-yellow-600/40 bg-yellow-600/10 text-yellow-600'}`}>
-          <div className="flex flex-col items-end">
-            <span className="text-[8px] md:text-[10px] font-black uppercase tracking-tighter leading-none">{hasAccess ? 'VIP_ARCHITECT' : 'LIMITED_MODE'}</span>
-            {!hasAccess && <span className="text-[6px] md:text-[7px] font-bold opacity-60 mt-0.5 tracking-widest uppercase">FORGES: {DAILY_LIMIT - dailyCount}</span>}
-          </div>
-          {hasAccess ? <Crown size={14} className="animate-pulse text-yellow-400" /> : <Lock size={12} className="opacity-50" />}
+        <div className={`px-2 py-1 border rounded-sm text-[8px] font-black uppercase ${hasAccess ? 'border-emerald-500/40 text-emerald-400' : 'border-yellow-600/40 text-yellow-600'}`}>
+          {hasAccess ? 'CULT_ELITE' : `FORGES: ${DAILY_LIMIT - dailyCount}`}
         </div>
       </header>
 
       <main className="flex-1 flex flex-col md:flex-row min-h-0 relative">
         
-        {/* MOBILE SOURCE MONITOR (Sticky Small Bar) - Only visible when not result/forging */}
+        {/* MOBILE MONITOR BAR */}
         {!isForging && !generatedImg && (
-          <div 
-            onClick={() => setShowMobileBlueprint(!showMobileBlueprint)}
-            className="md:hidden flex items-center justify-between px-4 py-2.5 bg-black border-b border-emerald-900/30 cursor-pointer hover:bg-zinc-900 transition-colors shrink-0 z-30"
-          >
+          <div onClick={() => setShowMobileBlueprint(!showMobileBlueprint)} className="md:hidden flex items-center justify-between px-4 py-2 bg-black border-b border-emerald-900/30 cursor-pointer shrink-0 z-30">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-sm overflow-hidden border border-emerald-500/40 relative">
-                <img src={BASE_CHARACTER} className="w-full h-full object-cover grayscale opacity-60" />
-                <div className="absolute inset-0 bg-emerald-500/10 animate-pulse" />
-              </div>
-              <div className="flex flex-col">
-                <span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest">Source_Identity</span>
-                <div className="flex items-center gap-1 mt-1">
-                   <div className="w-1 h-1 bg-green-500 rounded-full animate-ping" />
-                   <span className="text-[7px] text-zinc-500 uppercase font-bold tracking-tighter">BIO_SIGNAL_LOCK: STABLE</span>
-                </div>
-              </div>
+              <div className="w-8 h-8 rounded-sm overflow-hidden border border-emerald-500/40"><img src={BASE_CHARACTER_PATH} className="w-full h-full object-cover grayscale opacity-60" /></div>
+              <span className="text-[8px] font-black text-emerald-500 uppercase tracking-widest">Base_Character_Lock</span>
             </div>
-            {showMobileBlueprint ? <ChevronUp size={16} className="text-emerald-500" /> : <ChevronDown size={16} className="text-zinc-600" />}
+            {showMobileBlueprint ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
           </div>
         )}
 
-        {/* MOBILE COLLAPSIBLE BLUEPRINT */}
         {showMobileBlueprint && !isForging && !generatedImg && (
-          <div className="md:hidden h-[200px] w-full relative overflow-hidden bg-black border-b border-emerald-900/50 animate-in slide-in-from-top-4 duration-500 shrink-0 z-20">
-             <img src={BASE_CHARACTER} className="w-full h-full object-cover grayscale opacity-40" />
-             <div className="absolute inset-x-0 top-0 h-[2px] bg-emerald-500/40 shadow-[0_0_20px_#10b981] animate-[blueprint-scan_3s_linear_infinite]" />
-             <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_center,rgba(16,185,129,0.1)_0%,transparent_80%)]" />
-             <div className="absolute top-2 left-2 px-2 py-0.5 bg-black/80 border border-emerald-500/20 text-[6px] font-black text-emerald-500 uppercase tracking-widest">Live_Blueprint_Sync</div>
+          <div className="md:hidden h-[150px] w-full relative overflow-hidden bg-black border-b border-emerald-900/50 shrink-0 z-20">
+             <img src={BASE_CHARACTER_PATH} className="w-full h-full object-cover grayscale opacity-40" />
+             <div className="absolute inset-x-0 top-0 h-[1px] bg-emerald-500/40 animate-[blueprint-scan_3s_linear_infinite]" />
           </div>
         )}
 
-        {/* LEFT / TOP: GEAR MATRIX (THE DECORATION WINDOW) */}
+        {/* GEAR MATRIX */}
         <div className="flex-1 flex flex-col border-r border-emerald-900/20 bg-[#080808] relative min-h-0">
-          
-          {/* CATEGORY TABS */}
-          <div className="flex md:grid md:grid-cols-7 border-b border-emerald-900/30 shrink-0 overflow-x-auto no-scrollbar bg-black/60 backdrop-blur-md sticky top-0 z-40">
+          <div className="flex md:grid md:grid-cols-6 border-b border-emerald-900/30 shrink-0 overflow-x-auto no-scrollbar bg-black/60">
             {PFP_CATEGORIES.map(cat => (
-              <button
-                key={cat.id}
-                onClick={() => setActiveCat(cat.id)}
-                className={`p-3 md:p-5 min-w-[75px] flex-1 flex flex-col items-center gap-1.5 md:gap-2 transition-all relative group ${activeCat === cat.id ? 'bg-emerald-500/10 text-emerald-400' : 'text-zinc-600 hover:text-zinc-400'}`}
-              >
-                <cat.icon size={18} className={`transition-transform duration-300 ${activeCat === cat.id ? 'scale-110' : 'group-hover:scale-105'}`} />
-                <span className="text-[6px] md:text-[8px] font-black uppercase tracking-[0.2em] text-center leading-none">{cat.label}</span>
-                {activeCat === cat.id && <div className="absolute bottom-0 inset-x-0 h-1 bg-emerald-500 shadow-[0_0_15px_#10b981]" />}
+              <button key={cat.id} onClick={() => setActiveCat(cat.id)} className={`p-3 min-w-[65px] flex-1 flex flex-col items-center gap-1 transition-all relative ${activeCat === cat.id ? 'bg-emerald-500/10 text-emerald-400' : 'text-zinc-600'}`}>
+                <cat.icon size={16} />
+                <span className="text-[6px] font-black uppercase tracking-widest">{cat.label}</span>
+                {activeCat === cat.id && <div className="absolute bottom-0 inset-x-0 h-1 bg-emerald-500" />}
               </button>
             ))}
           </div>
 
-          {/* TRAIT LIST - Expansive Scroll Area */}
-          <div className="flex-1 overflow-y-auto p-3 md:p-5 space-y-2 custom-scrollbar bg-[#050505] relative">
-            <div className="flex items-center gap-2 mb-4 opacity-40">
-              <Terminal size={12} className="text-emerald-500" />
-              <span className="text-[8px] font-black uppercase tracking-widest leading-none">Configuring_{activeCat.toUpperCase()}_Matrix...</span>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 md:gap-2.5 pb-[90px] md:pb-0">
+          <div className="flex-1 overflow-y-auto p-3 space-y-1.5 custom-scrollbar bg-[#050505]">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5 pb-20 md:pb-0">
               {PFP_TRAITS[activeCat].map(trait => {
                 const isLocked = trait.vip && !hasAccess;
                 const isSelected = selections[activeCat].id === trait.id;
                 return (
-                  <button
-                    key={trait.id}
-                    disabled={isLocked}
-                    onClick={() => setSelections(prev => ({ ...prev, [activeCat]: trait }))}
-                    className={`group px-4 py-4 md:py-5 border rounded-sm text-left transition-all flex items-center justify-between relative overflow-hidden active:scale-95 ${
-                      isSelected 
-                        ? 'bg-emerald-500/15 border-emerald-500 text-emerald-300 shadow-[inset_0_0_20px_rgba(16,185,129,0.1)]' 
-                        : 'bg-white/5 border-white/5 text-zinc-600 hover:border-white/20 hover:text-zinc-200'
-                    } ${isLocked ? 'opacity-20 grayscale cursor-not-allowed border-dashed' : ''}`}
-                  >
-                    <div className="flex flex-col relative z-10">
-                      <span className="text-[10px] md:text-[11px] font-black uppercase tracking-tighter leading-none">{trait.label}</span>
-                      <span className="text-[6px] md:text-[8px] opacity-40 uppercase truncate max-w-[150px] md:max-w-[200px] mt-1.5 tracking-tighter">{trait.prompt}</span>
+                  <button key={trait.id} disabled={isLocked} onClick={() => setSelections(prev => ({ ...prev, [activeCat]: trait }))}
+                    className={`group px-3 py-4 border rounded-sm text-left transition-all flex items-center justify-between relative overflow-hidden active:scale-[0.98] ${
+                      isSelected ? 'bg-emerald-500/10 border-emerald-500 text-emerald-300' : 'bg-white/5 border-white/5 text-zinc-600'
+                    } ${isLocked ? 'opacity-20 grayscale cursor-not-allowed' : ''}`}>
+                    <div className="flex flex-col">
+                      <span className="text-[10px] font-black uppercase tracking-tighter leading-none">{trait.label}</span>
+                      <span className="text-[7px] opacity-40 uppercase truncate max-w-[140px] mt-1.5">{trait.prompt}</span>
                     </div>
-                    
-                    <div className="relative z-10">
-                      {isSelected ? (
-                        <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full shadow-[0_0_10px_#10b981] animate-pulse" />
-                      ) : isLocked ? (
-                        <Lock size={12} className="text-yellow-600/50" />
-                      ) : trait.vip ? (
-                        <Crown size={12} className="text-yellow-400/30 group-hover:text-yellow-400 transition-colors" />
-                      ) : null}
-                    </div>
-
-                    <div className="absolute inset-0 bg-white/5 translate-x-[-100%] group-hover:translate-x-0 transition-transform duration-500 pointer-events-none" />
+                    {isSelected && <div className="w-1 h-1 bg-emerald-400 rounded-full" />}
+                    {isLocked && <Lock size={10} />}
                   </button>
                 );
               })}
             </div>
           </div>
 
-          {/* FORGE BUTTON */}
-          <div className="p-3 md:p-6 bg-black border-t border-emerald-900/40 shrink-0 md:relative fixed bottom-0 left-0 right-0 z-50 backdrop-blur-md">
-            <button
-              onClick={handleForge}
-              disabled={isForging}
-              className={`w-full py-4 md:py-6 font-black italic text-base md:text-xl tracking-[0.4em] transition-all relative overflow-hidden group border-b-2 md:border-b-8 active:translate-y-1 active:border-b-0 ${
-                isForging 
-                  ? 'bg-zinc-900 text-zinc-700 border-zinc-800' 
-                  : 'bg-emerald-500 text-black hover:bg-emerald-400 border-emerald-700 shadow-[0_0_40px_rgba(16,185,129,0.3)]'
-              }`}
-            >
+          <div className="p-2 md:p-4 bg-black border-t border-emerald-900/40 shrink-0 md:relative fixed bottom-0 left-0 right-0 z-50 backdrop-blur-md">
+            <button onClick={handleForge} disabled={isForging}
+              className={`w-full py-4 font-black italic text-lg tracking-[0.3em] transition-all relative overflow-hidden group border-b-4 ${
+                isForging ? 'bg-zinc-900 text-zinc-700' : 'bg-emerald-500 text-black hover:bg-emerald-400 border-emerald-700 shadow-[0_0_30px_rgba(16,185,129,0.2)]'
+              }`}>
               <span className="relative z-10 flex items-center justify-center gap-3">
                 {isForging ? <RefreshCw className="animate-spin" size={20}/> : <Zap size={20} />}
-                {isForging ? 'MATERIALIZING...' : 'FORGE IT'}
+                {isForging ? 'FORGING...' : 'FORGE IT'}
               </span>
-              {!isForging && <div className="absolute top-0 -left-full w-full h-full bg-white/20 -skew-x-12 group-hover:left-full transition-all duration-1000 pointer-events-none" />}
             </button>
           </div>
         </div>
 
-        {/* RIGHT: BLUEPRINT (Desktop) & CHAMBER VIEWPORT */}
-        {/* On mobile, this container now hides unless forging or image exists, effectively taking over the screen when needed */}
-        <div className={`
-          w-full md:w-[400px] lg:w-[480px] bg-[#020202] flex flex-col border-l border-emerald-900/30 shrink-0 min-h-0
-          ${(isForging || generatedImg) ? 'fixed inset-0 z-[60] md:relative md:inset-auto md:z-0' : 'hidden md:flex'}
-        `}>
+        {/* NEURAL CHAMBER (Floating Result) */}
+        <div className={`w-full md:w-[350px] lg:w-[400px] bg-black flex flex-col border-l border-emerald-900/30 shrink-0 min-h-0
+          ${(isForging || generatedImg) ? 'fixed inset-0 z-[60] md:relative md:inset-auto md:z-0' : 'hidden md:flex'}`}>
           
-          {/* SOURCE BLUEPRINT (Desktop View) */}
-          <div className="hidden md:block h-[200px] relative overflow-hidden bg-black border-b border-emerald-900/40 group shrink-0">
-             <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(16,185,129,0.08)_0%,transparent_70%)] animate-pulse" />
-             <img src={BASE_CHARACTER} className="w-full h-full object-cover grayscale opacity-40 group-hover:opacity-70 transition-all duration-1000 scale-[1.05] group-hover:scale-100" />
-             
-             <div className="absolute top-4 left-4 flex flex-col gap-1.5">
-                <div className="flex items-center gap-2 text-[8px] font-black text-emerald-400 uppercase bg-black/80 px-2 py-1 border border-emerald-500/30 backdrop-blur-sm">
-                  <Crosshair size={10} className="text-emerald-500 animate-pulse" /> SOURCE_IDENTITY_BLUEPRINT
-                </div>
-                <div className="flex items-center gap-2 text-[6px] font-bold text-zinc-500 uppercase bg-black/60 px-2 py-0.5 tracking-widest">
-                  <Fingerprint size={8} /> UID: {user?.uid?.slice(0, 16)}
-                </div>
-             </div>
-
-             <div className="absolute bottom-4 right-4 flex items-end flex-col gap-1">
-                <div className="text-[7px] font-black text-emerald-900 uppercase tracking-widest italic group-hover:text-emerald-500 transition-colors">BIO_SIGNAL: STABLE</div>
-                <div className="flex gap-1">
-                   <div className="w-6 h-0.5 bg-emerald-500/20" />
-                   <div className="w-6 h-0.5 bg-emerald-500" />
-                   <div className="w-1 h-0.5 bg-emerald-500/40" />
-                </div>
-             </div>
-
-             <div className="absolute inset-x-0 top-0 h-[2px] bg-emerald-500/40 shadow-[0_0_20px_#10b981] animate-[blueprint-scan_6s_linear_infinite] z-10" />
+          <div className="hidden md:block h-[150px] relative overflow-hidden bg-black border-b border-emerald-900/40 group shrink-0">
+             <img src={BASE_CHARACTER_PATH} className="w-full h-full object-cover grayscale opacity-30 group-hover:opacity-50 transition-all duration-1000" />
+             <div className="absolute top-3 left-3 bg-black/80 px-2 py-1 border border-emerald-500/30 text-[8px] font-black text-emerald-400 uppercase"><Crosshair size={10} className="inline mr-1"/> Original_Form</div>
+             <div className="absolute inset-x-0 top-0 h-[1px] bg-emerald-500/30 animate-[blueprint-scan_5s_linear_infinite]" />
           </div>
 
-          {/* NEURAL CHAMBER OUTPUT AREA */}
-          <div className="flex-1 flex flex-col p-6 md:p-10 items-center justify-center relative overflow-hidden bg-[#020202]">
-            
-            {/* LIVE CONSOLE LOGS */}
-            <div className="absolute top-6 left-6 text-zinc-800 pointer-events-none hidden lg:block">
-              <div className="flex items-center gap-2 mb-3">
-                <div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse shadow-[0_0_10px_red]" />
-                <span className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-700">Live_Chamber_Output</span>
-              </div>
-              <div className="space-y-1.5 border-l border-zinc-900 pl-4 py-2">
+          <div className="flex-1 flex flex-col p-6 items-center justify-center relative overflow-hidden bg-[#020202]">
+            <div className="absolute top-4 left-4 text-zinc-800 pointer-events-none hidden lg:block">
+              <div className="space-y-1">
                 {logs.map((log, i) => (
-                  <p key={i} className={`text-[8px] font-bold uppercase transition-all duration-500 ${i === 0 ? 'text-zinc-500' : 'text-zinc-800 opacity-30 translate-x-1'}`}>
+                  <p key={i} className={`text-[8px] font-bold uppercase transition-all duration-500 ${i === 0 ? 'text-zinc-500' : 'text-zinc-800 opacity-20'}`}>
                     {`> ${log}`}
                   </p>
                 ))}
@@ -4891,122 +4771,59 @@ const ForgeItApp = () => {
             </div>
 
             {isForging ? (
-              <div className="flex flex-col items-center gap-6 md:gap-8 animate-in fade-in duration-500 w-full">
-                <div className="relative w-56 h-56 md:w-80 md:h-80 border border-emerald-500/10 rounded-sm flex items-center justify-center overflow-hidden bg-black shadow-[0_0_50px_rgba(16,185,129,0.05)]">
-                  <div className="absolute inset-0 bg-[radial-gradient(circle,rgba(16,185,129,0.15)_0%,transparent_70%)] animate-pulse" />
-                  <Scan size={100} className="text-emerald-500/10 animate-pulse" strokeWidth={0.5} />
-                  
-                  <div className="absolute inset-0 flex items-center justify-center">
-                     <svg className="w-48 h-48 md:w-64 md:h-64 rotate-[-90deg] opacity-20">
-                        <circle cx="50%" cy="50%" r="45%" fill="none" stroke="#10b981" strokeWidth="1" strokeDasharray="1000" strokeDashoffset={1000 - (progress * 10)} className="transition-all duration-300" />
-                     </svg>
-                  </div>
-
-                  <div className="absolute bottom-0 left-0 w-full h-[3px] bg-emerald-500 shadow-[0_0_20px_#10b981] animate-[scan_2s_linear_infinite]" />
+              <div className="flex flex-col items-center gap-6 w-full">
+                <div className="relative w-48 h-48 md:w-64 md:h-64 border border-emerald-500/10 rounded-sm flex items-center justify-center overflow-hidden bg-black shadow-[0_0_50px_rgba(16,185,129,0.05)]">
+                  <Scan size={80} className="text-emerald-500/10 animate-pulse" />
+                  <div className="absolute bottom-0 left-0 w-full h-[2px] bg-emerald-500 animate-[scan_2s_linear_infinite]" />
                 </div>
-                
-                <div className="w-48 md:w-64 space-y-3">
-                  <div className="flex justify-between text-[9px] font-black text-emerald-500 uppercase italic tracking-[0.2em]">
-                    <span className="animate-pulse">Materializing...</span>
+                <div className="w-48 space-y-2">
+                  <div className="flex justify-between text-[8px] font-black text-emerald-500 uppercase italic">
+                    <span>Neural_Mapping...</span>
                     <span>{Math.round(progress)}%</span>
                   </div>
-                  <div className="h-1 bg-zinc-950 rounded-full overflow-hidden border border-zinc-900 p-[1px]">
-                    <div className="h-full bg-emerald-500 transition-all duration-300 shadow-[0_0_15px_#10b981]" style={{ width: `${progress}%` }} />
+                  <div className="h-1 bg-zinc-950 rounded-full border border-zinc-900 overflow-hidden">
+                    <div className="h-full bg-emerald-500 transition-all duration-300" style={{ width: `${progress}%` }} />
                   </div>
                 </div>
               </div>
             ) : generatedImg ? (
-              <div className="w-full max-w-[280px] md:max-w-sm space-y-6 md:space-y-8 animate-in zoom-in-95 duration-1000">
-                <div className="relative group p-1 bg-zinc-950 border border-white/10 shadow-[0_0_50px_rgba(0,0,0,1)]">
-                  <div className="absolute -inset-1 bg-gradient-to-tr from-emerald-500/20 to-blue-500/20 blur opacity-40 group-hover:opacity-100 transition duration-1000" />
-                  <img src={generatedImg} className="w-full aspect-square object-cover relative z-10" />
-                  
-                  <div className="absolute top-4 right-4 z-20 opacity-0 group-hover:opacity-100 transition-all duration-300 scale-90 group-hover:scale-100">
-                     <button onClick={downloadPFP} className="p-3 bg-white text-black hover:bg-emerald-400 transition-all shadow-2xl active:scale-90">
-                        <Download size={20} />
-                     </button>
+              <div className="w-full max-w-[280px] space-y-4 animate-in zoom-in-95 duration-700">
+                <div className="relative group p-0.5 bg-zinc-950 border border-white/5 shadow-2xl">
+                  <img src={generatedImg} className="w-full aspect-square object-cover" />
+                  <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                     <button onClick={downloadPFP} className="p-2 bg-white text-black hover:bg-emerald-400 shadow-lg"><Download size={18} /></button>
                   </div>
                 </div>
-
-                <div className="space-y-4 bg-emerald-950/5 p-4 md:p-6 border border-emerald-900/20 rounded-sm relative overflow-hidden">
-                  <div className="absolute top-0 right-0 p-2 opacity-10"><Info size={14}/></div>
-                  {lore ? (
-                    <div className="space-y-3">
-                       <div className="flex items-center gap-2 text-[10px] font-black text-emerald-400 uppercase tracking-widest">
-                         <Dna size={14} /> Subject_Profile_Decrypted
-                       </div>
-                       <p className="text-[10px] md:text-[11px] leading-relaxed italic text-zinc-400 font-medium">"{lore}"</p>
-                    </div>
-                  ) : (
-                    <button onClick={generateLore} disabled={isWritingLore} className="w-full py-2 text-[9px] md:text-[10px] font-black uppercase text-zinc-500 hover:text-emerald-400 transition-colors flex items-center justify-center gap-2 tracking-[0.2em]">
-                      {isWritingLore ? <RefreshCw className="animate-spin" size={12}/> : <Search size={12}/>}
-                      {isWritingLore ? 'Decrypting...' : 'Extract_Identity_Dossier'}
-                    </button>
-                  )}
-                </div>
-
-                <div className="flex flex-col gap-3">
-                  <button onClick={downloadPFP} className="w-full py-4 flex items-center justify-center gap-3 font-black text-[11px] uppercase border border-white bg-white text-black hover:bg-emerald-400 hover:border-emerald-400 transition-all tracking-[0.3em] active:scale-95 shadow-xl">
-                    <Download size={16} /> Save_Forged_ID
-                  </button>
-                  <button onClick={() => setGeneratedImg(null)} className="w-full py-2 text-[9px] font-black uppercase tracking-widest text-zinc-700 hover:text-red-400 transition-all flex items-center justify-center gap-2 group">
-                    <X size={12} className="group-hover:rotate-90 transition-transform"/> Purge_Matrix_Buffer
-                  </button>
-                </div>
+                <button onClick={downloadPFP} className="w-full py-4 bg-white text-black font-black uppercase text-[11px] hover:bg-emerald-400 shadow-xl flex items-center justify-center gap-2 tracking-widest"><Download size={16}/> Save_to_Cult</button>
+                <button onClick={() => setGeneratedImg(null)} className="w-full py-2 text-[9px] font-black uppercase text-zinc-700 hover:text-white transition-all">Abadon_Forge</button>
               </div>
             ) : (
-              <div className="flex flex-col items-center gap-8 md:gap-12 opacity-5 md:opacity-10 group hover:opacity-30 transition-all duration-1000 p-8 md:p-12 text-center">
-                <div className="relative">
-                  <div className="absolute inset-0 bg-emerald-500/20 blur-[80px] rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
-                  <div className="p-16 md:p-24 border border-dashed border-emerald-900/50 rounded-full relative z-10">
-                    <Palette size={100} md:size={140} strokeWidth={0.3} className="relative z-10 text-emerald-500/40" />
-                    <div className="absolute top-4 right-4 animate-bounce"><Sparkles size={32} className="text-emerald-500/60" /></div>
-                    <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 px-4 py-1 bg-[#020202] text-[10px] font-black text-zinc-800 uppercase tracking-[0.4em] whitespace-nowrap">Neural_Idle</div>
-                  </div>
-                </div>
-                <div className="max-w-[240px] space-y-3">
-                  <p className="text-[10px] font-black uppercase tracking-[0.6em] text-white">Chamber_Standby</p>
-                  <p className="text-[8px] font-bold uppercase text-zinc-600 leading-relaxed">Configure Identity traits in the Gear Matrix to initiate materialization sequence.</p>
-                </div>
+              <div className="flex flex-col items-center gap-6 opacity-5 md:opacity-10">
+                <div className="p-16 border border-dashed border-emerald-900/50 rounded-full"><Palette size={64} strokeWidth={0.5} /></div>
+                <p className="text-[9px] font-black uppercase tracking-[0.4em] text-white">Chamber_Idle</p>
               </div>
             )}
           </div>
         </div>
       </main>
 
-      {/* ERROR TOAST */}
       {error && (
-        <div className="fixed bottom-24 md:bottom-10 right-4 left-4 md:left-auto md:w-[400px] bg-red-950/90 border-l-4 border-red-500 p-5 flex items-start gap-4 text-white animate-in slide-in-from-right-10 z-[200] backdrop-blur-xl shadow-2xl">
-          <AlertTriangle size={24} className="shrink-0 text-red-500" />
-          <div className="flex-1 space-y-1">
-            <p className="text-[11px] font-black uppercase tracking-widest leading-none">Critical_System_Interrupt</p>
-            <p className="text-[9px] opacity-70 font-bold uppercase mt-2 leading-tight">{error}</p>
-          </div>
-          <button onClick={() => setError(null)} className="p-1.5 hover:bg-white/10 rounded-full transition-colors"><X size={18}/></button>
+        <div className="fixed bottom-24 md:bottom-10 right-4 left-4 md:left-auto md:w-[400px] bg-red-950/90 border-l-4 border-red-500 p-5 flex items-start gap-4 text-white z-[200] backdrop-blur-xl">
+          <AlertTriangle size={24} className="shrink-0 text-red-500" /><div className="flex-1 space-y-1"><p className="text-[11px] font-black uppercase">SYSTEM_CRASH</p><p className="text-[9px] opacity-70 font-bold uppercase mt-1">{error}</p></div>
+          <button onClick={() => setError(null)}><X size={18}/></button>
         </div>
       )}
 
-      {/* STYLES */}
       <style>{`
-        @keyframes scan {
-          0% { transform: translateY(-100%); }
-          100% { transform: translateY(800%); }
-        }
-        @keyframes blueprint-scan {
-          0% { transform: translateY(0); opacity: 0.1; }
-          50% { opacity: 0.6; }
-          100% { transform: translateY(200px); opacity: 0.1; }
-        }
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #111; border-radius: 0px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #10b981; }
+        @keyframes scan { 0% { transform: translateY(-100%); } 100% { transform: translateY(800%); } }
+        @keyframes blueprint-scan { 0% { transform: translateY(0); opacity: 0.1; } 50% { opacity: 0.6; } 100% { transform: translateY(200px); opacity: 0.1; } }
+        .custom-scrollbar::-webkit-scrollbar { width: 3px; height: 3px; background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #111; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
-        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
       `}</style>
     </div>
   );
 };
-
 
 
 
