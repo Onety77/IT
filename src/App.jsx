@@ -5028,12 +5028,18 @@ export default function UltimateOS() {
   const [activeWindowId, setActiveWindowId] = useState(null);
   const [booted, setBooted] = useState(false);
   const [isStartOpen, setIsStartOpen] = useState(false); 
+  const [systemAlert, setSystemAlert] = useState(null);
+  const [caCopied, setCaCopied] = useState(false);
   
   const { wallet, connect, connecting, balance: solBalance, refresh: refreshSol } = useWallet();
   const dexData = useDexData(CA_ADDRESS, wallet);
   const hasAccess = dexData.balance >= ACCESS_THRESHOLD;
-  
-  const [caCopied, setCaCopied] = useState(false);
+  const isForgeVip = dexData.balance >= 3000000;
+
+  const showAlert = (msg) => {
+    setSystemAlert(msg);
+    setTimeout(() => setSystemAlert(null), 3000);
+  };
 
   useEffect(() => { 
     const timer = setTimeout(() => { setBooted(true); }, 2500); 
@@ -5056,7 +5062,8 @@ export default function UltimateOS() {
       forgeit: 'Forge IT' 
     };
     const isMobile = window.innerWidth < 768;
-    // Window sizing logic based on app behavior
+    
+    // Window sizing logic for different app styles
     const isPhoneApp = ['rugsweeper', 'trollbox', 'mememind', 'mergeit', 'wallet'].includes(type);
     const isWideApp = ['paint', 'memes', 'forgeit'].includes(type);
     
@@ -5108,10 +5115,11 @@ export default function UltimateOS() {
   const isAnyWindowMaximized = windows.some(w => w.isMaximized && !w.isMinimized);
 
   if (!booted) return (
-    <div className="w-full h-screen bg-black text-green-500 font-mono flex flex-col items-center justify-center relative overflow-hidden">
-      <div className="absolute inset-0 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[length:100%_4px,3px_100%] pointer-events-none z-10"></div>
-      <h1 className="text-4xl font-bold mb-4 animate-pulse tracking-tighter italic">OS_IT</h1>
+    <div className="w-full h-screen bg-black text-green-500 font-mono flex flex-col items-center justify-center relative overflow-hidden text-center p-6">
+      <div className="absolute inset-0 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,252,0.06))] bg-[length:100%_4px,3px_100%] pointer-events-none z-10"></div>
+      <h1 className="text-4xl font-bold mb-4 animate-pulse italic tracking-[0.3em]">OS_IT</h1>
       <div className="w-64 h-4 border-2 border-green-500 p-0.5"><div className="h-full bg-green-500 animate-[widthLoad_2s_ease-out_forwards]" style={{width: '0%'}}></div></div>
+      <div className="mt-4 text-[10px] uppercase tracking-[0.3em] opacity-40">Synchronizing Nodes...</div>
       <style>{`@keyframes widthLoad { from { width: 0%; } to { width: 100%; } }`}</style>
     </div>
   );
@@ -5120,19 +5128,33 @@ export default function UltimateOS() {
     <div className="w-full h-screen relative overflow-hidden font-sans select-none text-black">
       <div className="absolute inset-0 z-0 bg-cover bg-center bg-[#008080]" style={{ backgroundImage: `url(${ASSETS.wallpaper})` }}></div>
       
+      {systemAlert && (
+        <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[100000] bg-white border-4 border-red-600 p-4 shadow-[10px_10px_0px_rgba(0,0,0,0.5)] animate-bounce flex items-center gap-3">
+          <AlertTriangle className="text-red-600" size={24} />
+          <span className="font-mono font-black text-red-600 text-xs uppercase">{systemAlert}</span>
+        </div>
+      )}
+
       {/* Desktop Icons */}
-      <div className="absolute top-0 left-0 p-4 z-0 flex flex-col gap-4 flex-wrap max-h-full content-start">
-        <DesktopIcon icon={Terminal} label="Terminal" onClick={() => openApp('terminal')} />
-        <DesktopIcon icon={Lightbulb} label="Meme Mind" onClick={() => openApp('mememind')} />
-        <DesktopIcon icon={Sparkles} label="Forge IT" onClick={() => openApp('forgeit')} />
-        <DesktopIcon icon={Joystick} label="Merge IT" onClick={() => openApp('mergeit')} />
-        <DesktopIcon icon={Gamepad2} label="Stack IT" onClick={() => openApp('rugsweeper')} />
-        <DesktopIcon icon={Paintbrush} label="Paint IT" onClick={() => openApp('paint')} />
-        <DesktopIcon icon={Music} label="Tune IT" onClick={() => openApp('tunes')} />
-        <DesktopIcon icon={FileText} label="Write IT" onClick={() => openApp('notepad')} />
-        <DesktopIcon icon={MessageSquare} label="Trollbox" onClick={() => openApp('trollbox')} hasAlert={true} />
-        <DesktopIcon icon={Folder} label="Memes" onClick={() => openApp('memes')} />
-        <DesktopIcon icon={Wallet} label="Wallet" onClick={() => openApp('wallet')} />
+      <div className="absolute top-0 left-0 p-4 z-0 flex flex-col gap-4 flex-wrap max-h-full content-start items-start pointer-events-none">
+        {[ 
+          {id:'terminal', icon:Terminal, label:'Terminal'}, 
+          {id:'mememind', icon:Lightbulb, label:'Meme Mind'}, 
+          {id:'forgeit', icon:Sparkles, label:'Forge IT'},
+          {id:'mergeit', icon:Joystick, label:'Merge IT'}, 
+          {id:'rugsweeper', icon:Gamepad2, label:'Stack IT'}, 
+          {id:'paint', icon:Paintbrush, label:'Paint IT'}, 
+          {id:'tunes', icon:Music, label:'Tune IT'}, 
+          {id:'notepad', icon:FileText, label:'Write IT'}, 
+          {id:'trollbox', icon:MessageSquare, label:'Trollbox'}, 
+          {id:'memes', icon:Folder, label:'Memes'}, 
+          {id:'wallet', icon:Wallet, label:'Wallet'} 
+        ].map(app => (
+            <div key={app.id} onClick={() => openApp(app.id)} className="flex flex-col items-center gap-1 w-20 cursor-pointer pointer-events-auto p-1 group">
+                <app.icon size={32} className="text-white drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)] transition-transform group-active:scale-90" />
+                <span className="text-white text-[10px] font-bold bg-[#035a23] px-1 rounded truncate w-full text-center group-hover:bg-[#047a30] transition-colors">{app.label}</span>
+            </div>
+        ))}
       </div>
 
       <SystemResourceMonitor wallet={wallet} balance={dexData.balance} hasAccess={hasAccess} />
@@ -5149,77 +5171,139 @@ export default function UltimateOS() {
           onMove={moveWindow}
         >
           {/* ALL APPS INTEGRATED HERE */}
-          {win.type === 'forgeit' && <ForgeItApp />}
+          {win.type === 'forgeit' && typeof ForgeItApp !== 'undefined' && <ForgeItApp isVip={isForgeVip} tokenBalance={dexData.balance} />}
           {win.type === 'paint' && typeof PaintApp !== 'undefined' && <PaintApp isHolder={hasAccess} />}
-          {win.type === 'terminal' && typeof TerminalApp !== 'undefined' ? <TerminalApp dexData={dexData} /> : win.type === 'terminal' && (
-            <div className="p-4 bg-black h-full text-green-500 font-mono text-[10px]">SYSTEM READY...</div>
-          )}
-          {win.type === 'tunes' && typeof AmpTunesApp !== 'undefined' && (
-             <AmpTunesApp isHolder={hasAccess} onLocked={() => {}} />
-          )}
+          {win.type === 'terminal' && typeof TerminalApp !== 'undefined' && <TerminalApp dexData={dexData} />}
+          {win.type === 'tunes' && typeof AmpTunesApp !== 'undefined' && <AmpTunesApp isHolder={hasAccess} onLocked={() => showAlert("HOLD IT TO SKIP TRACKS")} />}
           {win.type === 'rugsweeper' && typeof RugSweeperApp !== 'undefined' && <RugSweeperApp />}
           {win.type === 'notepad' && typeof NotepadApp !== 'undefined' && <NotepadApp />}
-          {win.type === 'trollbox' && typeof ChatApp !== 'undefined' && (
-            <ChatApp dexData={dexData} wallet={wallet} onLocked={() => {}} />
-          )}
+          {win.type === 'trollbox' && typeof ChatApp !== 'undefined' && <ChatApp dexData={dexData} wallet={wallet} onLocked={() => showAlert("HOLD IT TO CHAT")} />}
           {win.type === 'memes' && typeof MemesApp !== 'undefined' && <MemesApp />}
           {win.type === 'mememind' && typeof MemeMindApp !== 'undefined' && <MemeMindApp />}
           {win.type === 'mergeit' && typeof MergeItApp !== 'undefined' && <MergeItApp />}
           
+          {/* RESTORED INDUSTRIAL WALLET UI */}
           {win.type === 'wallet' && (
-            <div className="p-4 bg-black h-full font-mono flex flex-col gap-4 text-emerald-500 overflow-y-auto relative selection:bg-emerald-500 selection:text-black">
-              <div className="flex justify-between items-center border-b border-emerald-900/50 pb-2">
+            <div className="p-4 bg-black h-full font-mono flex flex-col gap-4 text-emerald-500 overflow-y-auto relative selection:bg-emerald-500 selection:text-black no-scrollbar">
+              {/* CRT Scanline Overlay */}
+              <div className="absolute inset-0 pointer-events-none opacity-[0.07] bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,252,0.06))] bg-[length:100%_2px,3px_100%] z-20" />
+              
+              <div className="flex justify-between items-center border-b border-emerald-900/50 pb-2 z-10">
                 <div className="flex items-center gap-2">
-                  <Activity size={14} className="text-emerald-400" /> 
-                  <span className="text-[10px] uppercase font-black">Wallet Monitor</span>
+                  <Activity size={14} className="animate-pulse text-emerald-400" />
+                  <span className="text-[10px] font-black uppercase tracking-widest text-emerald-700">Wallet Monitor</span>
                 </div>
-                <div className="text-[8px] font-black uppercase">{wallet ? 'Connected' : 'Disconnected'}</div>
+                <div className={`px-2 py-0.5 rounded-sm text-[8px] font-black uppercase ${wallet ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400 animate-pulse'}`}>
+                  {wallet ? 'Connected' : 'Disconnected'}
+                </div>
               </div>
-              <div className="bg-[#050505] border border-emerald-900/30 p-4">
-                <span className="text-[9px] font-bold text-emerald-800 uppercase block mb-1">Your IT Balance</span>
-                <span className="text-3xl font-black text-white">{dexData.balance.toLocaleString()} IT</span>
+
+              {/* Balances Section */}
+              <div className="grid grid-cols-1 gap-3 z-10">
+                <div className="bg-[#050505] border border-emerald-900/30 p-4 relative group hover:border-emerald-500/50 transition-all duration-300">
+                  <div className="absolute top-2 right-2 opacity-10 group-hover:opacity-30 transition-opacity"><Zap size={12} /></div>
+                  <span className="text-[9px] font-bold text-emerald-800 uppercase tracking-tighter block mb-1">Your SOL</span>
+                  <div className="flex justify-between items-baseline">
+                    <span className="text-3xl font-black text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.25)]">{(solBalance || 0).toFixed(4)}</span>
+                    <span className="text-xs font-black text-emerald-600 ml-2">SOL</span>
+                  </div>
+                </div>
+
+                <div className="bg-[#050505] border border-blue-900/30 p-4 relative group hover:border-blue-500/50 transition-all duration-300">
+                  <div className="absolute top-2 right-2 opacity-10 group-hover:opacity-30 transition-opacity"><Crown size={12} /></div>
+                  <span className="text-[9px] font-bold text-blue-800 uppercase tracking-tighter block mb-1">Your IT</span>
+                  <div className="flex justify-between items-baseline">
+                    <span className="text-2xl font-black text-blue-400 drop-shadow-[0_0_10px_rgba(59,130,246,0.3)]">{(dexData.balance || 0).toLocaleString()}</span>
+                    <span className="text-xs font-black text-blue-600 ml-2">IT</span>
+                  </div>
+                  {!hasAccess && (
+                    <div className="mt-3 h-1 w-full bg-blue-950/50 rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-blue-500 transition-all duration-1000" 
+                        style={{ width: `${Math.min(100, (dexData.balance / ACCESS_THRESHOLD) * 100)}%` }} 
+                      />
+                    </div>
+                  )}
+                </div>
               </div>
-              <button onClick={connect} className="w-full py-4 bg-emerald-900/20 border-2 border-emerald-900 text-emerald-400 font-black uppercase text-[10px] transition-all hover:bg-emerald-900/40">
-                {wallet ? 'Disconnect IT' : 'Connect Wallet'}
-              </button>
-              {wallet && <div className="text-[7px] text-emerald-900 break-all text-center mt-auto opacity-40">{wallet}</div>}
+
+              {/* Status Banner */}
+              <div className={`p-3 border-2 transition-all z-10 flex items-center gap-4 ${hasAccess ? 'border-emerald-500/50 bg-emerald-950/10' : 'border-yellow-600/50 bg-yellow-900/10 animate-pulse'}`}>
+                <div className="shrink-0 p-2 bg-black/40 border border-current rounded-sm">
+                  {hasAccess ? <ShieldCheck className="text-emerald-400" size={24} /> : <Lock className="text-yellow-500" size={24} />}
+                </div>
+                <div className="flex flex-col">
+                  <span className={`text-[11px] font-black uppercase tracking-[0.1em] ${hasAccess ? 'text-emerald-400' : 'text-yellow-500'}`}>
+                    {hasAccess ? 'VIP Access Unlocked' : 'Access Locked'}
+                  </span>
+                  <span className="text-[8px] text-white/50 uppercase leading-tight mt-0.5">
+                    {hasAccess ? 'You are a verified holder. Enjoy the perks!' : 'Hold 500k $IT to unlock all features.'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="mt-auto flex flex-col gap-2 pb-2 z-10">
+                <button 
+                  onClick={connect} 
+                  disabled={connecting}
+                  className={`w-full py-4 font-black text-[11px] tracking-[0.2em] uppercase transition-all flex items-center justify-center gap-3 border-2 active:scale-[0.98] shadow-lg
+                    ${wallet 
+                      ? 'bg-red-950/20 border-red-900 text-red-500 hover:bg-red-900/40 hover:text-red-400' 
+                      : 'bg-emerald-950/20 border-emerald-900 text-emerald-400 hover:bg-emerald-900/40 hover:text-emerald-300'}`}
+                >
+                  {connecting ? <RefreshCw className="animate-spin" size={14}/> : (wallet ? <LogOut size={16}/> : <Wallet size={16}/>)}
+                  {connecting ? 'Connecting...' : (wallet ? 'Disconnect IT' : 'Connect IT')}
+                </button>
+                
+                {wallet && (
+                  <div className="flex flex-col gap-1 p-2 bg-emerald-950/5 border border-emerald-900/20">
+                    <span className="text-[7px] text-emerald-900 font-black uppercase block text-center">Your Wallet</span>
+                    <span className="text-[8px] text-emerald-600/80 font-mono text-center break-all px-2">{wallet}</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="text-[7px] text-zinc-600 text-center font-bold uppercase tracking-widest opacity-40 py-2 border-t border-emerald-900/10">
+                Secure Connection. <br/>Keys remain local to device.
+              </div>
             </div>
           )}
         </DraggableWindow>
       ))}
-      
-      <div id="start-menu-container">
-        <StartMenu isOpen={isStartOpen} onClose={() => setIsStartOpen(false)} onOpenApp={openApp} />
-      </div>
+
+      <div id="start-menu-container"><StartMenu isOpen={isStartOpen} onClose={() => setIsStartOpen(false)} onOpenApp={openApp} /></div>
 
       {/* Taskbar */}
       <div className="absolute bottom-0 left-0 w-full h-10 bg-[#c0c0c0] border-t-2 border-white flex items-center px-1 z-[9998] shadow-2xl">
-        <button id="start-button" onClick={() => setIsStartOpen(!isStartOpen)} className={`flex items-center gap-1 px-3 py-1 h-8 border-2 font-bold italic text-sm mr-2 ${isStartOpen ? 'border-gray-600 bg-[#a0a0a0] border-t-black border-l-black shadow-inner' : 'border-white border-b-gray-600 border-r-gray-600 shadow-sm hover:bg-gray-100'}`}><Globe size={16} /> START</button>
+        <button id="start-button" onClick={() => setIsStartOpen(!isStartOpen)} className={`flex items-center gap-1 px-3 py-1 h-8 border-2 font-bold italic text-sm text-black ${isStartOpen ? 'border-gray-600 bg-[#a0a0a0] border-t-black border-l-black shadow-inner' : 'border-white border-b-gray-600 border-r-gray-600 shadow-sm hover:bg-gray-100'}`}><Globe size={16} /> START</button>
         
-        <div className="flex-1 flex gap-1 overflow-x-auto no-scrollbar">
+        <div className="flex-1 flex gap-1 overflow-x-auto no-scrollbar px-2">
           {windows.map(win => (
             <button 
               key={win.id} 
               onClick={() => handleTaskbarClick(win.id)} 
-              className={`min-w-[80px] max-w-[120px] h-8 truncate px-2 border-2 text-[10px] flex items-center ${win.id === activeWindowId && !win.isMinimized ? 'bg-white border-black font-bold shadow-inner' : 'border-white bg-[#c0c0c0]'}`}
+              className={`min-w-[80px] max-w-[120px] h-8 truncate px-2 border-2 text-[10px] text-black flex items-center ${win.id === activeWindowId && !win.isMinimized ? 'bg-white border-black font-bold shadow-inner' : 'border-white bg-[#c0c0c0]'}`}
             >
               {win.title}
             </button>
           ))}
         </div>
 
-        <div className="flex items-center gap-2 px-2 py-1 border-2 border-gray-500 bg-[#c0c0c0] border-t-gray-700 border-l-gray-700 ml-auto h-8 shadow-inner">
-          <button className={`h-6 text-[10px] font-mono px-2 border border-gray-600 transition-colors ${caCopied ? 'bg-green-200 text-green-800' : 'bg-[#d0d0d0]'}`} onClick={handleCopyCA}>
+        <div className="flex items-center gap-2 px-2 py-1 border-2 border-gray-500 bg-[#c0c0c0] border-t-gray-700 border-l-gray-700 ml-auto h-8 shadow-inner font-mono text-[10px] text-black">
+          <button className={`h-6 px-2 border border-gray-600 shadow-sm transition-colors ${caCopied ? 'bg-green-200 text-green-800' : 'bg-[#d0d0d0]'}`} onClick={handleCopyCA}>
             {caCopied ? 'COPIED!' : 'CA_KEY'}
           </button>
-          <button onClick={connect} className="text-[10px] px-2 h-6 border border-gray-600 bg-[#d0d0d0] font-bold">
-            {wallet ? `${wallet.slice(0,4)}..` : "LINK_SOL"}
-          </button>
-          <span className="text-[10px] font-bold hidden sm:block ml-2 opacity-60">
-            {new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}
-          </span>
+          <span className="font-bold">{new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>
         </div>
       </div>
+
+      <style>{`
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .win-scroll-container::-webkit-scrollbar { width: 14px; background: #c0c0c0; border-left: 1px solid #808080; }
+        .win-scroll-container::-webkit-scrollbar-thumb { background: #c0c0c0; border: 2px solid; border-color: white #808080 #808080 white; }
+        .win-scroll-container::-webkit-scrollbar-button { background: #c0c0c0; border: 1px solid; border-color: white #808080 #808080 white; width: 14px; height: 14px; }
+      `}</style>
     </div>
   );
 }
@@ -5227,7 +5311,7 @@ export default function UltimateOS() {
 const DesktopIcon = ({ icon: Icon, label, onClick, hasAlert }) => (
   <div onClick={onClick} className="flex flex-col items-center gap-1 w-20 cursor-pointer p-1 group">
     <div className="relative">
-      <Icon size={32} className="text-white drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)]" strokeWidth={1.5} />
+      <Icon size={32} className="text-white drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)] transition-transform group-active:scale-90" strokeWidth={1.5} />
       {hasAlert && <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-600 border border-white rounded-full z-10 shadow-[0_0_8px_red] animate-pulse" />}
     </div>
     <span className="text-white text-[10px] text-center font-bold drop-shadow-[0_1px_2px_rgba(0,0,0,1)] bg-[#035a23] px-1 rounded truncate w-full group-hover:bg-[#047a30] transition-colors">{label}</span>
@@ -5251,16 +5335,20 @@ const DraggableWindow = ({ win, isActive, children, onFocus, onClose, onMaximize
   useEffect(() => {
     const handleMouseMove = (e) => { 
       if (!isDragging || win.isMaximized) return; 
-      onMove(win.id, e.clientX - offset.x, e.clientY - offset.y); 
+      onMove(win.id, (e.clientX || e.touches?.[0]?.clientX) - offset.x, (e.clientY || e.touches?.[0]?.clientY) - offset.y); 
     };
     const stopDrag = () => setIsDragging(false);
     if (isDragging) { 
       window.addEventListener('mousemove', handleMouseMove); 
       window.addEventListener('mouseup', stopDrag);
+      window.addEventListener('touchmove', handleMouseMove);
+      window.addEventListener('touchend', stopDrag);
     }
     return () => { 
       window.removeEventListener('mousemove', handleMouseMove); 
       window.removeEventListener('mouseup', stopDrag);
+      window.removeEventListener('touchmove', handleMouseMove);
+      window.removeEventListener('touchend', stopDrag);
     };
   }, [isDragging, win.isMaximized, offset, win.id, onMove]);
 
