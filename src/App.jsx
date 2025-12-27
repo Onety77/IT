@@ -5043,13 +5043,23 @@ export default function UltimateOS() {
   const openApp = (type) => {
     const id = os_gen_id();
     const titles = { 
-      paint: 'Paint IT', terminal: 'Terminal IT', tunes: 'Tune IT', rugsweeper: 'Stack IT', 
-      notepad: 'Write IT', memes: 'Memes', trollbox: 'Trollbox IT', mememind: 'Meme Mind IT', 
-      mergeit: 'Merge IT', wallet: 'Wallet IT', forgeit: 'Forge IT' 
+      paint: 'Paint IT', 
+      terminal: 'Terminal IT', 
+      tunes: 'Tune IT', 
+      rugsweeper: 'Stack IT', 
+      notepad: 'Write IT', 
+      memes: 'Memes', 
+      trollbox: 'Trollbox IT', 
+      mememind: 'Meme Mind IT', 
+      mergeit: 'Merge IT', 
+      wallet: 'Wallet IT', 
+      forgeit: 'Forge IT' 
     };
     const isMobile = window.innerWidth < 768;
+    // Window sizing logic based on app behavior
     const isPhoneApp = ['rugsweeper', 'trollbox', 'mememind', 'mergeit', 'wallet'].includes(type);
     const isWideApp = ['paint', 'memes', 'forgeit'].includes(type);
+    
     const defaultW = isWideApp ? 740 : (isPhoneApp ? 340 : 500);
     const defaultH = isWideApp ? 540 : (isPhoneApp ? 580 : 400);
 
@@ -5109,6 +5119,8 @@ export default function UltimateOS() {
   return (
     <div className="w-full h-screen relative overflow-hidden font-sans select-none text-black">
       <div className="absolute inset-0 z-0 bg-cover bg-center bg-[#008080]" style={{ backgroundImage: `url(${ASSETS.wallpaper})` }}></div>
+      
+      {/* Desktop Icons */}
       <div className="absolute top-0 left-0 p-4 z-0 flex flex-col gap-4 flex-wrap max-h-full content-start">
         <DesktopIcon icon={Terminal} label="Terminal" onClick={() => openApp('terminal')} />
         <DesktopIcon icon={Lightbulb} label="Meme Mind" onClick={() => openApp('mememind')} />
@@ -5125,6 +5137,10 @@ export default function UltimateOS() {
 
       <SystemResourceMonitor wallet={wallet} balance={dexData.balance} hasAccess={hasAccess} />
       
+      {/* Assistant Linkage */}
+      {typeof Shippy !== 'undefined' && <Shippy hidden={isAnyWindowMaximized} dexData={dexData} />}
+
+      {/* Main Window Manager */}
       {windows.map(win => (
         <DraggableWindow 
           key={win.id} win={win} isActive={win.id === activeWindowId} 
@@ -5132,37 +5148,76 @@ export default function UltimateOS() {
           onMaximize={() => toggleMax(win.id)} onMinimize={() => minimizeWindow(win.id)} 
           onMove={moveWindow}
         >
+          {/* ALL APPS INTEGRATED HERE */}
           {win.type === 'forgeit' && <ForgeItApp />}
-          {win.type === 'terminal' && <div className="p-4 bg-black h-full text-green-500 font-mono text-[10px]">SYSTEM READY...</div>}
+          {win.type === 'paint' && typeof PaintApp !== 'undefined' && <PaintApp isHolder={hasAccess} />}
+          {win.type === 'terminal' && typeof TerminalApp !== 'undefined' ? <TerminalApp dexData={dexData} /> : win.type === 'terminal' && (
+            <div className="p-4 bg-black h-full text-green-500 font-mono text-[10px]">SYSTEM READY...</div>
+          )}
+          {win.type === 'tunes' && typeof AmpTunesApp !== 'undefined' && (
+             <AmpTunesApp isHolder={hasAccess} onLocked={() => {}} />
+          )}
+          {win.type === 'rugsweeper' && typeof RugSweeperApp !== 'undefined' && <RugSweeperApp />}
+          {win.type === 'notepad' && typeof NotepadApp !== 'undefined' && <NotepadApp />}
+          {win.type === 'trollbox' && typeof ChatApp !== 'undefined' && (
+            <ChatApp dexData={dexData} wallet={wallet} onLocked={() => {}} />
+          )}
+          {win.type === 'memes' && typeof MemesApp !== 'undefined' && <MemesApp />}
+          {win.type === 'mememind' && typeof MemeMindApp !== 'undefined' && <MemeMindApp />}
+          {win.type === 'mergeit' && typeof MergeItApp !== 'undefined' && <MergeItApp />}
+          
           {win.type === 'wallet' && (
             <div className="p-4 bg-black h-full font-mono flex flex-col gap-4 text-emerald-500 overflow-y-auto relative selection:bg-emerald-500 selection:text-black">
               <div className="flex justify-between items-center border-b border-emerald-900/50 pb-2">
-                <div className="flex items-center gap-2"><Activity size={14} className="text-emerald-400" /> <span className="text-[10px] uppercase font-black">Wallet Monitor</span></div>
+                <div className="flex items-center gap-2">
+                  <Activity size={14} className="text-emerald-400" /> 
+                  <span className="text-[10px] uppercase font-black">Wallet Monitor</span>
+                </div>
                 <div className="text-[8px] font-black uppercase">{wallet ? 'Connected' : 'Disconnected'}</div>
               </div>
               <div className="bg-[#050505] border border-emerald-900/30 p-4">
                 <span className="text-[9px] font-bold text-emerald-800 uppercase block mb-1">Your IT Balance</span>
-                <span className="text-3xl font-black text-white">{dexData.balance.toLocaleString()}</span>
+                <span className="text-3xl font-black text-white">{dexData.balance.toLocaleString()} IT</span>
               </div>
-              <button onClick={connect} className="w-full py-4 bg-emerald-900/20 border-2 border-emerald-900 text-emerald-400 font-black uppercase text-[10px]">{wallet ? 'Disconnect' : 'Connect'}</button>
+              <button onClick={connect} className="w-full py-4 bg-emerald-900/20 border-2 border-emerald-900 text-emerald-400 font-black uppercase text-[10px] transition-all hover:bg-emerald-900/40">
+                {wallet ? 'Disconnect IT' : 'Connect Wallet'}
+              </button>
+              {wallet && <div className="text-[7px] text-emerald-900 break-all text-center mt-auto opacity-40">{wallet}</div>}
             </div>
           )}
         </DraggableWindow>
       ))}
       
-      <div id="start-menu-container"><StartMenu isOpen={isStartOpen} onClose={() => setIsStartOpen(false)} onOpenApp={openApp} /></div>
+      <div id="start-menu-container">
+        <StartMenu isOpen={isStartOpen} onClose={() => setIsStartOpen(false)} onOpenApp={openApp} />
+      </div>
 
+      {/* Taskbar */}
       <div className="absolute bottom-0 left-0 w-full h-10 bg-[#c0c0c0] border-t-2 border-white flex items-center px-1 z-[9998] shadow-2xl">
         <button id="start-button" onClick={() => setIsStartOpen(!isStartOpen)} className={`flex items-center gap-1 px-3 py-1 h-8 border-2 font-bold italic text-sm mr-2 ${isStartOpen ? 'border-gray-600 bg-[#a0a0a0] border-t-black border-l-black shadow-inner' : 'border-white border-b-gray-600 border-r-gray-600 shadow-sm hover:bg-gray-100'}`}><Globe size={16} /> START</button>
+        
         <div className="flex-1 flex gap-1 overflow-x-auto no-scrollbar">
           {windows.map(win => (
-            <button key={win.id} onClick={() => handleTaskbarClick(win.id)} className={`min-w-[80px] max-w-[120px] h-8 truncate px-2 border-2 text-xs flex items-center ${win.id === activeWindowId && !win.isMinimized ? 'bg-white border-black font-bold' : 'border-white bg-[#c0c0c0]'}`}>{win.title}</button>
+            <button 
+              key={win.id} 
+              onClick={() => handleTaskbarClick(win.id)} 
+              className={`min-w-[80px] max-w-[120px] h-8 truncate px-2 border-2 text-[10px] flex items-center ${win.id === activeWindowId && !win.isMinimized ? 'bg-white border-black font-bold shadow-inner' : 'border-white bg-[#c0c0c0]'}`}
+            >
+              {win.title}
+            </button>
           ))}
         </div>
+
         <div className="flex items-center gap-2 px-2 py-1 border-2 border-gray-500 bg-[#c0c0c0] border-t-gray-700 border-l-gray-700 ml-auto h-8 shadow-inner">
-          <button className="h-6 text-[10px] font-mono px-2 border border-gray-600 bg-[#d0d0d0]" onClick={handleCopyCA}>{caCopied ? 'COPIED!' : 'CA_KEY'}</button>
-          <button onClick={connect} className="text-[10px] px-2 h-6 border border-gray-600 bg-[#d0d0d0] font-bold">{wallet ? `${wallet.slice(0,4)}..` : "LINK_SOL"}</button>
-          <span className="text-[10px] font-bold hidden sm:block ml-2 opacity-60">{new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>
+          <button className={`h-6 text-[10px] font-mono px-2 border border-gray-600 transition-colors ${caCopied ? 'bg-green-200 text-green-800' : 'bg-[#d0d0d0]'}`} onClick={handleCopyCA}>
+            {caCopied ? 'COPIED!' : 'CA_KEY'}
+          </button>
+          <button onClick={connect} className="text-[10px] px-2 h-6 border border-gray-600 bg-[#d0d0d0] font-bold">
+            {wallet ? `${wallet.slice(0,4)}..` : "LINK_SOL"}
+          </button>
+          <span className="text-[10px] font-bold hidden sm:block ml-2 opacity-60">
+            {new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}
+          </span>
         </div>
       </div>
     </div>
@@ -5173,9 +5228,9 @@ const DesktopIcon = ({ icon: Icon, label, onClick, hasAlert }) => (
   <div onClick={onClick} className="flex flex-col items-center gap-1 w-20 cursor-pointer p-1 group">
     <div className="relative">
       <Icon size={32} className="text-white drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)]" strokeWidth={1.5} />
-      {hasAlert && <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-600 border border-white rounded-full z-10" />}
+      {hasAlert && <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-600 border border-white rounded-full z-10 shadow-[0_0_8px_red] animate-pulse" />}
     </div>
-    <span className="text-white text-[10px] text-center font-bold drop-shadow-[0_1px_2px_rgba(0,0,0,1)] bg-[#035a23] px-1 rounded truncate w-full group-hover:bg-[#047a30]">{label}</span>
+    <span className="text-white text-[10px] text-center font-bold drop-shadow-[0_1px_2px_rgba(0,0,0,1)] bg-[#035a23] px-1 rounded truncate w-full group-hover:bg-[#047a30] transition-colors">{label}</span>
   </div>
 );
 
@@ -5217,7 +5272,14 @@ const DraggableWindow = ({ win, isActive, children, onFocus, onClose, onMaximize
         startDrag(e.clientX, e.clientY);
       }} 
       className="absolute flex flex-col shadow-2xl transition-[left,top,width,height] duration-75" 
-      style={{ zIndex: win.z, display: win.isMinimized ? 'none' : 'flex', left: win.isMaximized ? 0 : win.x, top: win.isMaximized ? 0 : win.y, width: win.isMaximized ? '100%' : win.w, height: win.isMaximized ? 'calc(100% - 40px)' : win.h }}
+      style={{ 
+        zIndex: win.z, 
+        display: win.isMinimized ? 'none' : 'flex', 
+        left: win.isMaximized ? 0 : win.x, 
+        top: win.isMaximized ? 0 : win.y, 
+        width: win.isMaximized ? '100%' : win.w, 
+        height: win.isMaximized ? 'calc(100% - 40px)' : win.h 
+      }}
     >
         <WindowFrame {...win} isActive={isActive} onClose={onClose} onMaximize={onMaximize} onMinimize={onMinimize} onFocus={onFocus}>{children}</WindowFrame>
     </div>
