@@ -3395,15 +3395,48 @@ const ChatApp = ({ dexData, wallet, onRefreshAccess }) => {
   }, [combinedMessages, pendingMessages]);
 
   useEffect(() => {
-    if (isSetup && !isMuted && CHAT_PLAYLIST[trackIndex]?.file) {
-      const currentFile = CHAT_PLAYLIST[trackIndex].file;
-      if (!audioRef.current) { audioRef.current = new Audio(currentFile); audioRef.current.volume = 0.2; } 
-      else { audioRef.current.src = currentFile; }
-      audioRef.current.onended = () => { if (hasAccess) setTrackIndex(prev => (prev + 1) % CHAT_PLAYLIST.length); };
-      audioRef.current.play().catch(() => {});
-    } else if (audioRef.current) { audioRef.current.pause(); }
-    return () => { if (audioRef.current) audioRef.current.pause(); };
-  }, [isSetup, isMuted, trackIndex, hasAccess]);
+    // If not setup or muted, stop the audio
+    if (!isSetup || isMuted || !CHAT_PLAYLIST[trackIndex]?.file) {
+      if (audioRef.current) audioRef.current.pause();
+      return;
+    }
+
+    const playTrack = async () => {
+      try {
+        const currentFile = CHAT_PLAYLIST[trackIndex].file;
+        
+        if (!audioRef.current) {
+          audioRef.current = new Audio(currentFile);
+          audioRef.current.volume = 0.2;
+        } else {
+          // Update the source if it changed
+          if (audioRef.current.src !== currentFile) {
+            audioRef.current.src = currentFile;
+          }
+        }
+
+        // The critical fix: Ensure onended always triggers the next index
+        audioRef.current.onended = () => {
+          setTrackIndex((prev) => (prev + 1) % CHAT_PLAYLIST.length);
+        };
+
+        await audioRef.current.play();
+      } catch (err) {
+        console.warn("Audio playback interrupted or blocked:", err);
+      }
+    };
+
+    playTrack();
+
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        // Clean up listeners to prevent memory leaks or double-triggers
+        audioRef.current.onended = null;
+      }
+    };
+  }, [isSetup, isMuted, trackIndex]);
+
 
   // --- STRICT GESTURES ---
   const onMsgContextMenu = (e, msg) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, msg }); };
@@ -4930,7 +4963,7 @@ const ForgeItApp = () => {
           <div className="p-2 md:p-4 bg-black border-t border-emerald-900/40 shrink-0 md:relative fixed bottom-0 left-0 right-0 z-[60] backdrop-blur-md flex flex-col gap-2">
             <button onClick={handleRandomize} disabled={isForging || isRandomizing}
               className="w-full py-2 border border-emerald-500/20 text-emerald-500/50 hover:text-emerald-400 hover:bg-emerald-500/5 flex items-center justify-center gap-2 text-[8px] font-black uppercase tracking-[0.3em] transition-all">
-              <Shuffle size={14} className={isRandomizing ? 'animate-spin' : ''} /> Randomize_Matrix
+              <Shuffle size={14} className={isRandomizing ? 'animate-spin' : ''} /> Randomize
             </button>
             <button onClick={handleForge} disabled={isForging || isRandomizing}
               className={`w-full py-4 md:py-5 font-black italic text-base md:text-lg tracking-[0.4em] transition-all relative overflow-hidden group border-b-4 md:border-b-8 active:translate-y-1 active:border-b-0 ${
@@ -4982,9 +5015,9 @@ const ForgeItApp = () => {
                      </button>
                   </div>
                 </div>
-                <button onClick={downloadPFP} className="w-full py-4 bg-white text-black font-black uppercase text-[11px] hover:bg-emerald-400 shadow-xl flex items-center justify-center gap-3 tracking-[0.2em] transition-all"><Download size={16}/> Save_to_Cult</button>
+                <button onClick={downloadPFP} className="w-full py-4 bg-white text-black font-black uppercase text-[11px] hover:bg-emerald-400 shadow-xl flex items-center justify-center gap-3 tracking-[0.2em] transition-all"><Download size={16}/> Save_IT</button>
                 <button onClick={() => setGeneratedImg(null)} className="w-full py-2 text-[9px] font-black uppercase text-zinc-700 hover:text-white transition-all flex items-center justify-center gap-2 group">
-                  <X size={12} className="group-hover:rotate-90 transition-transform" /> Purge_Matrix
+                  <X size={12} className="group-hover:rotate-90 transition-transform" /> Close_IT
                 </button>
               </div>
             ) : (
