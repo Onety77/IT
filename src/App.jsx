@@ -3612,7 +3612,7 @@ const ChatApp = ({ dexData, wallet, onRefreshAccess }) => {
             <div onClick={(e) => { e.stopPropagation(); handleCopyCA(); }} className="flex items-center gap-1 text-[7px] font-black opacity-40 hover:opacity-100 transition-opacity shrink-0">{copiedCA ? <Check size={8} className="text-green-500"/> : <Copy size={8}/>} {copiedCA ? 'COPIED' : 'COPY'}</div>
         </div>
 
-        <div ref={scrollRef} onScroll={handleOnScroll} className="flex-1 overflow-y-auto overflow-x-hidden p-4 scrollbar-classic space-y-8 scroll-smooth z-10 w-full box-border text-xs relative win-scroll-container">
+        <div ref={scrollRef} onScroll={handleOnScroll} className="flex-1 overflow-y-auto overflow-x-hidden p-4 no-scrollbar space-y-8 scroll-smooth z-10 w-full box-border text-xs relative win-scroll-container">
           <div className="flex flex-col items-center py-6 border-b border-dashed border-zinc-800 mb-8 opacity-40 text-center">
             <Shield size={20} className={isDarkMode ? 'text-emerald-500' : 'text-blue-900'} />
             <span className="text-[7px] font-black uppercase mt-2 italic tracking-[0.5em]">Live_Transmission</span>
@@ -3717,15 +3717,23 @@ const ChatApp = ({ dexData, wallet, onRefreshAccess }) => {
           </div>
       )}
 
-      <style>{`
-        .scrollbar-classic::-webkit-scrollbar { width: 10px; background: #000; }
-        .scrollbar-classic::-webkit-scrollbar-thumb { background: #111; border: 1px solid #444; }
+     <style>{`
+        .no-scrollbar::-webkit-scrollbar {
+          display: none;
+        }
+        .no-scrollbar {
+          -ms-overflow-style: none;  /* IE and Edge */
+          scrollbar-width: none;  /* Firefox */
+        }
+
         @keyframes highlight { 0% { outline: 4px solid #10b981; box-shadow: 0 0 20px #10b981; } 100% { outline: 0px solid transparent; } }
         .msg-highlight { animation: highlight 2s ease-out forwards; }
+        
         .vip-glow { 
             text-shadow: 0 0 5px currentColor, 0 0 10px currentColor; 
             animation: pulse-glow 2s infinite alternate;
         }
+        
         @keyframes pulse-glow {
             from { opacity: 0.8; }
             to { opacity: 1; filter: brightness(1.5); }
