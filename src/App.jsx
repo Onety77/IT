@@ -4459,7 +4459,7 @@ const MergeItApp = () => {
 //forgeit
 
 // --- CONFIGURATION ---
-const UNLIMITED_THRESHOLD = 1000000; 
+const UNLIMITED_THRESHOLD = 3000000; 
 const HOLDER_THRESHOLD = 500000;
 const LIMIT_ELITE = 99999;
 const LIMIT_HOLDER = 6;
@@ -4468,7 +4468,7 @@ const LIMIT_GUEST = 3;
 const APP_ID = typeof __app_id !== 'undefined' ? __app_id : 'it-forge-cult';
 const BASE_CHARACTER_PATH = "main.jpg";
 
-// --- REMASTERED CURATED TRAIT LIBRARY (NO DESCRIPTIONS) ---
+// --- REMASTERED CURATED TRAIT LIBRARY ---
 const PFP_CATEGORIES = [
   { id: 'bg', label: 'WORLD', icon: Image },
   { id: 'head', label: 'HATS', icon: Star },
@@ -4609,27 +4609,16 @@ const ForgeItApp = () => {
   const [showMobileBlueprint, setShowMobileBlueprint] = useState(false);
   const [isRandomizing, setIsRandomizing] = useState(false);
   
-  // ROBUST MULTI-CHECK API KEY RESOLUTION
+  // API Key Resolution
   const apiKey = (() => {
     try {
-      if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_APP_GEMINI) 
-        return import.meta.env.VITE_APP_GEMINI;
+      if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_APP_GEMINI) return import.meta.env.VITE_APP_GEMINI;
+      if (typeof process !== 'undefined' && process.env?.VITE_APP_GEMINI) return process.env.VITE_APP_GEMINI;
+      if (typeof window !== 'undefined' && window.VITE_APP_GEMINI) return window.VITE_APP_GEMINI;
     } catch (e) {}
-
-    try {
-      if (typeof process !== 'undefined' && process.env?.VITE_APP_GEMINI) 
-        return process.env.VITE_APP_GEMINI;
-    } catch (e) {}
-
-    try {
-      if (typeof window !== 'undefined' && window.VITE_APP_GEMINI) 
-        return window.VITE_APP_GEMINI;
-    } catch (e) {}
-
     return typeof __apiKey !== 'undefined' ? __apiKey : "";
   })();
 
-  // Forge State
   const [selections, setSelections] = useState({
     bg: PFP_TRAITS.bg[0], head: PFP_TRAITS.head[0], expression: PFP_TRAITS.expression[0],
     mask: PFP_TRAITS.mask[0], shirts: PFP_TRAITS.shirts[0], item: PFP_TRAITS.item[0],
@@ -4645,6 +4634,7 @@ const ForgeItApp = () => {
 
   const currentLimit = hasEliteAccess ? LIMIT_ELITE : (hasHolderAccess ? LIMIT_HOLDER : LIMIT_GUEST);
 
+  // Authentication & Initialization
   useEffect(() => {
     const initAuth = async () => {
       if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
@@ -4658,6 +4648,7 @@ const ForgeItApp = () => {
     return () => unsubscribe();
   }, []);
 
+  // Balance Monitoring
   useEffect(() => {
     const handleKernelSync = (e) => {
       const bal = e.detail.balance;
@@ -4669,6 +4660,7 @@ const ForgeItApp = () => {
     return () => window.removeEventListener('IT_OS_BALANCE_UPDATE', handleKernelSync);
   }, []);
 
+  // Daily Limit Tracker
   useEffect(() => {
     if (!user) return;
     const today = new Date().toISOString().split('T')[0];
@@ -4678,8 +4670,10 @@ const ForgeItApp = () => {
         const data = snap.data();
         if (data.lastDate === today) setDailyCount(data.count);
         else setDailyCount(0);
+      } else {
+        setDailyCount(0);
       }
-    });
+    }, (err) => console.error("Firestore Listen Error:", err));
     return () => unsub();
   }, [user]);
 
@@ -4688,8 +4682,6 @@ const ForgeItApp = () => {
   const handleTraitSelect = (catId, trait) => {
     setSelections(prev => {
       const next = { ...prev, [catId]: trait };
-      
-      // LOGIC: If a Superhero is selected, clear other conflicting items to avoid messy AI results
       if (catId === 'super' && trait.id !== 'none') {
         next.head = PFP_TRAITS.head[0];
         next.shirts = PFP_TRAITS.shirts[0];
@@ -4698,11 +4690,9 @@ const ForgeItApp = () => {
         next.expression = PFP_TRAITS.expression[0];
         next.mask = PFP_TRAITS.mask[0];
       } 
-      // LOGIC: If regular gear is selected, deselect the Superhero mode
       else if (['head', 'shirts', 'item', 'glasses', 'expression', 'mask'].includes(catId) && trait.id !== 'none') {
         next.super = PFP_TRAITS.super[0];
       }
-      
       return next;
     });
   };
@@ -4715,13 +4705,11 @@ const ForgeItApp = () => {
     const interval = setInterval(() => {
       const newSels = {};
       Object.keys(PFP_TRAITS).forEach(cat => {
-        // REQUEST: Skip superhero section in randomization
         if (cat === 'super') {
           newSels[cat] = PFP_TRAITS.super[0];
           return;
         }
         const items = PFP_TRAITS[cat];
-        // Only select non-VIP unless they have elite access
         const availableItems = items.filter(i => !i.vip || hasEliteAccess);
         newSels[cat] = availableItems[Math.floor(Math.random() * availableItems.length)];
       });
@@ -4749,20 +4737,15 @@ const ForgeItApp = () => {
 
   const handleForge = async () => {
     if (isForging) return;
-    
-    // SAFETY: Ensure user is linked before allowing forge to avoid crashes later
-    if (!user) {
-      setError("COMM_LINK_FAILURE: Establish connection to Kernel first.");
-      return;
-    }
+    if (!user) { setError("SYNCING_KERNEL... PLEASE WAIT."); return; }
 
     if (dailyCount >= currentLimit) {
       setError(`LIMIT_EXCEEDED: ${hasEliteAccess ? 'Unlimited' : hasHolderAccess ? '6/day' : '3/day'} Cycle Complete.`);
       return;
     }
 
-    if (!apiKey && typeof __apiKey === 'undefined') {
-      setError("IDENTIFIER_ERROR: VITE_APP_GEMINI not detected. Check Vercel/Env settings.");
+    if (!apiKey) {
+      setError("IDENTIFIER_ERROR: VITE_APP_GEMINI not detected. Check Env.");
       return;
     }
 
@@ -4773,19 +4756,18 @@ const ForgeItApp = () => {
 
     try {
       const base64Image = await getBaseCharacter64();
-      if (!base64Image) throw new Error("Character asset 'main.jpg' missing from public folder.");
+      if (!base64Image) throw new Error("Character base not found. Ensure main.jpg is in public folder.");
 
       let promptText = "";
       if (selections.super.id !== 'none') {
         promptText = `
           ARTSY SUPERHERO TRANSFORMATION.
           SOURCE: Use the attached character as the EXACT static blueprint.
-          KEEP: Core mask structure, physical proportions, and 90s hand-drawn artsy anime style.
+          KEEP: Core mask structure and 90s hand-drawn artsy anime style.
           TRANSFORM: ${selections.super.prompt}. 
-          ATMOSPHERE: Automatically generate a cinematic, high-contrast atmospheric background that fits the superhero theme perfectly (e.g., a dark rainy city rooftop for Batman, a glowing solar space void for others).
-          AURA: ${selections.aura.prompt}.
-          VIBE: Creative artsy theme. Pose remains locked.
-          MANDATORY BRANDING: Integrate the letters "IT" as a professional graphic emblem on the suit's chest or belt. The text MUST be in a high-contrast color that makes sense for the suit (e.g., bright yellow or white on a dark Batman suit). It should look like part of the character design, not a random scribble.
+          BACKGROUND: Cinematic, high-contrast atmospheric background matching the hero theme.
+          MANDATORY BRANDING: Integrate the letters "IT" professionally on the hero suit chest.
+          OCCLUSION RULE: If the character is holding a large item or prop that physically covers the chest area, DO NOT write "IT" there. Leave the suit plain to avoid visual mess.
         `;
       } else {
         const activeTraits = Object.entries(selections)
@@ -4796,12 +4778,11 @@ const ForgeItApp = () => {
         promptText = `
           ARTSY PROFILE PICTURE FORGE.
           SOURCE: Use the attached character as the STATIC blueprint.
-          STYLE: 90s hand-drawn artsy anime with thick black ink outlines and flat vibrant colors.
+          STYLE: 90s hand-drawn artsy anime. Thick ink outlines, flat colors.
           DO NOT CHANGE: Core body shape, mask structure, or pose.
           ADD OR MODIFY: ${activeTraits}.
-          MANDATORY BRANDING: If the character is wearing a plain shirt, vest, or hat, you MUST draw the letters "IT" clearly on a plain area of the garment. 
-          COLOR COORDINATION: Choose a font color for "IT" that contrasts perfectly with the clothing (e.g., dark ink on light shirts, bright ink on dark shirts). It must look clean and professional, like an intentional logo. Do not overlap it with complex textures or other designs.
-          VIBE: Artsy, simple, cool pfp.
+          MANDATORY BRANDING: If wearing a plain shirt/garment, write "IT" clearly on the chest area in high-contrast ink.
+          OCCLUSION RULE: If a held prop (like the coffee cup, donut, phone, etc.) is held in front of the chest and blocks the garment, DO NOT attempt to write "IT" on the garment. Leave it plain where it is blocked.
         `;
       }
 
@@ -4821,30 +4802,31 @@ const ForgeItApp = () => {
 
       if (!response.ok) {
         const errData = await response.json();
-        throw new Error(`${response.status}: ${errData.error?.message || 'Check your internet or API key'}`);
+        throw new Error(`${response.status}: ${errData.error?.message || 'AI Network Down'}`);
       }
 
       const result = await response.json();
       const base64Result = result.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
 
       if (base64Result) {
-        // FAIL-SAFE: Clear errors before displaying image
+        // Clear errors before displaying
         setError(null);
         setProgress(100); 
         setGeneratedImg(`data:image/png;base64,${base64Result}`);
         addLog("MATERIALIZATION_SUCCESS.");
         
-        // NESTED TRY: Update usage without crashing display if DB fails
+        // Update Firestore Usage
         try {
-          if (user && user.uid) {
-            const today = new Date().toISOString().split('T')[0];
-            await setDoc(doc(db, 'artifacts', APP_ID, 'users', user.uid, 'usage', 'forge_limits'), { count: dailyCount + 1, lastDate: today }, { merge: true });
-          }
+          const today = new Date().toISOString().split('T')[0];
+          const usageRef = doc(db, 'artifacts', APP_ID, 'users', user.uid, 'usage', 'forge_limits');
+          await setDoc(usageRef, { count: dailyCount + 1, lastDate: today }, { merge: true });
         } catch (dbErr) {
-          console.error("Usage tracker failed", dbErr);
+          console.warn("Usage tracking silent fail:", dbErr);
+          // Fallback: Local UI update if DB is slow
+          setDailyCount(prev => prev + 1);
         }
       } else { 
-        throw new Error("AI_RETURNED_EMPTY_RESPONSE: The forge failed to materialize pixels."); 
+        throw new Error("AI_RETURNED_EMPTY_RESPONSE: Internal Materializer Error."); 
       }
     } catch (err) {
       setError(err.message);
@@ -4858,7 +4840,7 @@ const ForgeItApp = () => {
     if (!generatedImg) return;
     const link = document.createElement('a');
     link.href = generatedImg;
-    link.download = `CULT_ID_${Date.now()}.png`;
+    link.download = `CULT_FORGE_${Date.now()}.png`;
     link.click();
   };
 
@@ -4872,7 +4854,7 @@ const ForgeItApp = () => {
           <div className="p-1 border border-emerald-500/40 rounded-sm bg-black relative"><Cpu size={14} className="text-emerald-400" /></div>
           <div className="flex flex-col">
             <h1 className="text-[9px] font-black uppercase tracking-[0.3em] text-white italic leading-none">Forge_IT_Cult</h1>
-            <span className="text-[6px] text-zinc-600 font-bold uppercase mt-1 tracking-tighter">Forge_Engine_v5.4</span>
+            <span className="text-[6px] text-zinc-600 font-bold uppercase mt-1 tracking-tighter">Forge_Engine_v5.5</span>
           </div>
         </div>
         <div className={`px-2 py-1 border rounded-sm transition-all flex items-center gap-2 ${hasEliteAccess ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-400 shadow-[0_0_10px_#10b98133]' : hasHolderAccess ? 'border-blue-500/40 bg-blue-500/10 text-blue-400' : 'border-yellow-600/40 bg-yellow-600/10 text-yellow-600'}`}>
@@ -4939,7 +4921,7 @@ const ForgeItApp = () => {
           <div className="p-2 md:p-4 bg-black border-t border-emerald-900/40 shrink-0 md:relative fixed bottom-0 left-0 right-0 z-[60] backdrop-blur-md flex flex-col gap-2">
             <button onClick={handleRandomize} disabled={isForging || isRandomizing}
               className="w-full py-2 border border-emerald-500/20 text-emerald-500/50 hover:text-emerald-400 hover:bg-emerald-500/5 flex items-center justify-center gap-2 text-[8px] font-black uppercase tracking-[0.3em] transition-all">
-              <Shuffle size={14} className={isRandomizing ? 'animate-spin' : ''} /> Randomize_Matrix
+              <Shuffle size={14} className={isRandomizing ? 'animate-spin' : ''} /> Randomize
             </button>
             <button onClick={handleForge} disabled={isForging || isRandomizing}
               className={`w-full py-4 md:py-5 font-black italic text-base md:text-lg tracking-[0.4em] transition-all relative overflow-hidden group border-b-4 md:border-b-8 active:translate-y-1 active:border-b-0 ${
@@ -4986,14 +4968,12 @@ const ForgeItApp = () => {
                 <div className="relative group p-1 bg-zinc-950 border border-white/10 shadow-[0_0_60px_rgba(0,0,0,1)] overflow-hidden">
                   <img src={generatedImg} className="w-full aspect-square object-cover relative z-10" />
                   <div className="absolute top-4 right-4 z-20 opacity-0 group-hover:opacity-100 transition-all duration-300">
-                     <button onClick={downloadPFP} className="p-3 bg-white text-black hover:bg-emerald-400 shadow-2xl active:scale-90">
-                        <Download size={20} />
-                     </button>
+                     <button onClick={downloadPFP} className="p-3 bg-white text-black hover:bg-emerald-400 shadow-2xl active:scale-90"><Download size={20} /></button>
                   </div>
                 </div>
-                <button onClick={downloadPFP} className="w-full py-4 bg-white text-black font-black uppercase text-[11px] hover:bg-emerald-400 shadow-xl flex items-center justify-center gap-3 tracking-[0.2em] transition-all"><Download size={16}/> Save_to_Cult</button>
+                <button onClick={downloadPFP} className="w-full py-4 bg-white text-black font-black uppercase text-[11px] hover:bg-emerald-400 shadow-xl flex items-center justify-center gap-3 tracking-[0.2em] transition-all"><Download size={16}/> Save_IT</button>
                 <button onClick={() => setGeneratedImg(null)} className="w-full py-2 text-[9px] font-black uppercase text-zinc-700 hover:text-white transition-all flex items-center justify-center gap-2 group">
-                  <X size={12} className="group-hover:rotate-90 transition-transform" /> Purge_Matrix
+                  <X size={12} className="group-hover:rotate-90 transition-transform" /> Close_IT
                 </button>
               </div>
             ) : (
@@ -5024,7 +5004,6 @@ const ForgeItApp = () => {
     </div>
   );
 };
-
 
 
 
