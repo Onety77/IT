@@ -4468,7 +4468,7 @@ const LIMIT_GUEST = 3;
 const APP_ID = typeof __app_id !== 'undefined' ? __app_id : 'it-forge-cult';
 const BASE_CHARACTER_PATH = "main.jpg";
 
-// --- CURATED TRAIT LIBRARY (NO DESCRIPTIONS) ---
+// --- REMASTERED CURATED TRAIT LIBRARY (NO DESCRIPTIONS) ---
 const PFP_CATEGORIES = [
   { id: 'bg', label: 'WORLD', icon: Image },
   { id: 'head', label: 'HATS', icon: Star },
@@ -4506,7 +4506,7 @@ const PFP_TRAITS = {
     { id: 'bucket', label: 'Bucket Hat', prompt: 'wearing a fabric bucket hat' },
     { id: 'cowboy', label: 'Cowboy Hat', prompt: 'wearing a classic brown cowboy hat' },
     { id: 'fish', label: 'Fisherman Hat', prompt: 'wearing a green outdoor fisherman hat' },
-    { id: 'helmet', label: 'Construction Helmet', prompt: 'wearing a bright yellow construction helmet' },
+    { id: 'helmet', label: 'Construction Helmet', prompt: 'wearing a yellow construction helmet' },
     { id: 'headset', label: 'Headphones', prompt: 'with large black headphones resting on the bag' },
     { id: 'paper_crown', label: 'Paper Crown', prompt: 'wearing a hand-drawn paper crown' },
     { id: 'diamond_crown', label: 'Diamond Crown', prompt: 'with a floating diamond crown above the head', vip: true },
@@ -4599,6 +4599,7 @@ const PFP_TRAITS = {
   ]
 };
 
+
 const ForgeItApp = () => {
   const [user, setUser] = useState(null);
   const [tokenBalance, setTokenBalance] = useState(0);
@@ -4608,20 +4609,23 @@ const ForgeItApp = () => {
   const [showMobileBlueprint, setShowMobileBlueprint] = useState(false);
   const [isRandomizing, setIsRandomizing] = useState(false);
   
-  // ROBUST API KEY RESOLUTION (The working method you requested)
+  // ROBUST API KEY RESOLUTION (Targeting VITE_APP_GEMINI)
   const apiKey = (() => {
     try {
       if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_APP_GEMINI) 
         return import.meta.env.VITE_APP_GEMINI;
     } catch (e) {}
+
     try {
       if (typeof process !== 'undefined' && process.env?.VITE_APP_GEMINI) 
         return process.env.VITE_APP_GEMINI;
     } catch (e) {}
+
     try {
       if (typeof window !== 'undefined' && window.VITE_APP_GEMINI) 
         return window.VITE_APP_GEMINI;
     } catch (e) {}
+
     return typeof __apiKey !== 'undefined' ? __apiKey : "";
   })();
 
@@ -4767,12 +4771,13 @@ const ForgeItApp = () => {
         promptText = `
           ARTSY SUPERHERO TRANSFORMATION.
           SOURCE: Use the attached character as the EXACT static blueprint.
-          KEEP: Core mask structure and 90s hand-drawn artsy anime style.
-          TRANSFORM: ${selections.super.prompt}. 
-          BACKGROUND: CINEMATIC high-contrast background that fits the superhero theme perfectly.
-          MANDATORY BRANDING: Integrate the letters "IT" PROFESSIONALLY on the hero suit chest emblem using high-contrast ink.
-          OCCLUSION RULE: If the character is holding an item (prop) that blocks the chest area, DO NOT write "IT" on the chest.
-          RULE: DO NOT change character silhouette or pose.
+          STRICT CONSTRAINTS: 
+          - DO NOT change the body shape, silhouette, or anatomy of the cat character.
+          - DO NOT add human faces or human limbs.
+          - KEEP the paper bag mask exactly as it is.
+          - TRANSFORM: ${selections.super.prompt} by layering the hero suit onto the static body.
+          STYLE: 90s hand-drawn artsy anime with thick black outlines and flat colors.
+          MANDATORY BRANDING: Draw a professional "IT" logo on the hero chest emblem.
         `;
       } else {
         const activeTraits = Object.entries(selections)
@@ -4781,15 +4786,15 @@ const ForgeItApp = () => {
           .join(', ');
 
         promptText = `
-          ARTSY PROFILE PICTURE FORGE.
-          SOURCE: Use the attached character as the STATIC blueprint.
-          STYLE: 90s hand-drawn artsy anime. Thick ink outlines, flat vibrant colors.
-          DO NOT CHANGE: Core body shape, mask structure, or pose.
-          ADD OR MODIFY: ${activeTraits}.
-          MANDATORY BRANDING: If the character is wearing a plain shirt or hat, write the letters "IT" clearly on a plain area.
-          OCCLUSION RULE: If the character is holding a prop (like a phone, coffee, etc.) that blocks the chest, DO NOT write "IT" on the shirt.
-          CONTRAST RULE: Use dark ink on light clothes, or bright ink on dark clothes.
-          VIBE: Simple artsy transformation. Keep his identity identical.
+          ARTSY PFP FORGE.
+          SOURCE: Use the attached cybernetic cat with the bag-mask as the STATIC TEMPLATE.
+          LAYER SYSTEM: Treat this like an NFT layering process.
+          STRICT CONSTRAINTS: 
+          - DO NOT CHANGE the character silhouette, pose, or proportions. 
+          - DO NOT ADD human features or realistic hands. 
+          - Preserve the thick ink outlines and flat vibrant color style.
+          ADD TRAITS: ${activeTraits}.
+          MANDATORY BRANDING: If there is clear space on a shirt, draw the letters "IT" as a high-contrast professional logo. Skip branding if props block the chest area.
         `;
       }
 
@@ -5013,6 +5018,7 @@ const ForgeItApp = () => {
     </div>
   );
 };
+
 
 
 // --- MAIN OS COMPONENT ---
