@@ -4468,7 +4468,7 @@ const LIMIT_GUEST = 3;
 const APP_ID = typeof __app_id !== 'undefined' ? __app_id : 'it-forge-cult';
 const BASE_CHARACTER_PATH = "main.jpg";
 
-// --- REMASTERED CURATED TRAIT LIBRARY (NO DESCRIPTIONS) ---
+// --- CURATED TRAIT LIBRARY (NO DESCRIPTIONS) ---
 const PFP_CATEGORIES = [
   { id: 'bg', label: 'WORLD', icon: Image },
   { id: 'head', label: 'HATS', icon: Star },
@@ -4494,7 +4494,7 @@ const PFP_TRAITS = {
     { id: 'midnight', label: 'Midnight Grain', prompt: 'against a deep grainy midnight blue artsy background' },
     { id: 'graffiti', label: 'Graffiti Wall', prompt: 'against a wall with messy graffiti tags and "IT" logos' },
     { id: 'penthouse', label: 'Penthouse Balcony', prompt: 'on a luxury balcony with a gold and black city skyline at night', vip: true },
-    { id: 'sim', label: 'The Simulation', prompt: 'in a matrix void made of infinite green "IT" text repeating', vip: true },
+    { id: 'sim', label: 'The Simulation', prompt: 'in a matrix void made of infinite green IT text repeating', vip: true },
     { id: 'gold_leaf', label: 'Gold Leaf Canvas', prompt: 'against a high-contrast black canvas with real gold leaf textures', vip: true },
   ],
   head: [
@@ -4599,7 +4599,6 @@ const PFP_TRAITS = {
   ]
 };
 
-
 const ForgeItApp = () => {
   const [user, setUser] = useState(null);
   const [tokenBalance, setTokenBalance] = useState(0);
@@ -4609,23 +4608,20 @@ const ForgeItApp = () => {
   const [showMobileBlueprint, setShowMobileBlueprint] = useState(false);
   const [isRandomizing, setIsRandomizing] = useState(false);
   
-  // ROBUST MULTI-CHECK API KEY RESOLUTION (Targeting VITE_APP_GEMINI)
+  // ROBUST API KEY RESOLUTION (The working method you requested)
   const apiKey = (() => {
     try {
       if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_APP_GEMINI) 
         return import.meta.env.VITE_APP_GEMINI;
     } catch (e) {}
-
     try {
       if (typeof process !== 'undefined' && process.env?.VITE_APP_GEMINI) 
         return process.env.VITE_APP_GEMINI;
     } catch (e) {}
-
     try {
       if (typeof window !== 'undefined' && window.VITE_APP_GEMINI) 
         return window.VITE_APP_GEMINI;
     } catch (e) {}
-
     return typeof __apiKey !== 'undefined' ? __apiKey : "";
   })();
 
@@ -4678,6 +4674,8 @@ const ForgeItApp = () => {
         const data = snap.data();
         if (data.lastDate === today) setDailyCount(data.count);
         else setDailyCount(0);
+      } else {
+        setDailyCount(0);
       }
     });
     return () => unsub();
@@ -4750,7 +4748,7 @@ const ForgeItApp = () => {
       return;
     }
 
-    if (!apiKey && typeof __apiKey === 'undefined') {
+    if (!apiKey) {
       setError("IDENTIFIER_ERROR: VITE_APP_GEMINI not detected. Check Env.");
       return;
     }
@@ -4773,6 +4771,7 @@ const ForgeItApp = () => {
           TRANSFORM: ${selections.super.prompt}. 
           BACKGROUND: CINEMATIC high-contrast background that fits the superhero theme perfectly.
           MANDATORY BRANDING: Integrate the letters "IT" PROFESSIONALLY on the hero suit chest emblem using high-contrast ink.
+          OCCLUSION RULE: If the character is holding an item (prop) that blocks the chest area, DO NOT write "IT" on the chest.
           RULE: DO NOT change character silhouette or pose.
         `;
       } else {
@@ -4787,7 +4786,8 @@ const ForgeItApp = () => {
           STYLE: 90s hand-drawn artsy anime. Thick ink outlines, flat vibrant colors.
           DO NOT CHANGE: Core body shape, mask structure, or pose.
           ADD OR MODIFY: ${activeTraits}.
-          MANDATORY BRANDING: If the character is wearing a plain shirt or hat, you MUST draw the letters "IT" clearly on a plain area of the garment.
+          MANDATORY BRANDING: If the character is wearing a plain shirt or hat, write the letters "IT" clearly on a plain area.
+          OCCLUSION RULE: If the character is holding a prop (like a phone, coffee, etc.) that blocks the chest, DO NOT write "IT" on the shirt.
           CONTRAST RULE: Use dark ink on light clothes, or bright ink on dark clothes.
           VIBE: Simple artsy transformation. Keep his identity identical.
         `;
@@ -4816,28 +4816,39 @@ const ForgeItApp = () => {
       const base64Result = result.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
 
       if (base64Result) {
-        setError(null);
-        setProgress(100); 
-        setGeneratedImg(`data:image/png;base64,${base64Result}`);
-        addLog("MATERIALIZATION_SUCCESS.");
-        
-        try {
-          const today = new Date().toISOString().split('T')[0];
-          const usageRef = doc(db, 'artifacts', APP_ID, 'users', user.uid, 'usage', 'forge_limits');
-          await setDoc(usageRef, { count: dailyCount + 1, lastDate: today }, { merge: true });
-        } catch (dbErr) {
-          console.warn("Usage track fail:", dbErr);
-          setDailyCount(prev => prev + 1);
-        }
+        // Safe success delay to prevent race condition blank screen
+        setTimeout(async () => {
+          setGeneratedImg(`data:image/png;base64,${base64Result}`);
+          setProgress(100); 
+          addLog("MATERIALIZATION_SUCCESS.");
+          setError(null);
+          
+          try {
+            const today = new Date().toISOString().split('T')[0];
+            const usageRef = doc(db, 'artifacts', APP_ID, 'users', user.uid, 'usage', 'forge_limits');
+            await setDoc(usageRef, { count: dailyCount + 1, lastDate: today }, { merge: true });
+          } catch (dbErr) { console.warn("Tracker update skip:", dbErr); }
+          
+          setIsForging(false);
+        }, 100);
       } else { 
-        throw new Error("AI_RETURNED_EMPTY_RESPONSE: The forge failed to materialize pixels."); 
+        throw new Error("AI_RETURNED_EMPTY_RESPONSE: Internal Materializer Error."); 
       }
     } catch (err) {
       setError(err.message);
       addLog("ERROR: SYSTEM_HALTED");
+      setIsForging(false);
     } finally {
-      clearInterval(progTimer); setIsForging(false);
+      clearInterval(progTimer);
     }
+  };
+
+  const downloadPFP = () => {
+    if (!generatedImg) return;
+    const link = document.createElement('a');
+    link.href = generatedImg;
+    link.download = `CULT_ID_${Date.now()}.png`;
+    link.click();
   };
 
   return (
@@ -4850,13 +4861,13 @@ const ForgeItApp = () => {
           <div className="p-1 border border-emerald-500/40 rounded-sm bg-black relative"><Cpu size={14} className="text-emerald-400" /></div>
           <div className="flex flex-col">
             <h1 className="text-[9px] font-black uppercase tracking-[0.3em] text-white italic leading-none">Forge_IT_Cult</h1>
-            <span className="text-[6px] text-zinc-600 font-bold uppercase mt-1 tracking-tighter">Forge_Engine_v5.4</span>
+            <span className="text-[6px] text-zinc-600 font-bold uppercase mt-1 tracking-tighter">Forge_Engine_v5.6</span>
           </div>
         </div>
         <div className={`px-2 py-1 border rounded-sm transition-all flex items-center gap-2 ${hasEliteAccess ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-400 shadow-[0_0_10px_#10b98133]' : hasHolderAccess ? 'border-blue-500/40 bg-blue-500/10 text-blue-400' : 'border-yellow-600/40 bg-yellow-600/10 text-yellow-600'}`}>
           <div className="flex flex-col items-end">
             <span className="text-[8px] font-black uppercase tracking-tighter leading-none">{hasEliteAccess ? 'ELITE' : hasHolderAccess ? 'HOLDER' : 'GUEST'}</span>
-            <span className="text-[6px] font-bold opacity-60 mt-0.5 tracking-widest uppercase">CYCLES: {hasEliteAccess ? '∞' : currentLimit - dailyCount}</span>
+            <span className="text-[6px] font-bold opacity-60 mt-0.5 tracking-widest uppercase">FORGES: {hasEliteAccess ? '∞' : currentLimit - dailyCount}</span>
           </div>
           {hasEliteAccess ? <Crown size={12} className="animate-pulse" /> : <Lock size={10} className="opacity-40" />}
         </div>
@@ -4933,7 +4944,7 @@ const ForgeItApp = () => {
 
         {/* NEURAL CHAMBER */}
         <div className={`w-full md:w-[350px] lg:w-[420px] bg-black flex flex-col border-l border-emerald-900/40 shrink-0 min-h-0
-          ${(isForging || generatedImg) ? 'fixed inset-0 z-[80] md:relative md:inset-auto md:z-0' : 'hidden md:flex'}`}>
+          ${(isForging || generatedImg) ? 'fixed inset-0 z-[80] md:relative md:inset-auto md:z-0 flex' : 'hidden md:flex'}`}>
           
           <div className="hidden md:flex h-[50px] items-center px-4 justify-between bg-black border-b border-emerald-900/40 shrink-0">
              <div className="flex items-center gap-2 opacity-50">
@@ -5002,7 +5013,6 @@ const ForgeItApp = () => {
     </div>
   );
 };
-
 
 
 // --- MAIN OS COMPONENT ---
