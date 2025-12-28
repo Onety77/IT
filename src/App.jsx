@@ -4462,13 +4462,13 @@ const MergeItApp = () => {
 const UNLIMITED_THRESHOLD = 3000000; 
 const HOLDER_THRESHOLD = 500000;
 const LIMIT_ELITE = 99999;
-const LIMIT_HOLDER = 6;
-const LIMIT_GUEST = 3;
+const LIMIT_HOLDER = 4;
+const LIMIT_GUEST = 2;
 
 const APP_ID = typeof __app_id !== 'undefined' ? __app_id : 'it-forge-cult';
 const BASE_CHARACTER_PATH = "main.jpg";
 
-// --- REMASTERED CURATED TRAIT LIBRARY (NO DESCRIPTIONS) ---
+// --- CURATED TRAIT LIBRARY (NO DESCRIPTIONS) ---
 const PFP_CATEGORIES = [
   { id: 'bg', label: 'WORLD', icon: Image },
   { id: 'head', label: 'HATS', icon: Star },
@@ -4506,7 +4506,7 @@ const PFP_TRAITS = {
     { id: 'bucket', label: 'Bucket Hat', prompt: 'wearing a fabric bucket hat' },
     { id: 'cowboy', label: 'Cowboy Hat', prompt: 'wearing a classic brown cowboy hat' },
     { id: 'fish', label: 'Fisherman Hat', prompt: 'wearing a green outdoor fisherman hat' },
-    { id: 'helmet', label: 'Construction Helmet', prompt: 'wearing a yellow construction helmet' },
+    { id: 'helmet', label: 'Construction Helmet', prompt: 'wearing a bright yellow construction helmet' },
     { id: 'headset', label: 'Headphones', prompt: 'with large black headphones resting on the bag' },
     { id: 'paper_crown', label: 'Paper Crown', prompt: 'wearing a hand-drawn paper crown' },
     { id: 'diamond_crown', label: 'Diamond Crown', prompt: 'with a floating diamond crown above the head', vip: true },
@@ -4599,7 +4599,6 @@ const PFP_TRAITS = {
   ]
 };
 
-
 const ForgeItApp = () => {
   const [user, setUser] = useState(null);
   const [tokenBalance, setTokenBalance] = useState(0);
@@ -4609,23 +4608,13 @@ const ForgeItApp = () => {
   const [showMobileBlueprint, setShowMobileBlueprint] = useState(false);
   const [isRandomizing, setIsRandomizing] = useState(false);
   
-  // ROBUST API KEY RESOLUTION (Targeting VITE_APP_GEMINI)
+  // ROBUST API KEY RESOLUTION
   const apiKey = (() => {
     try {
-      if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_APP_GEMINI) 
-        return import.meta.env.VITE_APP_GEMINI;
+      if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_APP_GEMINI) return import.meta.env.VITE_APP_GEMINI;
+      if (typeof process !== 'undefined' && process.env?.VITE_APP_GEMINI) return process.env.VITE_APP_GEMINI;
+      if (typeof window !== 'undefined' && window.VITE_APP_GEMINI) return window.VITE_APP_GEMINI;
     } catch (e) {}
-
-    try {
-      if (typeof process !== 'undefined' && process.env?.VITE_APP_GEMINI) 
-        return process.env.VITE_APP_GEMINI;
-    } catch (e) {}
-
-    try {
-      if (typeof window !== 'undefined' && window.VITE_APP_GEMINI) 
-        return window.VITE_APP_GEMINI;
-    } catch (e) {}
-
     return typeof __apiKey !== 'undefined' ? __apiKey : "";
   })();
 
@@ -4676,12 +4665,15 @@ const ForgeItApp = () => {
     const unsub = onSnapshot(usageRef, (snap) => {
       if (snap.exists()) {
         const data = snap.data();
-        if (data.lastDate === today) setDailyCount(data.count);
-        else setDailyCount(0);
+        if (data.lastDate === today) {
+          setDailyCount(data.count);
+        } else {
+          setDailyCount(0); // It's a new day
+        }
       } else {
-        setDailyCount(0);
+        setDailyCount(0); // Document doesn't exist yet
       }
-    });
+    }, (err) => console.error("Firestore Listen Error:", err));
     return () => unsub();
   }, [user]);
 
@@ -4748,7 +4740,7 @@ const ForgeItApp = () => {
     if (!user) { setError("SYNCING_KERNEL... PLEASE WAIT."); return; }
 
     if (dailyCount >= currentLimit) {
-      setError(`LIMIT_EXCEEDED: ${hasEliteAccess ? 'Unlimited' : hasHolderAccess ? '6/day' : '3/day'} Cycle Complete.`);
+      setError(`LIMIT_EXCEEDED: ${hasEliteAccess ? 'Unlimited' : hasHolderAccess ? '4/day' : '2/day'} Cycle Complete.`);
       return;
     }
 
@@ -4772,12 +4764,12 @@ const ForgeItApp = () => {
           ARTSY SUPERHERO TRANSFORMATION.
           SOURCE: Use the attached character as the EXACT static blueprint.
           STRICT CONSTRAINTS: 
-          - DO NOT change the body shape, silhouette, or anatomy of the cat character.
-          - DO NOT add human faces or human limbs.
-          - KEEP the paper bag mask exactly as it is.
-          - TRANSFORM: ${selections.super.prompt} by layering the hero suit onto the static body.
-          STYLE: 90s hand-drawn artsy anime with thick black outlines and flat colors.
-          MANDATORY BRANDING: Draw a professional "IT" logo on the hero chest emblem.
+          - DO NOT change the core body shape, silhouette, or anatomy of the original character.
+          - DO NOT add human features, human faces, or human limbs.
+          - Preserve the paper bag mask exactly as it appears in the source.
+          - TRANSFORM: ${selections.super.prompt} by layering hero suit details onto the existing static body template.
+          - BACKGROUND: High-contrast cinematic atmosphere matching the hero theme.
+          MANDATORY BRANDING: Draw a professional "IT" logo on the hero chest emblem ONLY IF the area is not blocked by props.
         `;
       } else {
         const activeTraits = Object.entries(selections)
@@ -4786,15 +4778,16 @@ const ForgeItApp = () => {
           .join(', ');
 
         promptText = `
-          ARTSY PFP FORGE.
-          SOURCE: Use the attached cybernetic cat with the bag-mask as the STATIC TEMPLATE.
-          LAYER SYSTEM: Treat this like an NFT layering process.
+          ARTSY PFP FORGE SYSTEM.
+          SOURCE: Use the attached character with the bag-mask as the STATIC TEMPLATE.
+          LAYER SYSTEM: Treat this strictly as layering items onto a locked base character.
           STRICT CONSTRAINTS: 
-          - DO NOT CHANGE the character silhouette, pose, or proportions. 
+          - DO NOT CHANGE silhouette, pose, or proportions. 
           - DO NOT ADD human features or realistic hands. 
-          - Preserve the thick ink outlines and flat vibrant color style.
+          - Maintain 90s hand-drawn artsy anime style with thick black outlines and flat vibrant colors.
           ADD TRAITS: ${activeTraits}.
-          MANDATORY BRANDING: If there is clear space on a shirt, draw the letters "IT" as a high-contrast professional logo. Skip branding if props block the chest area.
+          BRANDING RULE: If there is plain, clear space on a shirt, draw the letters "IT" as a high-contrast clean logo. 
+          OCCLUSION RULE: If a held prop (like coffee, donut, phone) is in front of the chest area, SKIP drawing the "IT" branding to avoid mess.
         `;
       }
 
@@ -4831,8 +4824,12 @@ const ForgeItApp = () => {
           try {
             const today = new Date().toISOString().split('T')[0];
             const usageRef = doc(db, 'artifacts', APP_ID, 'users', user.uid, 'usage', 'forge_limits');
-            await setDoc(usageRef, { count: dailyCount + 1, lastDate: today }, { merge: true });
-          } catch (dbErr) { console.warn("Tracker update skip:", dbErr); }
+            // USE FIRESTORE INCREMENT TO ENSURE RELIABLE LIMIT UPDATES
+            await setDoc(usageRef, { count: increment(1), lastDate: today }, { merge: true });
+          } catch (dbErr) { 
+            console.warn("Tracker update skip:", dbErr);
+            setDailyCount(prev => prev + 1); // Local fallback for UI if DB is slow
+          }
           
           setIsForging(false);
         }, 100);
@@ -4852,7 +4849,7 @@ const ForgeItApp = () => {
     if (!generatedImg) return;
     const link = document.createElement('a');
     link.href = generatedImg;
-    link.download = `CULT_ID_${Date.now()}.png`;
+    link.download = `FORGED_IT_ID_${Date.now()}.png`;
     link.click();
   };
 
@@ -4866,7 +4863,7 @@ const ForgeItApp = () => {
           <div className="p-1 border border-emerald-500/40 rounded-sm bg-black relative"><Cpu size={14} className="text-emerald-400" /></div>
           <div className="flex flex-col">
             <h1 className="text-[9px] font-black uppercase tracking-[0.3em] text-white italic leading-none">Forge_IT_Cult</h1>
-            <span className="text-[6px] text-zinc-600 font-bold uppercase mt-1 tracking-tighter">Forge_Engine_v5.6</span>
+            <span className="text-[6px] text-zinc-600 font-bold uppercase mt-1 tracking-tighter">Forge_Engine_v5.7</span>
           </div>
         </div>
         <div className={`px-2 py-1 border rounded-sm transition-all flex items-center gap-2 ${hasEliteAccess ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-400 shadow-[0_0_10px_#10b98133]' : hasHolderAccess ? 'border-blue-500/40 bg-blue-500/10 text-blue-400' : 'border-yellow-600/40 bg-yellow-600/10 text-yellow-600'}`}>
