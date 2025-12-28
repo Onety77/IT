@@ -4459,7 +4459,7 @@ const MergeItApp = () => {
 //forgeit
 
 // --- CONFIGURATION ---
-const UNLIMITED_THRESHOLD = 3000000; 
+const UNLIMITED_THRESHOLD = 1000000; 
 const HOLDER_THRESHOLD = 500000;
 const LIMIT_ELITE = 99999;
 const LIMIT_HOLDER = 6;
@@ -4483,32 +4483,32 @@ const PFP_CATEGORIES = [
 
 const PFP_TRAITS = {
   bg: [
-    { id: 'plain', label: 'Plain Off-White', prompt: 'standing against a simple flat off-white artsy background' },
-    { id: 'notebook', label: 'Notebook Doodles', prompt: 'standing against a paper background covered in pencil sketches and doodles' },
-    { id: 'cardboard', label: 'Cardboard Texture', prompt: 'against a rough brown recycled cardboard texture' },
-    { id: 'pastel', label: 'Pastel Gradient', prompt: 'standing against a soft pastel purple and teal gradient void' },
+    { id: 'plain', label: 'Plain Off-White', prompt: 'standing against a simple flat artsy off-white background' },
+    { id: 'notebook', label: 'Notebook Doodles', prompt: 'standing against a paper background covered in artsy pencil doodles and sketches' },
+    { id: 'cardboard', label: 'Cardboard Texture', prompt: 'against a brown recycled cardboard texture' },
+    { id: 'pastel', label: 'Pastel Gradient', prompt: 'standing against a soft pastel purple and teal gradient' },
     { id: 'crumpled', label: 'Crumpled Paper', prompt: 'against a textured crumpled white paper background' },
-    { id: 'polka', label: 'Polka Chaos', prompt: 'against a flat colorful polka dot pattern background' },
+    { id: 'polka', label: 'Polka Chaos', prompt: 'against a flat colorful polka dot pattern' },
     { id: 'grid', label: 'Blueprint Grid', prompt: 'against a blue industrial blueprint grid background' },
-    { id: 'sunset', label: 'Sunset Wash', prompt: 'against a simple flat artsy sunset gradient sky' },
-    { id: 'midnight', label: 'Midnight Grain', prompt: 'against a deep grainy midnight blue background' },
-    { id: 'graffiti', label: 'Graffiti Wall', prompt: 'against a wall covered in messy graffiti tags' },
-    { id: 'penthouse', label: 'Penthouse Balcony', prompt: 'on a luxury gold and black balcony with a luxury city skyline at night', vip: true },
-    { id: 'sim', label: 'The Simulation', prompt: 'in a matrix style void made of infinite green IT text repeating', vip: true },
+    { id: 'sunset', label: 'Sunset Wash', prompt: 'against a flat artsy sunset gradient wash' },
+    { id: 'midnight', label: 'Midnight Grain', prompt: 'against a deep grainy midnight blue artsy background' },
+    { id: 'graffiti', label: 'Graffiti Wall', prompt: 'against a wall with messy graffiti tags and "IT" logos' },
+    { id: 'penthouse', label: 'Penthouse Balcony', prompt: 'on a luxury balcony with a gold and black city skyline at night', vip: true },
+    { id: 'sim', label: 'The Simulation', prompt: 'in a matrix void made of infinite green "IT" text repeating', vip: true },
     { id: 'gold_leaf', label: 'Gold Leaf Canvas', prompt: 'against a high-contrast black canvas with real gold leaf textures', vip: true },
   ],
   head: [
     { id: 'none', label: 'None', prompt: 'no headgear' },
-    { id: 'beanie', label: 'Wool Beanie', prompt: 'wearing a slouched grey wool beanie' },
-    { id: 'backward', label: 'Backward Red Cap', prompt: 'wearing a backward red baseball cap' },
-    { id: 'baseball', label: 'Baseball Cap', prompt: 'wearing a tilted blue baseball cap' },
+    { id: 'beanie', label: 'Wool Beanie', prompt: 'wearing a slouched grey wool beanie with a small "IT" tag' },
+    { id: 'backward', label: 'Backward Red Cap', prompt: 'wearing a backward red baseball cap with "IT" embroidered on the back' },
+    { id: 'baseball', label: 'Baseball Cap', prompt: 'wearing a tilted blue baseball cap with a prominent "IT" logo' },
     { id: 'party', label: 'Party Cone', prompt: 'wearing a colorful paper party cone hat' },
     { id: 'bucket', label: 'Bucket Hat', prompt: 'wearing a fabric bucket hat' },
     { id: 'cowboy', label: 'Cowboy Hat', prompt: 'wearing a classic brown cowboy hat' },
     { id: 'fish', label: 'Fisherman Hat', prompt: 'wearing a green outdoor fisherman hat' },
-    { id: 'helmet', label: 'Construction Helmet', prompt: 'wearing a bright yellow construction helmet' },
+    { id: 'helmet', label: 'Construction Helmet', prompt: 'wearing a bright yellow construction helmet with "IT" written on the front' },
     { id: 'headset', label: 'Headphones', prompt: 'with large black headphones resting on the bag' },
-    { id: 'paper_crown', label: 'Paper Crown', prompt: 'wearing a hand-drawn paper crown' },
+    { id: 'paper_crown', label: 'Paper Crown', prompt: 'wearing a hand-drawn paper crown with "IT" sketched on it' },
     { id: 'diamond_crown', label: 'Diamond Crown', prompt: 'with a floating diamond crown above the head', vip: true },
     { id: 'halo', label: 'Artsy Halo', prompt: 'with a soft glowing golden halo above the head', vip: true },
     { id: 'devil', label: 'Devil Horns', prompt: 'with small red ink devil horns on his head', vip: true },
@@ -4525,38 +4525,38 @@ const PFP_TRAITS = {
     { id: 'grey', label: 'Recycled Grey', prompt: 'the mask is a rough industrial grey cardboard look' },
     { id: 'matte', label: 'Midnight Matte', prompt: 'the mask is a deep charcoal black paper texture' },
     { id: 'white', label: 'Grocery White', prompt: 'the mask is a bleached white grocery paper bag' },
-    { id: 'gold_foil', label: 'Golden Foil', prompt: 'the mask is a shiny crinkled metallic gold material', vip: true },
+    { id: 'gold_foil', label: 'Golden Foil', prompt: 'the mask is a shiny metallic gold material', vip: true },
     { id: 'holographic', label: 'Holographic Static', prompt: 'the mask has a shifting rainbow glitch holographic effect', vip: true },
   ],
   shirts: [
     { id: 'none', label: 'None', prompt: 'not wearing a shirt' },
-    { id: 'classic_it', label: 'Classic IT', prompt: 'wearing a white tee with IT printed in black ink' },
-    { id: 'red_it', label: 'IT (Red Ink)', prompt: 'wearing a white tee with IT printed in red ink' },
+    { id: 'classic_it', label: 'Classic IT', prompt: 'wearing a white tee with the word "IT" printed large in black ink on the chest' },
+    { id: 'red_it', label: 'IT (Red Ink)', prompt: 'wearing a white tee with the word "IT" printed large in red ink on the chest' },
     { id: 'blank', label: 'Blank Tee', prompt: 'wearing a simple blank white t-shirt' },
     { id: 'striped', label: 'Striped Tee', prompt: 'wearing a black and white horizontal striped t-shirt' },
-    { id: 'hoodie', label: 'Baggy Hoodie', prompt: 'wearing a thick oversized baggy grey hoodie' },
-    { id: 'crop', label: 'Crop Tee', prompt: 'wearing a short white crop top' },
+    { id: 'hoodie', label: 'Baggy Hoodie', prompt: 'wearing a thick oversized baggy grey hoodie with "IT" printed on the pocket' },
+    { id: 'crop', label: 'Crop Tee', prompt: 'wearing a short white crop top with "IT" on the center' },
     { id: 'long', label: 'Long Sleeve', prompt: 'wearing a simple black long sleeve shirt' },
-    { id: 'tourist', label: 'The Tourist', prompt: 'wearing a red tee that says I ❤️ IT' },
-    { id: 'skeleton', label: 'Skeleton Ribs', prompt: 'wearing a black tee with X-ray ribs and IT on the heart' },
+    { id: 'tourist', label: 'The Tourist', prompt: 'wearing a red tee that says "I ❤️ IT" in big bold letters' },
+    { id: 'skeleton', label: 'Skeleton Ribs', prompt: 'wearing a black tee with X-ray ribs and the word "IT" where the heart is' },
     { id: 'tank', label: 'Tank Top', prompt: 'wearing a simple white tank top' },
-    { id: 'business', label: 'Business Casual', prompt: 'wearing a blue collared shirt with IT on the pocket' },
+    { id: 'business', label: 'Business Casual', prompt: 'wearing a blue collared shirt with "IT" printed on the breast pocket' },
     { id: 'torn', label: 'Torn Shirt', prompt: 'wearing a dirty shredded and torn white t-shirt' },
-    { id: 'not_it', label: 'NOT IT Tee', prompt: 'wearing a white tee that says NOT IT' },
-    { id: 'gold_foil_it', label: 'Gold-Foil IT', prompt: 'wearing a black tee with gold foil IT printed on it', vip: true },
-    { id: 'monogram_it', label: 'Crowned IT', prompt: 'wearing a monogrammed shirt with IT and a crown', vip: true },
+    { id: 'not_it', label: 'NOT IT Tee', prompt: 'wearing a white tee that says "NOT IT" in huge letters' },
+    { id: 'gold_foil_it', label: 'Gold-Foil IT', prompt: 'wearing a black tee with gold foil "IT" printed prominently on it', vip: true },
+    { id: 'monogram_it', label: 'Crowned IT', prompt: 'wearing a monogrammed shirt with repeating "IT" patterns and a crown', vip: true },
   ],
   item: [
     { id: 'none', label: 'None', prompt: 'holding nothing' },
-    { id: 'paint', label: 'Paintbrush', prompt: 'holding a wooden paintbrush' },
-    { id: 'coffee', label: 'Coffee Cup', prompt: 'holding a white paper coffee cup' },
-    { id: 'phone', label: 'Cracked Phone', prompt: 'holding a smartphone with a cracked screen' },
+    { id: 'paint', label: 'Paintbrush', prompt: 'holding a wooden paintbrush dripping with paint' },
+    { id: 'coffee', label: 'Coffee Cup', prompt: 'holding a white paper coffee cup with "IT" written on it' },
+    { id: 'phone', label: 'Cracked Phone', prompt: 'holding a smartphone with a cracked screen showing a green IT chart' },
     { id: 'lolly', label: 'Lollipop', prompt: 'holding a swirl lollipop' },
-    { id: 'skate', label: 'Skateboard', prompt: 'holding a small finger-board skateboard' },
+    { id: 'skate', label: 'Skateboard', prompt: 'holding a small skateboard deck with "IT" branding' },
     { id: 'donut', label: 'Pink Donut', prompt: 'holding a pink frosted donut with sprinkles' },
     { id: 'game', label: 'Controller', prompt: 'holding a grey video game controller' },
-    { id: 'coin', label: 'IT Coin', prompt: 'holding a giant gold coin with IT engraved on it' },
-    { id: 'balloon', label: 'Balloon', prompt: 'holding a red balloon' },
+    { id: 'coin', label: 'IT Coin', prompt: 'holding a giant gold coin with the characters "$IT" engraved on it' },
+    { id: 'balloon', label: 'Balloon', prompt: 'holding a red balloon with "IT" printed on it' },
     { id: 'key', label: 'Golden Key', prompt: 'holding a large antique golden key', vip: true },
     { id: 'orb', label: 'Glowing Orb', prompt: 'holding a mysterious glowing blue orb', vip: true },
   ],
@@ -4570,7 +4570,7 @@ const PFP_TRAITS = {
     { id: 'yellow', label: 'Tinted Yellow', prompt: 'wearing yellow tinted sunglasses' },
     { id: 'pixel', label: 'Pixel Glasses', prompt: 'wearing black pixelated glasses' },
     { id: 'deal', label: 'Deal With It', prompt: 'wearing black pixel shades with white glint' },
-    { id: 'sleep', label: 'Sleep Mask', prompt: 'wearing a fluffy eye mask' },
+    { id: 'sleep', label: 'Sleep Mask', prompt: 'wearing a fluffy eye mask with "IT" written on the eyes' },
     { id: 'laser', label: 'Laser Eyes', prompt: 'with intense red laser beams coming from eyes', vip: true },
     { id: 'diamond_shades', label: 'Diamond Frames', prompt: 'wearing glasses made of solid diamonds', vip: true },
     { id: 'monocle', label: 'One-Lens Monocle', prompt: 'wearing a golden monocle over one eye', vip: true },
@@ -4582,23 +4582,22 @@ const PFP_TRAITS = {
     { id: 'shaky', label: 'Shaky Lines', prompt: 'with vibrating shaky sketch outlines' },
     { id: 'chalk', label: 'Chalk Smudge', prompt: 'surrounded by messy chalk smudge effects' },
     { id: 'neon', label: 'Neon Edge', prompt: 'with a thin glowing blue neon outline' },
-    { id: 'shadow', label: 'Shadow Clone', prompt: 'with a dark echo behind him' },
-    { id: 'motion', label: 'Motion Blur', prompt: 'with artsy motion blur speed lines' },
+    { id: 'shadow', label: 'Shadow Clone', prompt: 'with a dark artsy echo behind him' },
+    { id: 'motion', label: 'Motion Blur', prompt: 'with artsy motion blur lines' },
     { id: 'static', label: 'Static Buzz', prompt: 'with a digital static noise effect' },
     { id: 'gold_aura', label: 'Golden Radiance', prompt: 'surrounded by a glowing golden aura', vip: true },
     { id: 'reality', label: 'Reality Tear', prompt: 'with glowing rainbow glitch outlines', vip: true },
   ],
   super: [
     { id: 'none', label: 'None', prompt: 'keeping his regular appearance' },
-    { id: 'spiderman', label: 'Spiderman', prompt: 'fully transformed into an artsy Spiderman-themed version of himself', vip: true },
-    { id: 'batman', label: 'Batman', prompt: 'fully transformed into an artsy Batman-themed version of himself', vip: true },
-    { id: 'superman', label: 'Superman', prompt: 'fully transformed into an artsy Superman-themed version of himself', vip: true },
-    { id: 'flash', label: 'The Flash', prompt: 'fully transformed into an artsy Flash-themed version of himself', vip: true },
+    { id: 'spiderman', label: 'Spiderman', prompt: 'fully transformed into an artsy Spiderman-themed version of himself with "IT" on the suit center', vip: true },
+    { id: 'batman', label: 'Batman', prompt: 'fully transformed into an artsy Batman-themed version of himself with "IT" bat-logo', vip: true },
+    { id: 'superman', label: 'Superman', prompt: 'fully transformed into an artsy Superman-themed version of himself with "IT" emblem', vip: true },
+    { id: 'flash', label: 'The Flash', prompt: 'fully transformed into an artsy Flash-themed version of himself with lightning "IT" logo', vip: true },
     { id: 'devil_e', label: 'Devil Spirit', prompt: 'fully transformed into a red devil version of himself', vip: true },
     { id: 'angel_e', label: 'Angel Spirit', prompt: 'fully transformed into a white glowing angel version of himself', vip: true },
   ]
 };
-
 
 const ForgeItApp = () => {
   const [user, setUser] = useState(null);
@@ -4609,22 +4608,24 @@ const ForgeItApp = () => {
   const [showMobileBlueprint, setShowMobileBlueprint] = useState(false);
   const [isRandomizing, setIsRandomizing] = useState(false);
   
-  // SAFE API KEY ACCESS
-  // This logic checks multiple possible environment locations without throwing errors
+  // ROBUST MULTI-CHECK API KEY RESOLUTION
   const apiKey = (() => {
     try {
-      // 1. Check for Vite environment
-      if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_GEMINI) {
-        return import.meta.env.VITE_GEMINI;
-      }
-      // 2. Check for Create React App / Webpack environment
-      if (typeof process !== 'undefined' && process.env && process.env.REACT_APP_GEMINI) {
-        return process.env.REACT_APP_GEMINI;
-      }
-    } catch (e) {
-      // Fallback to empty string if access fails
-    }
-    return ""; 
+      if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_APP_GEMINI) 
+        return import.meta.env.VITE_APP_GEMINI;
+    } catch (e) {}
+
+    try {
+      if (typeof process !== 'undefined' && process.env?.VITE_APP_GEMINI) 
+        return process.env.VITE_APP_GEMINI;
+    } catch (e) {}
+
+    try {
+      if (typeof window !== 'undefined' && window.VITE_APP_GEMINI) 
+        return window.VITE_APP_GEMINI;
+    } catch (e) {}
+
+    return typeof __apiKey !== 'undefined' ? __apiKey : "";
   })();
 
   // Forge State
@@ -4686,16 +4687,21 @@ const ForgeItApp = () => {
   const handleTraitSelect = (catId, trait) => {
     setSelections(prev => {
       const next = { ...prev, [catId]: trait };
+      
+      // LOGIC: If a Superhero is selected, clear other conflicting items to avoid messy AI results
       if (catId === 'super' && trait.id !== 'none') {
         next.head = PFP_TRAITS.head[0];
         next.shirts = PFP_TRAITS.shirts[0];
         next.item = PFP_TRAITS.item[0];
         next.glasses = PFP_TRAITS.glasses[0];
         next.expression = PFP_TRAITS.expression[0];
+        next.mask = PFP_TRAITS.mask[0];
       } 
-      else if (['head', 'shirts', 'item', 'glasses', 'expression'].includes(catId) && trait.id !== 'none') {
+      // LOGIC: If regular gear is selected, deselect the Superhero mode
+      else if (['head', 'shirts', 'item', 'glasses', 'expression', 'mask'].includes(catId) && trait.id !== 'none') {
         next.super = PFP_TRAITS.super[0];
       }
+      
       return next;
     });
   };
@@ -4708,11 +4714,13 @@ const ForgeItApp = () => {
     const interval = setInterval(() => {
       const newSels = {};
       Object.keys(PFP_TRAITS).forEach(cat => {
+        // REQUEST: Skip superhero section in randomization
         if (cat === 'super') {
           newSels[cat] = PFP_TRAITS.super[0];
           return;
         }
         const items = PFP_TRAITS[cat];
+        // Only select non-VIP unless they have elite access
         const availableItems = items.filter(i => !i.vip || hasEliteAccess);
         newSels[cat] = availableItems[Math.floor(Math.random() * availableItems.length)];
       });
@@ -4740,35 +4748,43 @@ const ForgeItApp = () => {
 
   const handleForge = async () => {
     if (isForging) return;
+    
+    // SAFETY: Ensure user is linked before allowing forge to avoid crashes later
+    if (!user) {
+      setError("COMM_LINK_FAILURE: Establish connection to Kernel first.");
+      return;
+    }
+
     if (dailyCount >= currentLimit) {
       setError(`LIMIT_EXCEEDED: ${hasEliteAccess ? 'Unlimited' : hasHolderAccess ? '6/day' : '3/day'} Cycle Complete.`);
       return;
     }
 
-    if (!apiKey) {
-      setError("CONFIGURATION_ERROR: API identifier not detected. Check Vercel/Env.");
+    if (!apiKey && typeof __apiKey === 'undefined') {
+      setError("IDENTIFIER_ERROR: VITE_APP_GEMINI not detected. Check Vercel/Env settings.");
       return;
     }
 
     setIsForging(true); setGeneratedImg(null); setProgress(0); setError(null);
-    setLogs(["LOCKING_BLUEPRINT...", "PRESERVING_BODY_SHAPE...", "OVERLAYING_MEME_TRAITS..."]);
+    setLogs(["LOCKING_BLUEPRINT...", "PRESERVING_BODY_SHAPE...", "OVERLAYING_CURATED_TRAITS..."]);
 
     const progTimer = setInterval(() => setProgress(prev => prev < 95 ? prev + Math.random() * 5 : prev), 600);
 
     try {
       const base64Image = await getBaseCharacter64();
-      if (!base64Image) throw new Error("CRITICAL: Character base not found.");
+      if (!base64Image) throw new Error("Character asset 'main.jpg' missing from public folder.");
 
       let promptText = "";
       if (selections.super.id !== 'none') {
         promptText = `
           ARTSY SUPERHERO TRANSFORMATION.
-          SOURCE: Use the attached character as the STATIC blueprint.
+          SOURCE: Use the attached character as the EXACT static blueprint.
           KEEP: Core mask structure and 90s hand-drawn artsy anime style.
           TRANSFORM: ${selections.super.prompt}. 
           BACKGROUND: ${selections.bg.prompt}.
           AURA: ${selections.aura.prompt}.
-          VIBE: Artsy, cool, clean outlines, flat colors. Make him a hero but keep his bag head.
+          VIBE: Creative artsy theme. Pose remains locked.
+          MANDATORY BRANDING: The text "IT" must be clearly visible and hand-drawn on the superhero outfit's chest or emblem.
         `;
       } else {
         const activeTraits = Object.entries(selections)
@@ -4782,7 +4798,8 @@ const ForgeItApp = () => {
           STYLE: 90s hand-drawn artsy anime. Thick ink outlines, flat vibrant colors.
           DO NOT CHANGE: Core body shape, mask structure, or pose.
           ADD OR MODIFY: ${activeTraits}.
-          VIBE: Simple, artsy, stupidly fun.
+          VIBE: Artsy, simple, cool.
+          MANDATORY BRANDING: If the character is wearing a shirt, vest, or hat, you MUST draw the letters "IT" clearly on the garment in a simple hand-drawn font.
         `;
       }
 
@@ -4802,22 +4819,30 @@ const ForgeItApp = () => {
 
       if (!response.ok) {
         const errData = await response.json();
-        throw new Error(`${response.status}: ${errData.error?.message || 'AI Network Down'}`);
+        throw new Error(`${response.status}: ${errData.error?.message || 'Check your internet or API key'}`);
       }
 
       const result = await response.json();
       const base64Result = result.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
 
       if (base64Result) {
-        setGeneratedImg(`data:image/png;base64,${base64Result}`);
+        // FAIL-SAFE: Clear errors before displaying image
+        setError(null);
         setProgress(100); 
+        setGeneratedImg(`data:image/png;base64,${base64Result}`);
         addLog("MATERIALIZATION_SUCCESS.");
-        setError(null); 
         
-        const today = new Date().toISOString().split('T')[0];
-        await setDoc(doc(db, 'artifacts', APP_ID, 'users', user.uid, 'usage', 'forge_limits'), { count: dailyCount + 1, lastDate: today }, { merge: true });
+        // NESTED TRY: Update usage without crashing display if DB fails
+        try {
+          if (user && user.uid) {
+            const today = new Date().toISOString().split('T')[0];
+            await setDoc(doc(db, 'artifacts', APP_ID, 'users', user.uid, 'usage', 'forge_limits'), { count: dailyCount + 1, lastDate: today }, { merge: true });
+          }
+        } catch (dbErr) {
+          console.error("Usage tracker failed", dbErr);
+        }
       } else { 
-        throw new Error("AI_NULL_PACKET: Generation failed internally."); 
+        throw new Error("AI_RETURNED_EMPTY_RESPONSE: The forge failed to materialize pixels."); 
       }
     } catch (err) {
       setError(err.message);
@@ -4825,6 +4850,14 @@ const ForgeItApp = () => {
     } finally {
       clearInterval(progTimer); setIsForging(false);
     }
+  };
+
+  const downloadPFP = () => {
+    if (!generatedImg) return;
+    const link = document.createElement('a');
+    link.href = generatedImg;
+    link.download = `CULT_ID_${Date.now()}.png`;
+    link.click();
   };
 
   return (
@@ -4837,7 +4870,7 @@ const ForgeItApp = () => {
           <div className="p-1 border border-emerald-500/40 rounded-sm bg-black relative"><Cpu size={14} className="text-emerald-400" /></div>
           <div className="flex flex-col">
             <h1 className="text-[9px] font-black uppercase tracking-[0.3em] text-white italic leading-none">Forge_IT_Cult</h1>
-            <span className="text-[6px] text-zinc-600 font-bold uppercase mt-1 tracking-tighter">Forge_Engine_v5.2</span>
+            <span className="text-[6px] text-zinc-600 font-bold uppercase mt-1 tracking-tighter">Forge_Engine_v5.4</span>
           </div>
         </div>
         <div className={`px-2 py-1 border rounded-sm transition-all flex items-center gap-2 ${hasEliteAccess ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-400 shadow-[0_0_10px_#10b98133]' : hasHolderAccess ? 'border-blue-500/40 bg-blue-500/10 text-blue-400' : 'border-yellow-600/40 bg-yellow-600/10 text-yellow-600'}`}>
@@ -4948,10 +4981,12 @@ const ForgeItApp = () => {
               </div>
             ) : generatedImg ? (
               <div className="w-full max-w-[280px] space-y-4 animate-in zoom-in-95 duration-1000">
-                <div className="relative group p-1 bg-zinc-950 border border-white/10 shadow-[0_0_60px_rgba(0,0,0,1)]">
+                <div className="relative group p-1 bg-zinc-950 border border-white/10 shadow-[0_0_60px_rgba(0,0,0,1)] overflow-hidden">
                   <img src={generatedImg} className="w-full aspect-square object-cover relative z-10" />
                   <div className="absolute top-4 right-4 z-20 opacity-0 group-hover:opacity-100 transition-all duration-300">
-                     <button onClick={downloadPFP} className="p-3 bg-white text-black hover:bg-emerald-400 shadow-2xl active:scale-90"><Download size={20} /></button>
+                     <button onClick={downloadPFP} className="p-3 bg-white text-black hover:bg-emerald-400 shadow-2xl active:scale-90">
+                        <Download size={20} />
+                     </button>
                   </div>
                 </div>
                 <button onClick={downloadPFP} className="w-full py-4 bg-white text-black font-black uppercase text-[11px] hover:bg-emerald-400 shadow-xl flex items-center justify-center gap-3 tracking-[0.2em] transition-all"><Download size={16}/> Save_to_Cult</button>
@@ -4987,6 +5022,7 @@ const ForgeItApp = () => {
     </div>
   );
 };
+
 
 
 
