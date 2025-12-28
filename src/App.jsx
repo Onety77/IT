@@ -5132,26 +5132,29 @@ export default function UltimateOS() {
       )}
 
       {/* Desktop Icons */}
-      <div className="absolute top-0 left-0 p-4 z-0 flex flex-col gap-4 flex-wrap max-h-full content-start items-start pointer-events-none">
-        {[ 
-          {id:'terminal', icon:Terminal, label:'Terminal'}, 
-          {id:'mememind', icon:Lightbulb, label:'Meme Mind'}, 
-          {id:'forgeit', icon:Sparkles, label:'Forge IT'},
-          {id:'mergeit', icon:Joystick, label:'Merge IT'}, 
-          {id:'rugsweeper', icon:Gamepad2, label:'Stack IT'}, 
-          {id:'paint', icon:Paintbrush, label:'Paint IT'}, 
-          {id:'tunes', icon:Music, label:'Tune IT'}, 
-          {id:'notepad', icon:FileText, label:'Write IT'}, 
-          {id:'trollbox', icon:MessageSquare, label:'Trollbox'}, 
-          {id:'memes', icon:Folder, label:'Memes'}, 
-          {id:'wallet', icon:Wallet, label:'Wallet'} 
-        ].map(app => (
-            <div key={app.id} onClick={() => openApp(app.id)} className="flex flex-col items-center gap-1 w-20 cursor-pointer pointer-events-auto p-1 group">
-                <app.icon size={32} className="text-white drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)] transition-transform group-active:scale-90" />
-                <span className="text-white text-[10px] font-bold bg-[#035a23] px-1 rounded truncate w-full text-center group-hover:bg-[#047a30] transition-colors">{app.label}</span>
-            </div>
-        ))}
-      </div>
+      <div className="absolute top-0 left-0 p-4 z-20 h-[calc(100vh-40px)] w-full pointer-events-none flex flex-col flex-wrap content-start items-start gap-4 overflow-hidden">
+  {[ 
+    {id:'terminal', icon:Terminal, label:'Terminal'}, 
+    {id:'mememind', icon:Lightbulb, label:'Meme Mind'}, 
+    {id:'forgeit', icon:Sparkles, label:'Forge IT'},
+    {id:'mergeit', icon:Joystick, label:'Merge IT'}, 
+    {id:'rugsweeper', icon:Gamepad2, label:'Stack IT'}, 
+    {id:'paint', icon:Paintbrush, label:'Paint IT'}, 
+    {id:'tunes', icon:Music, label:'Tune IT'}, 
+    {id:'notepad', icon:FileText, label:'Write IT'}, 
+    {id:'trollbox', icon:MessageSquare, label:'Trollbox', hasAlert: true}, 
+    {id:'memes', icon:Folder, label:'Memes'}, 
+    {id:'wallet', icon:Wallet, label:'Wallet'} 
+  ].map(app => (
+    <DesktopIcon 
+      key={app.id} 
+      icon={app.icon} 
+      label={app.label} 
+      onClick={() => openApp(app.id)} 
+      hasAlert={app.hasAlert} 
+    />
+  ))}
+</div>
 
       <SystemResourceMonitor wallet={wallet} balance={dexData.balance} hasAccess={hasAccess} />
       
@@ -5305,12 +5308,24 @@ export default function UltimateOS() {
 }
 
 const DesktopIcon = ({ icon: Icon, label, onClick, hasAlert }) => (
-  <div onClick={onClick} className="flex flex-col items-center gap-1 w-20 cursor-pointer p-1 group">
+  <div 
+    onClick={(e) => {
+      e.stopPropagation(); 
+      onClick();
+    }} 
+    className="flex flex-col items-center gap-1 w-20 cursor-pointer pointer-events-auto p-1 group z-30"
+  >
     <div className="relative">
       <Icon size={32} className="text-white drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)] transition-transform group-active:scale-90" strokeWidth={1.5} />
-      {hasAlert && <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-600 border border-white rounded-full z-10 shadow-[0_0_8px_red] animate-pulse" />}
+      
+      {/* THE BLINKING DOT */}
+      {hasAlert && (
+        <div className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-red-600 border-2 border-white rounded-full z-[100] shadow-[0_0_10px_rgba(220,38,38,0.8)] animate-pulse" />
+      )}
     </div>
-    <span className="text-white text-[10px] text-center font-bold drop-shadow-[0_1px_2px_rgba(0,0,0,1)] bg-[#035a23] px-1 rounded truncate w-full group-hover:bg-[#047a30] transition-colors">{label}</span>
+    <span className="text-white text-[10px] text-center font-bold drop-shadow-[0_1px_2px_rgba(0,0,0,1)] bg-[#035a23] px-1 rounded truncate w-full group-hover:bg-[#047a30] transition-colors">
+      {label}
+    </span>
   </div>
 );
 
