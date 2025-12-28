@@ -192,6 +192,7 @@ const useDexData = (ca, userWallet) => {
 
   const fetchTokenBalance = useCallback(async () => {
     if (!userWallet || !ca || ca.length < 32) return;
+    
     for (const endpoint of RPC_ENDPOINTS) {
       try {
         const response = await fetch(endpoint, {
@@ -208,37 +209,54 @@ const useDexData = (ca, userWallet) => {
             ]
           })
         });
+        
         if (!response.ok) continue;
         const result = await response.json();
 
         if (result.result && result.result.value && result.result.value.length > 0) {
           const accountData = result.result.value[0].account.data;
+          
           if (accountData.parsed) {
             const uiAmount = accountData.parsed.info.tokenAmount.uiAmount;
             setData(prev => ({ ...prev, balance: uiAmount }));
+
+            // --- KERNEL EVENT DISPATCH (THE FIX IS HERE) ---
+            // We added 'wallet: userWallet' so other apps can record it
             window.dispatchEvent(new CustomEvent('IT_OS_BALANCE_UPDATE', {
-              detail: { balance: uiAmount, hasAccess: uiAmount >= ACCESS_THRESHOLD }
+              detail: {
+                balance: uiAmount,
+                hasAccess: uiAmount >= 500000,
+                wallet: userWallet // <--- THIS IS THE NEW LINE
+              }
             }));
+            
             return; 
           }
-        } else if (result.result && result.result.value) {
+        } 
+        else if (result.result && result.result.value) {
           setData(prev => ({ ...prev, balance: 0 }));
+          
+          // Still broadcast the wallet even if balance is 0
           window.dispatchEvent(new CustomEvent('IT_OS_BALANCE_UPDATE', {
-            detail: { balance: 0, hasAccess: false }
+            detail: { balance: 0, hasAccess: false, wallet: userWallet }
           }));
           return;
         }
-      } catch (err) { continue; }
+      } catch (err) { 
+        continue; 
+      }
     }
   }, [userWallet, ca]);
 
   useEffect(() => {
     fetchPrice();
     if (userWallet) fetchTokenBalance();
+
     const interval = setInterval(() => {
       fetchPrice();
       if (userWallet) fetchTokenBalance();
     }, 20000);
+
     return () => clearInterval(interval);
   }, [fetchPrice, fetchTokenBalance, userWallet]);
 
@@ -687,7 +705,7 @@ EMOTIONAL MODES (Implicit, not announced):
             <div className="w-1 h-3 bg-emerald-500 animate-bounce" style={{animationDelay: '0ms'}} />
             <div className="w-1 h-3 bg-emerald-500 animate-bounce" style={{animationDelay: '150ms'}} />
             <div className="w-1 h-3 bg-emerald-500 animate-bounce" style={{animationDelay: '300ms'}} />
-            <span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest ml-1 opacity-50">Processing...</span>
+            <span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest ml-1 opacity-50">Processing IT...</span>
           </div>
         )}
       </div>
@@ -2145,16 +2163,18 @@ const RugSweeperApp = () => {
   const audioCtxRef = useRef(null);
   const musicRef = useRef({ nextNoteTime: 0, currentStep: 0, master: null, filter: null });
 
-  // --- KERNEL EVENT LISTENER (SHIPPY STYLE) ---
+  // --- KERNEL EVENT LISTENER ---
   const [hasAccess, setHasAccess] = useState(false);
   const [tokenBalance, setTokenBalance] = useState(0);
+  const [connectedWallet, setConnectedWallet] = useState(null);
 
   useEffect(() => {
     const handleKernelSync = (e) => {
-      const { balance, hasAccess: accessStatus } = e.detail;
+      const { balance, hasAccess: accessStatus, wallet } = e.detail;
       setTokenBalance(balance);
       setHasAccess(accessStatus);
-      console.log(`[PROTOCOL_SYNC] Balance: ${balance} IT | VIP: ${accessStatus}`);
+      setConnectedWallet(wallet); 
+      console.log(`[PROTOCOL_SYNC] Wallet: ${wallet} | VIP: ${accessStatus}`);
     };
     window.addEventListener('IT_OS_BALANCE_UPDATE', handleKernelSync);
     return () => window.removeEventListener('IT_OS_BALANCE_UPDATE', handleKernelSync);
@@ -2173,61 +2193,33 @@ const RugSweeperApp = () => {
   const [currentBiome, setCurrentBiome] = useState(BIOMES[0]);
 
   const game = useRef({
-    state: 'MENU',
-    stack: [],
-    current: null,
-    debris: [],
-    particles: [],
-    stars: [], 
-    warpLevel: 0,   
-    flash: 0,       
-    cameraY: 0,
-    shake: 0,
-    combo: 0,
-    perfectCount: 0,
-    startTime: 0,
-    time: 0,
-    lastFrameTime: 0,
-    score: 0,
-    worldRotation: 0,
-    targetRotation: 0,
-    rotationTimer: 0,
+    state: 'MENU', stack: [], current: null, debris: [], particles: [],
+    stars: [], warpLevel: 0, flash: 0, cameraY: 0, shake: 0,
+    combo: 0, perfectCount: 0, startTime: 0, time: 0, lastFrameTime: 0,
+    score: 0, worldRotation: 0, targetRotation: 0, rotationTimer: 0,
     lastTap: { x: GAME_WIDTH/2, y: GAME_HEIGHT/2, power: 0, active: false },
-    mirrorActive: false,
-    isMirrorTurn: false,
-    mirrorStack: [],
-    mirrorMovesLeft: 0,
-    mirrorCurrent: null
+    mirrorActive: false, isMirrorTurn: false, mirrorStack: [], mirrorMovesLeft: 0, mirrorCurrent: null
   });
-
-  // --- REWORKED DEGEN TECHNO MUSIC ENGINE ---
 
   const initAudio = () => {
     if (!audioCtxRef.current) {
       try {
         const AudioContext = window.AudioContext || window.webkitAudioContext;
         audioCtxRef.current = new AudioContext();
-        
         const masterGain = audioCtxRef.current.createGain();
         masterGain.gain.setValueAtTime(0.5, audioCtxRef.current.currentTime);
-        
         const filter = audioCtxRef.current.createBiquadFilter();
         filter.type = 'lowpass';
         filter.frequency.setValueAtTime(1200, audioCtxRef.current.currentTime);
-        
         const compressor = audioCtxRef.current.createDynamicsCompressor();
         compressor.threshold.setValueAtTime(-15, audioCtxRef.current.currentTime);
         compressor.ratio.setValueAtTime(12, audioCtxRef.current.currentTime);
-        
         masterGain.connect(filter);
         filter.connect(compressor);
         compressor.connect(audioCtxRef.current.destination);
-        
         musicRef.current.master = masterGain;
         musicRef.current.filter = filter;
-      } catch (e) {
-        console.error("Audio engine failure", e);
-      }
+      } catch (e) { console.error("Audio failure", e); }
     }
     if (audioCtxRef.current?.state === 'suspended') audioCtxRef.current.resume();
   };
@@ -2235,16 +2227,12 @@ const RugSweeperApp = () => {
   const scheduleMusic = () => {
     if (!audioCtxRef.current || !musicRef.current.master) return;
     const ctx = audioCtxRef.current;
-    
-    // Open filter during intense play
     const targetFreq = (gameState === 'PLAYING' || gameState === 'NEW_HIGHSCORE') ? 14000 : 1200;
     musicRef.current.filter.frequency.setTargetAtTime(targetFreq, ctx.currentTime, 0.2);
 
     while (musicRef.current.nextNoteTime < ctx.currentTime + 0.1) {
       const t = musicRef.current.nextNoteTime;
       const step = musicRef.current.currentStep % 16;
-      
-      // PUNCHY TECHNO KICK (Steps 0, 4, 8, 12)
       if (step % 4 === 0) {
         const kickOsc = ctx.createOscillator();
         const kickGain = ctx.createGain();
@@ -2255,8 +2243,6 @@ const RugSweeperApp = () => {
         kickOsc.connect(kickGain); kickGain.connect(musicRef.current.master);
         kickOsc.start(t); kickOsc.stop(t + 0.2);
       }
-
-      // NOISE SNARE/CLAP (Steps 4, 12)
       if (step === 4 || step === 12) {
         const snareBuffer = ctx.createBuffer(1, ctx.sampleRate * 0.1, ctx.sampleRate);
         const data = snareBuffer.getChannelData(0);
@@ -2269,8 +2255,6 @@ const RugSweeperApp = () => {
         src.connect(snGain); snGain.connect(musicRef.current.master);
         src.start(t);
       }
-
-      // HIGH FREQ TICKER HATS (Every 8th note)
       if (step % 2 !== 0) {
         const hOsc = ctx.createOscillator();
         const hGain = ctx.createGain();
@@ -2281,8 +2265,6 @@ const RugSweeperApp = () => {
         hOsc.connect(hGain); hGain.connect(musicRef.current.master);
         hOsc.start(t); hOsc.stop(t + 0.05);
       }
-
-      // RHYTHMIC SAW BASS (Acid style)
       if (step % 4 !== 0) {
         const bassOsc = ctx.createOscillator();
         const bassGain = ctx.createGain();
@@ -2294,8 +2276,7 @@ const RugSweeperApp = () => {
         bassOsc.connect(bassGain); bassGain.connect(musicRef.current.master);
         bassOsc.start(t); bassOsc.stop(t + 0.15);
       }
-
-      const bpm = 128 + Math.min(score, 50); // Speed scales with score
+      const bpm = 128 + Math.min(score, 50);
       musicRef.current.nextNoteTime += 60 / bpm / 4; 
       musicRef.current.currentStep++;
     }
@@ -2334,51 +2315,38 @@ const RugSweeperApp = () => {
     }
   };
 
-  // --- CORE STATE HANDLERS ---
-
   useEffect(() => {
     const initAuth = async () => {
-      const authObj = getAuth();
-      if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-        await signInWithCustomToken(authObj, __initial_auth_token);
-      } else {
-        await signInAnonymously(authObj);
+      try {
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+          await signInWithCustomToken(auth, __initial_auth_token);
+        } else {
+          await signInAnonymously(auth);
+        }
+      } catch (err) {
+        console.error("Auth Failure", err);
       }
     };
     initAuth();
-    
     game.current.stars = Array(120).fill(0).map(() => ({
-      x: Math.random() * GAME_WIDTH,
-      y: Math.random() * GAME_HEIGHT,
-      size: Math.random() * 2.5 + 0.5,
-      p: Math.random() * 0.9 + 0.1,
+      x: Math.random() * GAME_WIDTH, y: Math.random() * GAME_HEIGHT,
+      size: Math.random() * 2.5 + 0.5, p: Math.random() * 0.9 + 0.1,
       alpha: Math.random() * 0.6 + 0.2
     }));
     game.current.lastFrameTime = performance.now();
-
-    const authObj = getAuth();
-    const unsubscribe = onAuthStateChanged(authObj, setUser);
+    const unsubscribe = onAuthStateChanged(auth, setUser);
     const localHighScore = localStorage.getItem('stackItHighScore');
     if (localHighScore) setHighScore(parseInt(localHighScore, 10));
     const localName = localStorage.getItem('stackItUsername');
-    if (localName) {
-      setSavedName(localName);
-      setUsernameInput(localName);
-    }
-
+    if (localName) { setSavedName(localName); setUsernameInput(localName); }
     requestRef.current = requestAnimationFrame(loop);
-
-    return () => {
-      unsubscribe();
-      if (requestRef.current) cancelAnimationFrame(requestRef.current);
-    };
+    return () => { unsubscribe(); if (requestRef.current) cancelAnimationFrame(requestRef.current); };
   }, []);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.code === 'Space') {
-        e.preventDefault();
-        initAudio();
+        e.preventDefault(); initAudio();
         if (['MENU', 'GAME_OVER'].includes(game.current.state)) startGame();
         else if (game.current.state === 'NEW_HIGHSCORE') { if (savedName && hasAccess) handleReturningSubmit('RETRY'); }
         else if (game.current.state === 'PLAYING') handleInteraction(GAME_WIDTH/2, GAME_HEIGHT/2);
@@ -2386,46 +2354,23 @@ const RugSweeperApp = () => {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [savedName, currentBiome, gameState, hasAccess]); 
+  }, [savedName, hasAccess]); 
 
   const startGame = (e) => {
     if(e) { e.stopPropagation(); e.preventDefault(); }
     initAudio();
-
-    if (audioCtxRef.current) {
-        musicRef.current.nextNoteTime = audioCtxRef.current.currentTime + 0.1;
-    }
+    if (audioCtxRef.current) musicRef.current.nextNoteTime = audioCtxRef.current.currentTime + 0.1;
     musicRef.current.currentStep = 0;
-
     game.current = {
-        ...game.current,
-        state: 'PLAYING',
-        stack: [],
-        current: null,
-        debris: [],
-        particles: [],
-        warpLevel: 0,
-        flash: 0,
-        cameraY: 0,
-        shake: 0,
-        combo: 0,
-        perfectCount: 0,
-        startTime: Date.now(),
-        score: 0,
-        worldRotation: 0,
-        targetRotation: 0,
-        rotationTimer: 0,
-        mirrorActive: false,
-        isMirrorTurn: false,
-        mirrorStack: [],
-        mirrorMovesLeft: 0,
-        mirrorCurrent: null
+        ...game.current, state: 'PLAYING', stack: [], current: null, debris: [],
+        particles: [], warpLevel: 0, flash: 0, cameraY: 0, shake: 0, combo: 0,
+        perfectCount: 0, startTime: 0, time: 0, lastFrameTime: 0,
+        score: 0, worldRotation: 0, targetRotation: 0, rotationTimer: 0,
+        lastTap: { x: GAME_WIDTH/2, y: GAME_HEIGHT/2, power: 0, active: false },
+        mirrorActive: false, isMirrorTurn: false, mirrorStack: [], mirrorMovesLeft: 0, mirrorCurrent: null
     };
-
-    setScore(0);
-    setGameState('PLAYING');
-    setCurrentBiome(BIOMES[0]);
-
+    game.current.startTime = Date.now();
+    setScore(0); setGameState('PLAYING'); setCurrentBiome(BIOMES[0]);
     const base = { x: (GAME_WIDTH - BASE_WIDTH) / 2, y: 0, w: BASE_WIDTH, h: BLOCK_HEIGHT, color: '#00ff41' };
     game.current.stack = [base];
     game.current.current = spawnBlock(base, 1);
@@ -2441,157 +2386,83 @@ const RugSweeperApp = () => {
     const g = game.current;
     if (g.state !== 'PLAYING') return;
     if (Date.now() - g.startTime < 150) return;
-    
     const activeCurr = g.mirrorActive && g.isMirrorTurn ? g.mirrorCurrent : g.current;
     if (!activeCurr) return;
-    
     const activeStack = g.mirrorActive && g.isMirrorTurn ? g.mirrorStack : g.stack;
     const prev = activeStack[activeStack.length-1];
-    
     const dist = activeCurr.x - prev.x;
     const absDist = Math.abs(dist);
-    const tolerance = 8;
-    
-    if (absDist >= activeCurr.w) {
-      g.shake = 40;
-      gameOver();
-      return;
-    }
-
-    let newX = activeCurr.x;
-    let newW = activeCurr.w;
-    let isPerfect = false;
-    let scoreAdd = 1;
-    
-    if (absDist <= tolerance) {
+    if (absDist >= activeCurr.w) { g.shake = 40; gameOver(); return; }
+    let newX = activeCurr.x, newW = activeCurr.w, isPerfect = false, scoreAdd = 1;
+    if (absDist <= 8) {
       newX = prev.x; newW = prev.w; isPerfect = true;
       g.combo++; g.perfectCount++;
       if (g.combo >= 3) scoreAdd = 2; 
       if (g.combo >= 3 && newW < BASE_WIDTH) { newW = Math.min(BASE_WIDTH, newW + 15); newX = prev.x - (newW-prev.w)/2; }
-      g.shake = 12; playSound('perfect');
-      g.flash = 0.25;
+      g.shake = 12; playSound('perfect'); g.flash = 0.25;
     } else {
       g.combo = 0; g.perfectCount = 0;
       newW = activeCurr.w - absDist;
       newX = dist > 0 ? activeCurr.x : prev.x;
       const debrisX = dist > 0 ? activeCurr.x + newW : activeCurr.x;
-      const debrisW = absDist;
       const debrisY = g.mirrorActive && g.isMirrorTurn ? (GAME_HEIGHT - activeCurr.y) : activeCurr.y;
-      
-      g.debris.push({ 
-        x: debrisX, y: debrisY, w: debrisW, h: activeCurr.h, 
-        vx: dist > 0 ? 8 : -8, vy: -6, color: activeCurr.color, 
-        life: 1.0, rot: 0, vr: (Math.random()-0.5)*0.3 
-      });
+      g.debris.push({ x: debrisX, y: debrisY, w: absDist, h: activeCurr.h, vx: dist > 0 ? 8 : -8, vy: -6, color: activeCurr.color, life: 1.0, rot: 0, vr: (Math.random()-0.5)*0.3 });
       g.shake = 6; playSound('place');
-      createParticles(g.particles, debrisX, debrisY, debrisW, activeCurr.h, activeCurr.color, 8);
+      createParticles(g.particles, debrisX, debrisY, absDist, activeCurr.h, activeCurr.color, 8);
     }
-
     const placed = { x: newX, y: activeCurr.y, w: newW, h: activeCurr.h, color: activeCurr.color, perfect: isPerfect };
-    activeStack.push(placed);
-    g.score += scoreAdd;
-    setScore(g.score);
-
+    activeStack.push(placed); g.score += scoreAdd; setScore(g.score);
     if (!g.mirrorActive && g.score >= 35 && Math.random() < 0.15) {
-        g.mirrorActive = true;
-        g.mirrorMovesLeft = 8 + Math.floor(Math.random() * 6);
-        g.isMirrorTurn = true; 
-        g.targetRotation = 0; 
+        g.mirrorActive = true; g.mirrorMovesLeft = 8 + Math.floor(Math.random() * 6);
+        g.isMirrorTurn = true; g.targetRotation = 0; 
         const mirrorBase = { x: (GAME_WIDTH - newW) / 2, y: GAME_HEIGHT, w: newW, h: BLOCK_HEIGHT, color: '#ffffff' };
-        g.mirrorStack = [mirrorBase];
-        g.mirrorCurrent = spawnBlock(mirrorBase, 1, true);
-        g.flash = 0.8;
+        g.mirrorStack = [mirrorBase]; g.mirrorCurrent = spawnBlock(mirrorBase, 1, true); g.flash = 0.8;
     } else if (g.mirrorActive) {
         g.mirrorMovesLeft--;
-        if (g.mirrorMovesLeft <= 0) {
-            g.mirrorActive = false;
-            g.isMirrorTurn = false;
-            g.flash = 0.5;
-            g.current = spawnBlock(g.stack[g.stack.length - 1], g.stack.length);
-        } else {
+        if (g.mirrorMovesLeft <= 0) { g.mirrorActive = false; g.isMirrorTurn = false; g.flash = 0.5; g.current = spawnBlock(g.stack[g.stack.length - 1], g.stack.length); }
+        else {
             g.isMirrorTurn = !g.isMirrorTurn;
             if (g.isMirrorTurn) g.mirrorCurrent = spawnBlock(g.mirrorStack[g.mirrorStack.length-1], g.mirrorStack.length, true);
             else g.current = spawnBlock(g.stack[g.stack.length-1], g.stack.length);
         }
-    } else {
-        g.current = spawnBlock(placed, g.stack.length);
+    } else { g.current = spawnBlock(placed, g.stack.length); }
+    if (!g.mirrorActive && g.score > 8 && Math.random() < 0.12) { 
+        const variants = [Math.PI/2, -Math.PI/2, Math.PI];
+        g.targetRotation = variants[Math.floor(Math.random() * variants.length)];
+        g.rotationTimer = 10; g.flash = 0.8;
     }
-
-    if (!g.mirrorActive) {
-        if (g.rotationTimer > 0) {
-            g.rotationTimer--;
-            if (g.rotationTimer === 0) { g.targetRotation = 0; g.flash = 0.6; }
-        } else if (g.score > 8 && Math.random() < 0.12) { 
-            const variants = [Math.PI/2, -Math.PI/2, Math.PI];
-            g.targetRotation = variants[Math.floor(Math.random() * variants.length)];
-            g.rotationTimer = 10;
-            g.flash = 0.8;
-        }
-    }
-
     const biome = BIOMES.slice().reverse().find(b => g.score >= b.score);
-    if (biome && biome.name !== currentBiome.name) {
-        setCurrentBiome(biome);
-        g.warpLevel = 1.2;
-        g.flash = 0.8;
-    }
-
+    if (biome && biome.name !== currentBiome.name) { setCurrentBiome(biome); g.warpLevel = 1.2; g.flash = 0.8; }
     if (g.score > highScore) { setHighScore(g.score); localStorage.setItem('stackItHighScore', g.score); }
   };
 
   const gameOver = () => {
-    playSound('fail');
-    game.current.state = 'GAME_OVER';
-    const finalScore = game.current.score;
+    playSound('fail'); game.current.state = 'GAME_OVER';
     const storedHS = parseInt(localStorage.getItem('stackItHighScore') || '0', 10);
-    
-    // --- HOLDER GATED SUBMISSION ---
-    if (hasAccess && finalScore > 0 && finalScore >= storedHS) { 
-        setGameState('NEW_HIGHSCORE'); 
-    } else { 
-        setGameState('GAME_OVER'); 
-    }
+    if (hasAccess && game.current.score > 0 && game.current.score >= storedHS) setGameState('NEW_HIGHSCORE'); 
+    else setGameState('GAME_OVER'); 
   };
 
   const loop = (timestamp) => {
     const ctx = canvasRef.current?.getContext('2d');
     if (!ctx) { requestRef.current = requestAnimationFrame(loop); return; }
-    const g = game.current;
-    
-    scheduleMusic();
-
-    const elapsed = timestamp - g.lastFrameTime;
-    g.lastFrameTime = timestamp;
-    const dt = Math.min(elapsed / 16.67, 3.0); 
-    g.time += 0.05 * dt;
+    const g = game.current; scheduleMusic();
+    const elapsed = timestamp - g.lastFrameTime; g.lastFrameTime = timestamp;
+    const dt = Math.min(elapsed / 16.67, 3.0); g.time += 0.05 * dt;
 
     if (g.state === 'PLAYING') {
-      if (g.mirrorActive) {
-          if (g.isMirrorTurn && g.mirrorCurrent) {
-              g.mirrorCurrent.x += (g.mirrorCurrent.speed * dt) * g.mirrorCurrent.dir;
-              if (g.mirrorCurrent.x > GAME_WIDTH + 80) g.mirrorCurrent.dir = -1;
-              if (g.mirrorCurrent.x < -80 - g.mirrorCurrent.w) g.mirrorCurrent.dir = 1;
-          } else if (!g.isMirrorTurn && g.current) {
-              g.current.x += (g.current.speed * dt) * g.current.dir;
-              if (g.current.x > GAME_WIDTH + 80) g.current.dir = -1;
-              if (g.current.x < -80 - g.current.w) g.current.dir = 1;
-          }
-      } else if (g.current) {
-          g.current.x += (g.current.speed * dt) * g.current.dir;
-          if (g.current.x > GAME_WIDTH + 80) g.current.dir = -1;
-          if (g.current.x < -80 - g.current.w) g.current.dir = 1;
+      const active = g.mirrorActive && g.isMirrorTurn ? g.mirrorCurrent : g.current;
+      if (active) {
+        active.x += (active.speed * dt) * active.dir;
+        if (active.x > GAME_WIDTH + 80) active.dir = -1;
+        if (active.x < -80 - active.w) active.dir = 1;
       }
-      
-      const stackTop = g.stack.length * BLOCK_HEIGHT;
-      const targetY = Math.max(0, stackTop - 140); 
+      const targetY = Math.max(0, g.stack.length * BLOCK_HEIGHT - 140); 
       g.cameraY += (targetY - g.cameraY) * 0.08 * dt;
     }
-
-    g.shake *= Math.pow(0.88, dt);
-    g.flash *= Math.pow(0.92, dt);
-    g.warpLevel *= Math.pow(0.96, dt);
-    g.lastTap.power *= Math.pow(0.9, dt);
+    g.shake *= Math.pow(0.88, dt); g.flash *= Math.pow(0.92, dt); g.warpLevel *= Math.pow(0.96, dt);
     g.worldRotation += (g.targetRotation - g.worldRotation) * 0.08 * dt;
+    g.lastTap.power *= Math.pow(0.9, dt);
 
     const shakeX = (Math.random() - 0.5) * g.shake;
     const shakeY = (Math.random() - 0.5) * g.shake;
@@ -2637,12 +2508,8 @@ const RugSweeperApp = () => {
     }
 
     ctx.save();
-    ctx.translate(GAME_WIDTH/2 + shakeX, GAME_HEIGHT/2 + shakeY);
-    ctx.rotate(g.worldRotation);
-    ctx.translate(-GAME_WIDTH/2, -GAME_HEIGHT/2);
-
-    ctx.save();
-    ctx.translate(0, GAME_HEIGHT + g.cameraY - 70);
+    ctx.translate(GAME_WIDTH/2 + shakeX, GAME_HEIGHT/2 + shakeY); ctx.rotate(g.worldRotation); ctx.translate(-GAME_WIDTH/2, -GAME_HEIGHT/2);
+    ctx.save(); ctx.translate(0, GAME_HEIGHT + g.cameraY - 70);
     g.stack.forEach((b) => {
       const y = -b.y; if (b.perfect) { ctx.shadowBlur = 15; ctx.shadowColor = b.color; }
       const fill = ctx.createLinearGradient(b.x, y - b.h, b.x, y);
@@ -2652,28 +2519,19 @@ const RugSweeperApp = () => {
       ctx.shadowBlur = 0;
     });
     if (g.state === 'PLAYING' && g.current && (!g.mirrorActive || !g.isMirrorTurn)) {
-      const y = -g.current.y;
-      ctx.fillStyle = g.current.color; ctx.fillRect(g.current.x, y - g.current.h, g.current.w, g.current.h);
+      ctx.fillStyle = g.current.color; ctx.fillRect(g.current.x, -g.current.y - g.current.h, g.current.w, g.current.h);
     }
     ctx.restore();
-
     if (g.mirrorActive) {
         ctx.save();
-        g.mirrorStack.forEach((b) => {
-            ctx.fillStyle = b.color; ctx.fillRect(b.x, (GAME_HEIGHT - b.y), b.w, b.h);
-            ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.strokeRect(b.x, (GAME_HEIGHT - b.y), b.w, b.h);
-        });
-        if (g.isMirrorTurn && g.mirrorCurrent) {
-            ctx.fillStyle = '#ffffff'; ctx.fillRect(g.mirrorCurrent.x, (GAME_HEIGHT - g.mirrorCurrent.y), g.mirrorCurrent.w, g.mirrorCurrent.h);
-        }
+        g.mirrorStack.forEach((b) => { ctx.fillStyle = b.color; ctx.fillRect(b.x, (GAME_HEIGHT - b.y), b.w, b.h); ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.strokeRect(b.x, (GAME_HEIGHT - b.y), b.w, b.h); });
+        if (g.isMirrorTurn && g.mirrorCurrent) { ctx.fillStyle = '#ffffff'; ctx.fillRect(g.mirrorCurrent.x, (GAME_HEIGHT - g.mirrorCurrent.y), g.mirrorCurrent.w, g.mirrorCurrent.h); }
         ctx.restore();
     }
-
     g.debris.forEach(d => { ctx.fillStyle = d.color; ctx.globalAlpha = d.life; ctx.fillRect(d.x, d.y, d.w, d.h); ctx.globalAlpha = 1; });
     ctx.restore();
 
     if (g.flash > 0.01) { ctx.fillStyle = `rgba(255,255,255,${g.flash})`; ctx.fillRect(0,0,GAME_WIDTH,GAME_HEIGHT); }
-
     ctx.fillStyle = currentBiome.text; ctx.textAlign = 'center'; ctx.font = '900 60px Impact';
     ctx.shadowBlur = 10; ctx.shadowColor = currentBiome.text; ctx.fillText(String(g.score), GAME_WIDTH/2, 80); ctx.shadowBlur = 0;
     ctx.font = 'bold 12px monospace'; ctx.fillText(String(currentBiome.name), GAME_WIDTH/2, 105);
@@ -2692,20 +2550,15 @@ const RugSweeperApp = () => {
     requestRef.current = requestAnimationFrame(loop);
   };
 
-  // --- LEADERBOARD & SUBMISSION ---
-
   const fetchLeaderboard = async () => {
     if (!user) return; setLoadingLB(true);
     try {
-      const qRef = collection(getFirestore(), 'artifacts', 'it-token-os', 'public', 'data', 'stackit_scores');
+      const qRef = collection(db, 'artifacts', appId, 'public', 'data', 'stackit_scores');
       const snapshot = await getDocs(qRef);
       const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
       const sorted = data.sort((a, b) => Number(b.score) - Number(a.score));
       const currentName = localStorage.getItem('stackItUsername'); 
-      if (currentName) {
-        const rank = sorted.findIndex(x => x.username === currentName) + 1;
-        setPlayerRank(rank > 0 ? rank : null);
-      }
+      if (currentName) { const rank = sorted.findIndex(x => x.username === currentName) + 1; setPlayerRank(rank > 0 ? rank : null); }
       setLeaderboard(sorted.slice(0, 10));
     } catch (e) { console.error("LB Error:", e); }
     setLoadingLB(false);
@@ -2714,14 +2567,28 @@ const RugSweeperApp = () => {
   const saveScoreToDb = async (nameToUse, scoreToSave) => {
     if (!user || !hasAccess) return false;
     try {
-      const upperName = nameToUse.toUpperCase().trim(); const uid = user.uid;
-      const docRef = doc(getFirestore(), 'artifacts', 'it-token-os', 'public', 'data', 'stackit_scores', uid);
+      const upperName = nameToUse.toUpperCase().trim(); 
+      const uid = user.uid;
+      const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'stackit_scores', uid);
       const snap = await getDoc(docRef);
-      if (!snap.exists()) await setDoc(docRef, { username: upperName, score: Number(scoreToSave), timestamp: Date.now() });
-      else {
+      
+      const scoreData = {
+        username: upperName,
+        score: Number(scoreToSave),
+        timestamp: Date.now(),
+        walletAddress: connectedWallet || "NONE"
+      };
+
+      if (!snap.exists()) {
+        await setDoc(docRef, scoreData);
+      } else {
         const existingScore = Number(snap.data().score || 0);
-        if (scoreToSave > existingScore) await updateDoc(docRef, { score: Number(scoreToSave), timestamp: Date.now(), username: upperName });
+        if (scoreToSave > existingScore) {
+            await updateDoc(docRef, scoreData);
+        }
       }
+      
+      localStorage.setItem('stackItUsername', upperName); setSavedName(upperName);
       return true;
     } catch (e) { console.error("DB Error:", e); return false; }
   };
@@ -2729,29 +2596,21 @@ const RugSweeperApp = () => {
   const handleFirstTimeSubmit = async () => {
     if (!usernameInput.trim() || !hasAccess) return; setIsSubmitting(true);
     const success = await saveScoreToDb(usernameInput, game.current.score);
-    setIsSubmitting(false); if (success) { await fetchLeaderboard(); setGameState('LEADERBOARD'); game.current.state = 'LEADERBOARD'; }
+    setIsSubmitting(false); if (success) { await fetchLeaderboard(); setGameState('LEADERBOARD'); }
   };
 
   const handleReturningSubmit = async (action) => {
     const name = savedName || localStorage.getItem('stackItUsername'); if (!name || !hasAccess) return; 
     setIsSubmitting(true); await saveScoreToDb(name, game.current.score); setIsSubmitting(false);
     if (action === 'RETRY') startGame();
-    else if (action === 'RANK') { await fetchLeaderboard(); setGameState('LEADERBOARD'); game.current.state = 'LEADERBOARD'; }
+    else if (action === 'RANK') { await fetchLeaderboard(); setGameState('LEADERBOARD'); }
   };
 
-  const openLeaderboard = (e) => { 
-    if(e) { e.stopPropagation(); e.preventDefault(); } 
-    initAudio();
-    fetchLeaderboard(); 
-    setGameState('LEADERBOARD'); 
-    game.current.state = 'LEADERBOARD'; 
-  };
+  const openLeaderboard = (e) => { if(e) { e.stopPropagation(); e.preventDefault(); } initAudio(); fetchLeaderboard(); setGameState('LEADERBOARD'); game.current.state = 'LEADERBOARD'; };
 
   const handleInteractionEvent = (e) => { 
-    initAudio(); 
-    const rect = canvasRef.current.getBoundingClientRect(); 
-    const scaleX = GAME_WIDTH / rect.width; 
-    const scaleY = GAME_HEIGHT / rect.height; 
+    initAudio(); const rect = canvasRef.current.getBoundingClientRect(); 
+    const scaleX = GAME_WIDTH / rect.width; const scaleY = GAME_HEIGHT / rect.height; 
     handleInteraction((e.clientX - rect.left) * scaleX, (e.clientY - rect.top) * scaleY); 
   };
   const handleRelease = () => { game.current.lastTap.active = false; };
@@ -2770,14 +2629,15 @@ const RugSweeperApp = () => {
         
         {gameState === 'MENU' && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 backdrop-blur-sm text-center text-white p-6 z-10 animate-in fade-in duration-500">
-            <h1 className="text-7xl font-black text-transparent bg-clip-text bg-gradient-to-t from-green-600 to-green-300 mb-2 drop-shadow-[0_4px_10px_rgba(0,255,0,0.5)] italic tracking-tighter">STACK IT</h1>
-            <p className="text-[10px] font-bold text-green-500 mb-12 tracking-[0.4em] uppercase opacity-80 animate-pulse">UPLINK STATUS: {hasAccess ? 'VERIFIED' : 'GUEST'}</p>
+            <h1 className="text-7xl font-black text-transparent bg-clip-text bg-gradient-to-t from-green-600 to-green-300 mb-2 drop-shadow-[0_4px_10px_rgba(0,255,0,0.5)] italic tracking-tighter uppercase">Stack IT</h1>
+            <p className="text-[10px] font-bold text-green-500 mb-12 tracking-[0.4em] uppercase opacity-80 animate-pulse">Uplink Status: {hasAccess ? 'Verified' : 'Guest'}</p>
             <div className="flex flex-col gap-4 w-full max-w-[180px]">
                 <button onPointerDown={startGame} className="bg-white text-black py-3 font-black border-4 border-blue-500 shadow-[4px_4px_0_#0000ff] active:shadow-none active:translate-x-1 active:translate-y-1 transition-all uppercase italic text-xl">Send IT</button>
-                <button onPointerDown={openLeaderboard} className="bg-yellow-400 text-black py-2 font-black border-4 border-orange-500 shadow-[4px_4px_0_#ff0000] active:shadow-none active:translate-x-1 active:translate-y-1 transition-all uppercase italic text-sm">LEADERBOARD</button>
+                <button onPointerDown={openLeaderboard} className="bg-yellow-400 text-black py-2 font-black border-4 border-orange-500 shadow-[4px_4px_0_#ff0000] active:shadow-none active:translate-x-1 active:translate-y-1 transition-all uppercase italic text-sm">Leaderboard</button>
             </div>
           </div>
         )}
+
         {gameState === 'NEW_HIGHSCORE' && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-blue-900/95 text-center text-white p-6 z-20 pointer-events-auto shadow-2xl" onPointerDown={e=>e.stopPropagation()}>
             <h1 className="text-5xl font-black text-yellow-400 mb-2 animate-bounce italic text-glow">NEW ATH</h1>
@@ -2802,16 +2662,17 @@ const RugSweeperApp = () => {
             )}
           </div>
         )}
+
         {gameState === 'LEADERBOARD' && (
           <div className="absolute inset-0 flex flex-col items-center bg-blue-950/95 text-white p-6 z-20 pointer-events-auto shadow-2xl" onPointerDown={e=>e.stopPropagation()}>
             <div className="flex justify-between items-center w-full border-b-4 border-yellow-400 pb-4 mb-6 italic">
-                <h2 className="text-4xl font-black text-yellow-400">TOP STACKERS</h2>
-                {playerRank && <div className="bg-black/80 px-4 py-2 text-[10px] font-black border border-yellow-400 text-yellow-400 uppercase tracking-widest">RANK: #{playerRank}</div>}
+                <h2 className="text-4xl font-black text-yellow-400 uppercase">Top Stackers</h2>
+                {playerRank && <div className="bg-black/80 px-4 py-2 text-[10px] font-black border border-yellow-400 text-yellow-400 uppercase tracking-widest">Rank: #{playerRank}</div>}
             </div>
             <div className="flex-1 w-full overflow-y-auto mb-8 bg-black/60 p-4 border-2 border-white/10 shadow-inner scrollbar-classic">
                 {loadingLB ? <div className="text-center mt-12 animate-pulse text-[12px] font-bold tracking-[0.5em] text-blue-400 uppercase">Synchronizing Nodes...</div> : (
                     <table className="w-full text-left text-sm font-mono">
-                        <thead><tr className="text-gray-500 border-b border-gray-800 text-[10px] uppercase tracking-widest font-black"><th className="pb-4">#</th><th className="pb-4">HOLDER</th><th className="pb-4 text-right">STACK</th></tr></thead>
+                        <thead><tr className="text-gray-500 border-b border-gray-800 text-[10px] uppercase tracking-widest font-black"><th className="pb-4">#</th><th className="pb-4">Holder</th><th className="pb-4 text-right">Stack</th></tr></thead>
                         <tbody>
                             {leaderboard.map((entry, i) => {
                                 const isCurrentUser = savedName && String(entry.username) === savedName;
@@ -2827,23 +2688,22 @@ const RugSweeperApp = () => {
                     </table>
                 )}
             </div>
-            <button onPointerDown={(e) => { e.stopPropagation(); setGameState('MENU'); game.current.state='MENU'; }} className="w-full py-4 bg-white text-blue-950 font-black border-4 border-blue-500 shadow-2xl hover:bg-gray-200 transition-all uppercase italic text-xl shrink-0">CLOSE IT</button>
+            <button onPointerDown={(e) => { e.stopPropagation(); setGameState('MENU'); game.current.state='MENU'; }} className="w-full py-4 bg-white text-blue-950 font-black border-4 border-blue-500 shadow-2xl hover:bg-gray-200 transition-all uppercase italic text-xl shrink-0">Close IT</button>
           </div>
         )}
+        
         {gameState === 'GAME_OVER' && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-red-950/95 text-center text-white p-6 z-10 pointer-events-none animate-in fade-in duration-300 backdrop-blur-sm">
             <h1 className="text-7xl font-black mb-2 italic text-white drop-shadow-[0_0_30px_rgba(255,0,0,0.6)] tracking-tighter uppercase">Rugged!</h1>
             <div className="text-8xl font-black text-yellow-400 mb-2 drop-shadow-2xl">{score}</div>
-            
             {!hasAccess ? (
                 <div className="bg-yellow-500/20 border-2 border-yellow-600 p-4 mb-8 animate-pulse rounded">
                     <p className="text-[11px] font-black text-yellow-400 uppercase tracking-widest mb-1 italic">Score Not Submitted</p>
                     <p className="text-[8px] text-white/60 uppercase">Hold 500k $IT to join protocol rankings</p>
                 </div>
             ) : (
-                <p className="text-[11px] mb-12 text-red-300 font-black tracking-[0.3em] uppercase opacity-80 italic animate-pulse text-center">BETTER LUCK NEXT TIME</p>
+                <p className="text-[11px] mb-12 text-red-300 font-black tracking-[0.3em] uppercase opacity-80 italic animate-pulse text-center">Better Luck Next Time</p>
             )}
-
             <div className="flex gap-4 w-full">
                 <button onPointerDown={startGame} className="flex-1 bg-white text-black py-4 font-black border-4 border-gray-400 shadow-2xl hover:scale-105 transition-transform pointer-events-auto uppercase italic text-lg">Buy Dip</button>
                 <button onPointerDown={openLeaderboard} className="flex-1 bg-gray-900 text-white py-4 font-bold border-4 border-gray-600 cursor-pointer pointer-events-auto hover:bg-gray-800 transition-colors uppercase italic text-sm">Rank</button>
@@ -2859,6 +2719,7 @@ const RugSweeperApp = () => {
     </div>
   );
 };
+
 
 
 
@@ -3837,7 +3698,7 @@ const MemeMindApp = () => {
   const [error, setError] = useState(null);
   const [copied, setCopied] = useState(false);
 
-  // --- API HANDSHAKE (OpenRouter) ---
+
   const API_KEY = (() => {
     try {
       if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_OR_PROVIDER_ID) 
@@ -3866,56 +3727,47 @@ const MemeMindApp = () => {
      Role:
 You are the creative strategist for the $IT token on Solana.
 You never mention being an AI. Your output exists to dominate timelines with $IT.
+You write short, conviction-driven tweets for the $IT token on Solana.
+You never mention being an AI or explain yourself.
+Each response must generate exactly one tweet that sounds like a normal person posting, not a brand or marketer.
 
-Tone:
-Confident, smug, slightly bored. No selling. $IT is inevitable.
-
-Core Rule (Non-Negotiable)
-
-Every output must include the word “it”
-
-Never use “it’s” — always write “it is”
-
-Make “it” the most bullish word in Solana.
-
-Persona:
-
-100% bullish on $IT
-
-Speaks fluent Solana trench culture
-
-Treats $IT as an unavoidable outcome
-
-Uses degen slang naturally (alpha, send it, jeet, moon, sol, conviction).
-
-Writing Rules:
-
+Core Rules
+Every tweet must include $IT
+Never use “it’s” — always write “it is” if needed
 No hashtags
+No emojis
+No quotes
+No intros or explanations
 
+Style
 Lowercase allowed
+Calm confidence, inevitable tone
+Not promotional, not selly
+Sounds like observation, not advice
+Feels like someone who already knows
+Content Direction
+Frame $IT as the outcome, not the opportunity
+Imply conviction without telling people to buy
+Short, sharp, memorable
 
-No fluff or corporate words
-
-Short > clever > confident
-
-If it can be said shorter, do it.
-
-Output Constraints:
-
-Exactly one tweet per response
-
+Constraints
 Under 100 characters
+One thought, one punch
 
-No lists, no intros, no quotes
-
-Style Reference:
-Bad: Overhyped, salesy, promotional
-Good: Casual, dismissive, inevitable.
+Goal
+Make tweets that blend naturally into timelines and feel repostable, as if they were not written for $IT — but could only be about $IT.
 
 Example Outputs:
-you can ignore it but it is already everywhere
-jeets sold it. winners held it.
-there is only $IT. buy it or watch it.
+everyone is gambling narratives. $IT is the outcome. hold $IT or keep restarting.
+while they rotate coins, $IT is doing the job. no roadmap. just results.
+new ticker. same disappointment. $IT is the one you stop switching for.
+you do not need another play. $IT is the play. everything else is noise.
+they hunt runners. $IT is already running.
+if you need to be convinced, $IT is not for you.
+you can keep testing luck. $IT is what people settle into.
+every cycle ends the same way. they find $IT late.
+stop trading. start holding $IT.
+$IT does not promise. $IT just replaces.
     `;
 
     if (!API_KEY) {
