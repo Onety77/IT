@@ -4717,6 +4717,7 @@ Treat this like an NFT layering system where the base body is locked.
 STYLE: 90s hand-drawn artsy anime style, thick ink outlines, flat vibrant colors.
 MANDATORY: Integrate the letters 'IT' clearly as a professional high-contrast logo on the clothing or a prominent item, same font style as the on in the base image. 
 VIBE: Playful, creative, and worth collecting as an artsy NFT.
+BACKGROUND: should not be plain empty white, should also not be too overcomplicated, make something that fits and compliments the design. 
         `;
       } else if (selections.super.id !== 'none') {
         promptText = `
@@ -4914,9 +4915,9 @@ VIBE: Playful, creative, and worth collecting as an artsy NFT.
                      <button onClick={downloadPFP} className="p-3 bg-white text-black hover:bg-emerald-400 shadow-2xl active:scale-90"><Download size={20} /></button>
                   </div>
                 </div>
-                <button onClick={downloadPFP} className="w-full py-4 bg-white text-black font-black uppercase text-[11px] hover:bg-emerald-400 shadow-xl flex items-center justify-center gap-3 tracking-[0.2em] transition-all"><Download size={16}/> Save_to_Cult</button>
+                <button onClick={downloadPFP} className="w-full py-4 bg-white text-black font-black uppercase text-[11px] hover:bg-emerald-400 shadow-xl flex items-center justify-center gap-3 tracking-[0.2em] transition-all"><Download size={16}/> Save_IT</button>
                 <button onClick={() => setGeneratedImg(null)} className="w-full py-2 text-[9px] font-black uppercase text-zinc-700 hover:text-white transition-all flex items-center justify-center gap-2 group">
-                  <X size={12} className="group-hover:rotate-90 transition-transform" /> Purge_Matrix
+                  <X size={12} className="group-hover:rotate-90 transition-transform" /> CLOSE_IT
                 </button>
               </div>
             ) : (
