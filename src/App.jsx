@@ -4346,8 +4346,9 @@ const MergeItApp = () => {
 const UNLIMITED_THRESHOLD = 3000000; 
 const HOLDER_THRESHOLD = 500000;
 const LIMIT_ELITE = 99999;
-const LIMIT_HOLDER = 22;
-const LIMIT_GUEST = 11;
+const LIMIT_HOLDER = 99999; // Unlocked
+const LIMIT_GUEST = 99999;  // Unlocked
+const REFRESH_INTERVAL_MS = 6 * 60 * 60 * 1000; 
 
 const APP_ID = typeof __app_id !== 'undefined' ? __app_id : 'it-forge-cult';
 const BASE_CHARACTER_PATH = "main.jpg";
@@ -4363,14 +4364,14 @@ const PFP_CATEGORIES = [
   { id: 'glasses', label: 'SPECS', icon: Glasses },
   { id: 'aura', label: 'AURA', icon: Zap },
   { id: 'super', label: 'SUPER', icon: Shield },
-  { id: 'clone', label: 'CLONE', icon: Camera, elite: true },
+  { id: 'clone', label: 'CLONE', icon: Camera },
 ];
 
 const PFP_TRAITS = {
   bg: [
     { id: 'plain', label: 'Plain Off-White', prompt: 'standing against a simple flat artsy off-white background' },
     { id: 'notebook', label: 'Notebook Doodles', prompt: 'standing against a paper background covered in artsy pencil doodles and sketches' },
-    { id: 'cardboard', label: 'Cardboard Texture', prompt: 'against a brown recycled cardboard texture' },
+    { id: 'cardboard', label: 'Cardboard Texture', prompt: 'against a rough brown recycled cardboard texture' },
     { id: 'pastel', label: 'Pastel Gradient', prompt: 'standing against a soft pastel purple and teal gradient' },
     { id: 'crumpled', label: 'Crumpled Paper', prompt: 'against a textured crumpled white paper background' },
     { id: 'polka', label: 'Polka Chaos', prompt: 'against a flat colorful polka dot pattern' },
@@ -4488,16 +4489,19 @@ const PFP_TRAITS = {
 const ForgeItApp = () => {
   const [user, setUser] = useState(null);
   const [tokenBalance, setTokenBalance] = useState(0);
-  const [hasEliteAccess, setHasEliteAccess] = useState(false);
-  const [hasHolderAccess, setHasHolderAccess] = useState(false);
-  const [dailyCount, setDailyCount] = useState(0);
+  
+  // --- UNLOCK OVERRIDE (Set both to true for 24h Promo) ---
+  const hasEliteAccess = true;
+  const hasHolderAccess = true;
+  
+  const [dailyCount, setDailyCount] = useState(0); 
+  const [isSyncing, setIsSyncing] = useState(true);
   const [showMobileBlueprint, setShowMobileBlueprint] = useState(false);
   const [isRandomizing, setIsRandomizing] = useState(false);
   const [trustMode, setTrustMode] = useState(false);
   const [cloneImage, setCloneImage] = useState(null);
   const fileInputRef = useRef(null);
   
-  // ROBUST API KEY RESOLUTION
   const apiKey = (() => {
     try {
       if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_APP_GEMINI) return import.meta.env.VITE_APP_GEMINI;
@@ -4511,7 +4515,6 @@ const ForgeItApp = () => {
     return typeof __apiKey !== 'undefined' ? __apiKey : "";
   })();
 
-  // Forge State
   const [selections, setSelections] = useState({
     bg: PFP_TRAITS.bg[0], head: PFP_TRAITS.head[0], expression: PFP_TRAITS.expression[0],
     mask: PFP_TRAITS.mask[0], shirts: PFP_TRAITS.shirts[0], item: PFP_TRAITS.item[0],
@@ -4525,7 +4528,7 @@ const ForgeItApp = () => {
   const [logs, setLogs] = useState(["NEURAL_LINK_ESTABLISHED", "MATRIX_RESERVES_STANDBY"]);
   const [error, setError] = useState(null);
 
-  const currentLimit = hasEliteAccess ? LIMIT_ELITE : (hasHolderAccess ? LIMIT_HOLDER : LIMIT_GUEST);
+  const currentLimit = LIMIT_ELITE; // Promo Override
 
   useEffect(() => {
     const initAuth = async () => {
@@ -4536,36 +4539,33 @@ const ForgeItApp = () => {
       }
     };
     initAuth();
-    const unsubscribe = onAuthStateChanged(auth, setUser);
+    const unsubscribe = onAuthStateChanged(auth, (u) => {
+      if (u) setUser(u);
+    });
     return () => unsubscribe();
   }, []);
 
-  useEffect(() => {
-    const handleKernelSync = (e) => {
-      const bal = e.detail.balance;
-      setTokenBalance(bal);
-      setHasEliteAccess(bal >= UNLIMITED_THRESHOLD);
-      setHasHolderAccess(bal >= HOLDER_THRESHOLD);
-    };
-    window.addEventListener('IT_OS_BALANCE_UPDATE', handleKernelSync);
-    return () => window.removeEventListener('IT_OS_BALANCE_UPDATE', handleKernelSync);
-  }, []);
-
+  // Sync usage but limit is forced high anyway
   useEffect(() => {
     if (!user) return;
-    const today = new Date().toISOString().split('T')[0];
+    setIsSyncing(true);
     const usageRef = doc(db, 'artifacts', APP_ID, 'users', user.uid, 'usage', 'forge_limits');
     const unsub = onSnapshot(usageRef, (snap) => {
       if (snap.exists()) {
         const data = snap.data();
-        if (data.lastDate === today) {
-          setDailyCount(data.count);
-        } else {
+        const now = Date.now();
+        if (now - (data.lastReset || 0) > REFRESH_INTERVAL_MS) {
           setDailyCount(0);
+        } else {
+          setDailyCount(data.count || 0);
         }
       } else {
         setDailyCount(0);
       }
+      setIsSyncing(false);
+    }, (err) => {
+      console.error("Quota Sync Error", err);
+      setIsSyncing(false);
     });
     return () => unsub();
   }, [user]);
@@ -4603,13 +4603,12 @@ const ForgeItApp = () => {
     const interval = setInterval(() => {
       const newSels = {};
       Object.keys(PFP_TRAITS).forEach(cat => {
-        if (cat === 'super') {
-          newSels[cat] = PFP_TRAITS.super[0];
+        if (cat === 'super' || cat === 'clone') {
+          newSels[cat] = PFP_TRAITS[cat][0];
           return;
         }
         const items = PFP_TRAITS[cat];
-        const availableItems = items.filter(i => !i.vip || hasEliteAccess);
-        newSels[cat] = availableItems[Math.floor(Math.random() * availableItems.length)];
+        newSels[cat] = items[Math.floor(Math.random() * items.length)];
       });
       setSelections(prev => ({...prev, ...newSels}));
       count++;
@@ -4625,7 +4624,6 @@ const ForgeItApp = () => {
     setTrustMode(true);
     setCloneImage(null);
     addLog("GRANTING_SYSTEM_IMAGINATION...");
-    // Reset selections to defaults for UI feedback
     const defaults = {};
     Object.keys(PFP_TRAITS).forEach(k => defaults[k] = PFP_TRAITS[k][0]);
     setSelections(defaults);
@@ -4633,7 +4631,6 @@ const ForgeItApp = () => {
   };
 
   const handleFileUpload = (e) => {
-    if (!hasEliteAccess) return;
     const file = e.target.files[0];
     if (file) {
       const reader = new FileReader();
@@ -4660,17 +4657,9 @@ const ForgeItApp = () => {
 
   const handleForge = async () => {
     if (isForging) return;
-    if (!user) { setError("SYNCING_KERNEL... PLEASE WAIT."); return; }
+    if (!user || isSyncing) { setError("SYNCING_QUOTA... WAIT."); return; }
 
-    if (dailyCount >= currentLimit) {
-      setError(`LIMIT_EXCEEDED: ${hasEliteAccess ? 'Unlimited' : hasHolderAccess ? '4/day' : '2/day'} Cycle Complete.`);
-      return;
-    }
-
-    if (!apiKey) {
-      setError("IDENTIFIER_ERROR: VITE_APP_GEMINI not detected.");
-      return;
-    }
+    if (!apiKey) { setError("IDENTIFIER_ERROR: VITE_APP_GEMINI missing."); return; }
 
     setIsForging(true); setGeneratedImg(null); setProgress(0); setError(null);
     setLogs(["LOCKING_BLUEPRINT...", "PRESERVING_BODY_SHAPE...", "CALCULATING_DECORATIONS..."]);
@@ -4689,61 +4678,18 @@ const ForgeItApp = () => {
 
       if (cloneImage) {
         contentParts.push({ inlineData: { mimeType: "image/png", data: cloneImage } });
-        promptText = `
-          CLONE PFP MODE.
-         ARTSY CLONE PFP SYSTEM.
-TEMPLATES: Image 1 is our STATIC character blueprint. Image 2 is the SOURCE PFP provided by the user.
-GOAL: Map the clothing style, item themes, and background colors from Image 2 onto our character in Image 1.
-
-STRICT CONSTRAINTS:
-DO NOT CHANGE the body shape, mask head, or silhouette of the character in Image 1.
-DO NOT crop the image; the character must remain full-bodied in the center.
-TRANSFORM the elements from Image 2 into our 90s hand-drawn artsy anime style with thick black outlines and flat colors.
-BRANDING: Apply a high-contrast 'IT' logo on the new outfit if there is clear space. same font style as in the base image. 
-BACKGROUND: Recreate the vibe of Image 2's background but in a hand-sketched, artsy style.
-        `;
+        promptText = `ARTSY CLONE PFP SYSTEM. Map vibe/clothing from Image 2 to Image 1. DO NOT CHANGE Image 1 body shape or mask. 90s Artsy style. High-contrast IT branding.`;
       } else if (trustMode) {
-        promptText = `
-        ARTSY FUN CREATIVE DECORATION.
-SOURCE: Use the attached character as the ABSOLUTE static blueprint.
-TASK: Use your imagination to decorate this character with fun, artsy, and lighthearted items. Think silly hats, colorful vests, playful accessories, or weird artsy props.
-
-STRICT CONSTRAINTS:
-YOU MUST maintain the exact paper bag mask head and cybernetic cat body shape from the source.
-DO NOT add human anatomy, human limbs, or human faces.
-DO NOT ATTEMPT  writing anything on the image if its not "IT"
-DO NOT over do the decoration, the less and simpler the better. 
-Treat this like an NFT layering system where the base body is locked.
-STYLE: 90s hand-drawn artsy anime style, thick ink outlines, flat vibrant colors.
-MANDATORY: Integrate the letters 'IT' clearly as a professional high-contrast logo on the clothing or a prominent item, same font style as the on in the base image. 
-VIBE: Playful, creative, and worth collecting as an artsy NFT.
-BACKGROUND: should not be plain empty white, should also not be too overcomplicated, make something that fits and compliments the design. 
-        `;
+        promptText = `ARTSY FUN CREATIVE DECORATION. Use imagination for silly hats/vests. MAINTAIN exact paper bag mask head and body shape. NO human anatomy. 90s Artsy style. High-contrast IT branding logo.`;
       } else if (selections.super.id !== 'none') {
-        promptText = `
-          ARTSY SUPERHERO TRANSFORMATION.
-          SOURCE: Use the attached character as the EXACT static blueprint.
-          STRICT CONSTRAINTS: 
-          - DO NOT change body shape, silhouette, or pose.
-          - TRANSFORM: ${selections.super.prompt} by layering details onto the body.
-          - STYLE: 90s hand-drawn artsy anime.
-          - BRANDING: Professional "IT" logo on the hero chest.
-        `;
+        promptText = `ARTSY SUPERHERO TRANSFORMATION. KEEP core mask and anatomy silhouette. TRANSFORM: ${selections.super.prompt} by layering details. High-contrast IT logo on chest.`;
       } else {
         const activeTraits = Object.entries(selections)
           .filter(([cat, trait]) => trait.id !== 'none' && trait.id !== 'clean' && trait.id !== 'neutral')
           .map(([cat, trait]) => trait.prompt)
           .join(', ');
 
-        promptText = `
-          ARTSY PFP FORGE SYSTEM.
-          SOURCE: Use the attached character as the STATIC TEMPLATE.
-          STRICT CONSTRAINTS: 
-          - DO NOT CHANGE silhouette, pose, or proportions. 
-          - Maintain 90s hand-drawn artsy anime style.
-          ADD TRAITS: ${activeTraits}.
-          BRANDING: If there is space on a shirt, draw the letters "IT" as a high-contrast clean logo. 
-        `;
+        promptText = `ARTSY PFP FORGE. LAYER SYSTEM. DO NOT CHANGE silhouette/pose. 90s Artsy Anime style. ADD: ${activeTraits}. IT logo branding on shirt/hat.`;
       }
 
       contentParts[0].text = promptText;
@@ -4758,26 +4704,28 @@ BACKGROUND: should not be plain empty white, should also not be too overcomplica
       });
 
       if (!response.ok) throw new Error(`API_ERROR: ${response.status}`);
-
       const result = await response.json();
       const base64Result = result.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
 
       if (base64Result) {
-        setTimeout(async () => {
+        try {
+          const usageRef = doc(db, 'artifacts', APP_ID, 'users', user.uid, 'usage', 'forge_limits');
+          const snap = await getDoc(usageRef);
+          const now = Date.now();
+          if (snap.exists() && (now - (snap.data().lastReset || 0) < REFRESH_INTERVAL_MS)) {
+             await updateDoc(usageRef, { count: increment(1) });
+          } else {
+             await setDoc(usageRef, { count: 1, lastReset: now }, { merge: true });
+          }
+        } catch (dbErr) { console.warn("Usage Tracker Fail", dbErr); }
+
+        setTimeout(() => {
           setGeneratedImg(`data:image/png;base64,${base64Result}`);
           setProgress(100); 
           addLog("MATERIALIZATION_SUCCESS.");
           setError(null);
-          try {
-            const today = new Date().toISOString().split('T')[0];
-            const usageRef = doc(db, 'artifacts', APP_ID, 'users', user.uid, 'usage', 'forge_limits');
-            await setDoc(usageRef, { count: increment(1), lastDate: today }, { merge: true });
-          } catch (dbErr) { 
-            console.warn("Tracker failed:", dbErr);
-            setDailyCount(prev => prev + 1);
-          }
           setIsForging(false);
-        }, 150);
+        }, 200);
       } else { throw new Error("AI_RETURNED_EMPTY_RESPONSE"); }
     } catch (err) {
       setError(err.message);
@@ -4790,7 +4738,7 @@ BACKGROUND: should not be plain empty white, should also not be too overcomplica
     if (!generatedImg) return;
     const link = document.createElement('a');
     link.href = generatedImg;
-    link.download = `FORGED_IT_${Date.now()}.png`;
+    link.download = `CULT_FORGE_${Date.now()}.png`;
     link.click();
   };
 
@@ -4803,61 +4751,55 @@ BACKGROUND: should not be plain empty white, should also not be too overcomplica
           <div className="p-1 border border-emerald-500/40 rounded-sm bg-black relative"><Cpu size={14} className="text-emerald-400" /></div>
           <div className="flex flex-col">
             <h1 className="text-[9px] font-black uppercase tracking-[0.3em] text-white italic leading-none">Forge_IT_Cult</h1>
-            <span className="text-[6px] text-zinc-600 font-bold uppercase mt-1 tracking-tighter">Forge_Engine_v5.8</span>
+            <span className="text-[6px] text-zinc-600 font-bold uppercase mt-1 tracking-tighter">Forge_Engine_v6.1_PROMO</span>
           </div>
         </div>
-        <div className={`px-2 py-1 border rounded-sm transition-all flex items-center gap-2 ${hasEliteAccess ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-400 shadow-[0_0_10px_#10b98133]' : hasHolderAccess ? 'border-blue-500/40 bg-blue-500/10 text-blue-400' : 'border-yellow-600/40 bg-yellow-600/10 text-yellow-600'}`}>
+        <div className="px-2 py-1 border border-yellow-500/40 bg-yellow-500/10 text-yellow-500 rounded-sm transition-all flex items-center gap-2 shadow-[0_0_15px_rgba(234,179,8,0.2)]">
           <div className="flex flex-col items-end">
-            <span className="text-[8px] font-black uppercase tracking-tighter leading-none">{hasEliteAccess ? 'ELITE' : hasHolderAccess ? 'HOLDER' : 'GUEST'}</span>
-            <span className="text-[6px] font-bold opacity-60 mt-0.5 tracking-widest uppercase">FORGES: {hasEliteAccess ? '∞' : currentLimit - dailyCount}</span>
+            <span className="text-[8px] font-black uppercase tracking-tighter leading-none">GLOBAL_ACCESS_ACTIVE</span>
+            <span className="text-[6px] font-bold opacity-60 mt-0.5 tracking-widest uppercase italic">FORGES: UNLIMITED ♾️</span>
           </div>
-          {hasEliteAccess ? <Crown size={12} className="animate-pulse" /> : <Lock size={10} className="opacity-40" />}
+          <Crown size={12} className="animate-pulse" />
         </div>
       </header>
 
       <main className="flex-1 flex flex-col md:flex-row min-h-0 relative">
         <div className="flex-1 flex flex-col border-r border-emerald-900/20 bg-[#080808] relative min-h-0">
           <div className="flex md:grid md:grid-cols-10 border-b border-emerald-900/40 shrink-0 overflow-x-auto no-scrollbar bg-black/60 sticky top-0 z-40">
-            {PFP_CATEGORIES.map(cat => {
-              const isLockedCat = cat.elite && !hasEliteAccess;
-              return (
-                <button key={cat.id} disabled={isLockedCat} onClick={() => setActiveCat(cat.id)} className={`p-4 min-w-[65px] flex-1 flex flex-col items-center gap-1.5 transition-all relative group ${activeCat === cat.id ? 'bg-emerald-500/10 text-emerald-400' : 'text-zinc-600'} ${isLockedCat ? 'opacity-20 grayscale' : ''}`}>
-                  <cat.icon size={16} className={`${activeCat === cat.id ? 'scale-110' : ''}`} />
-                  <span className="text-[6px] font-black uppercase tracking-widest leading-none mt-1">{cat.label}</span>
-                  {activeCat === cat.id && <div className="absolute bottom-0 inset-x-0 h-1 bg-emerald-500 shadow-[0_0_15px_#10b981]" />}
-                </button>
-              );
-            })}
+            {PFP_CATEGORIES.map(cat => (
+              <button key={cat.id} onClick={() => setActiveCat(cat.id)} className={`p-4 min-w-[65px] flex-1 flex flex-col items-center gap-1.5 transition-all relative group ${activeCat === cat.id ? 'bg-emerald-500/10 text-emerald-400' : 'text-zinc-600'}`}>
+                <cat.icon size={16} className={`${activeCat === cat.id ? 'scale-110' : ''}`} />
+                <span className="text-[6px] font-black uppercase tracking-widest leading-none mt-1">{cat.label}</span>
+                {activeCat === cat.id && <div className="absolute bottom-0 inset-x-0 h-1 bg-emerald-500 shadow-[0_0_15px_#10b981]" />}
+              </button>
+            ))}
           </div>
 
           <div className="flex-1 overflow-y-auto p-3 md:p-5 custom-scrollbar bg-[#050505]">
             {activeCat === 'clone' ? (
               <div className="flex flex-col items-center justify-center h-full gap-6 text-center animate-in fade-in duration-500">
-                <div className="p-8 border-2 border-dashed border-emerald-500/20 rounded-xl bg-black w-full max-w-sm">
+                <div className="p-8 border-2 border-dashed border-emerald-500/20 rounded-xl bg-black w-full max-w-sm shadow-[0_0_30px_#10b98111]">
                   <Camera size={40} className="mx-auto text-emerald-500/40 mb-4" />
-                  <h3 className="text-sm font-black uppercase tracking-widest text-emerald-400">Clone Existing PFP</h3>
-                  <p className="text-[8px] text-zinc-500 mt-2 uppercase">AI will analyze Image and map outfit/vibes to template.</p>
+                  <h3 className="text-sm font-black uppercase tracking-widest text-emerald-400 italic">Clone Source PFP</h3>
+                  <p className="text-[8px] text-zinc-500 mt-2 uppercase tracking-tighter leading-relaxed">Map vibes and outfit from your image onto our character blueprint.</p>
                   <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept="image/*" className="hidden" />
-                  <button onClick={() => fileInputRef.current.click()} className="mt-6 w-full py-3 bg-emerald-500 text-black font-black uppercase text-[10px] hover:bg-emerald-400 transition-all flex items-center justify-center gap-2">
+                  <button onClick={() => fileInputRef.current.click()} className="mt-6 w-full py-3 bg-emerald-500 text-black font-black uppercase text-[10px] hover:bg-emerald-400 transition-all flex items-center justify-center gap-2 shadow-lg">
                     <Upload size={14} /> {cloneImage ? 'CHOOSE_ANOTHER' : 'UPLOAD_IMAGE'}
                   </button>
                 </div>
-                {cloneImage && <div className="p-1 border border-emerald-500/40 bg-black rounded-sm"><img src={`data:image/png;base64,${cloneImage}`} className="w-32 h-32 object-cover grayscale opacity-60" /></div>}
+                {cloneImage && <div className="p-1 border border-emerald-500/40 bg-black rounded-sm animate-in zoom-in-95"><img src={`data:image/png;base64,${cloneImage}`} className="w-32 h-32 object-cover grayscale opacity-60" /></div>}
               </div>
             ) : (
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 pb-24 md:pb-0">
                 {PFP_TRAITS[activeCat]?.map(trait => {
-                  const isLocked = trait.vip && !hasEliteAccess;
                   const isSelected = selections[activeCat]?.id === trait.id && !trustMode && !cloneImage;
                   return (
-                    <button key={trait.id} disabled={isLocked} onClick={() => handleTraitSelect(activeCat, trait)}
+                    <button key={trait.id} onClick={() => handleTraitSelect(activeCat, trait)}
                       className={`group px-3 py-4 border rounded-sm text-center transition-all flex flex-col items-center justify-center relative overflow-hidden active:scale-95 ${
                         isSelected ? 'bg-emerald-500/10 border-emerald-500 text-emerald-300' : 'bg-white/5 border-white/5 text-zinc-600 hover:border-white/20'
-                      } ${isLocked ? 'opacity-20 grayscale cursor-not-allowed border-dashed' : ''}`}>
+                      }`}>
                       <span className="text-[9px] font-black uppercase tracking-tighter leading-none relative z-10">{trait.label}</span>
                       {isSelected && <div className="absolute bottom-1 right-1 w-1 h-1 bg-emerald-400 rounded-full shadow-[0_0_8px_#10b981] animate-pulse" />}
-                      {isLocked && <Lock size={10} className="mt-2 text-yellow-600/50" />}
-                      {trait.vip && !isLocked && <Crown size={10} className="absolute top-1 right-1 text-yellow-500 opacity-40" />}
                     </button>
                   );
                 })}
@@ -4865,20 +4807,20 @@ BACKGROUND: should not be plain empty white, should also not be too overcomplica
             )}
           </div>
 
-          <div className="p-2 md:p-4 bg-black border-t border-emerald-900/40 shrink-0 md:relative fixed bottom-0 left-0 right-0 z-[60] backdrop-blur-md flex flex-col gap-2">
+          <div className="p-2 md:p-4 bg-black border-t border-emerald-900/40 shrink-0 md:relative fixed bottom-0 left-0 right-0 z-[60] backdrop-blur-md flex flex-col gap-2 shadow-[0_-10px_30px_rgba(0,0,0,0.5)]">
             <div className="flex gap-2">
-              <button onClick={handleRandomize} disabled={isForging || isRandomizing}
+              <button onClick={handleRandomize} disabled={isForging || isRandomizing || isSyncing}
                 className="flex-1 py-2 border border-emerald-500/20 text-emerald-500/50 hover:text-emerald-400 hover:bg-emerald-500/5 flex items-center justify-center gap-2 text-[8px] font-black uppercase tracking-[0.3em] transition-all">
                 <Shuffle size={14} className={isRandomizing ? 'animate-spin' : ''} /> Randomize
               </button>
-              <button onClick={handleTrustIt} disabled={isForging}
-                className={`flex-1 py-2 border flex items-center justify-center gap-2 text-[8px] font-black uppercase tracking-[0.3em] transition-all ${trustMode ? 'bg-blue-500/10 border-blue-500 text-blue-400' : 'border-zinc-800 text-zinc-600 hover:text-white hover:border-white/20'}`}>
+              <button onClick={handleTrustIt} disabled={isForging || isSyncing}
+                className={`flex-1 py-2 border flex items-center justify-center gap-2 text-[8px] font-black uppercase tracking-[0.3em] transition-all ${trustMode ? 'bg-blue-500/10 border-blue-500 text-blue-400 shadow-[0_0_10px_#3b82f633]' : 'border-zinc-800 text-zinc-600 hover:text-white hover:border-white/20'}`}>
                 <Ghost size={14} /> TRUST_IT
               </button>
             </div>
-            <button onClick={handleForge} disabled={isForging || isRandomizing}
+            <button onClick={handleForge} disabled={isForging || isRandomizing || isSyncing}
               className={`w-full py-4 md:py-5 font-black italic text-base md:text-lg tracking-[0.4em] transition-all relative overflow-hidden group border-b-4 active:translate-y-1 active:border-b-0 ${
-                isForging ? 'bg-zinc-900 text-zinc-700 border-zinc-800' : 'bg-emerald-500 text-black hover:bg-emerald-400 border-emerald-700 shadow-[0_0_30px_rgba(16,185,129,0.3)]'
+                isForging ? 'bg-zinc-900 text-zinc-700 border-zinc-800' : 'bg-emerald-500 text-black hover:bg-emerald-400 border-emerald-700 shadow-[0_0_40px_rgba(16,185,129,0.3)]'
               }`}>
               <span className="relative z-10 flex items-center justify-center gap-3">
                 {isForging ? <RefreshCw className="animate-spin" size={20}/> : <Zap size={20} />}
@@ -4915,15 +4857,15 @@ BACKGROUND: should not be plain empty white, should also not be too overcomplica
                      <button onClick={downloadPFP} className="p-3 bg-white text-black hover:bg-emerald-400 shadow-2xl active:scale-90"><Download size={20} /></button>
                   </div>
                 </div>
-                <button onClick={downloadPFP} className="w-full py-4 bg-white text-black font-black uppercase text-[11px] hover:bg-emerald-400 shadow-xl flex items-center justify-center gap-3 tracking-[0.2em] transition-all"><Download size={16}/> Save_IT</button>
+                <button onClick={downloadPFP} className="w-full py-4 bg-white text-black font-black uppercase text-[11px] hover:bg-emerald-400 shadow-xl flex items-center justify-center gap-3 tracking-[0.2em] transition-all"><Download size={16}/> Save_to_Cult</button>
                 <button onClick={() => setGeneratedImg(null)} className="w-full py-2 text-[9px] font-black uppercase text-zinc-700 hover:text-white transition-all flex items-center justify-center gap-2 group">
-                  <X size={12} className="group-hover:rotate-90 transition-transform" /> CLOSE_IT
+                  <X size={12} className="group-hover:rotate-90 transition-transform" /> Purge_Matrix
                 </button>
               </div>
             ) : (
               <div className="flex flex-col items-center gap-8 opacity-5">
                 <div className="p-20 border border-dashed border-emerald-900/50 rounded-full"><Palette size={80} strokeWidth={0.3} /></div>
-                <p className="text-[10px] font-black uppercase tracking-[0.4em] text-white">Chamber_Idle</p>
+                <p className="text-[10px] font-black uppercase tracking-[0.4em] text-white italic tracking-[0.5em]">Matrix_Idle</p>
               </div>
             )}
           </div>
@@ -4933,7 +4875,7 @@ BACKGROUND: should not be plain empty white, should also not be too overcomplica
       {error && (
         <div className="fixed bottom-24 md:bottom-10 right-4 left-4 md:left-auto md:w-[400px] bg-red-950/90 border-l-4 border-red-500 p-5 flex items-start gap-4 text-white z-[200] backdrop-blur-xl animate-in slide-in-from-right-10 shadow-2xl">
           <AlertTriangle size={24} className="shrink-0 text-red-500" />
-          <div className="flex-1 space-y-1"><p className="text-[11px] font-black uppercase leading-none tracking-widest">Protocol_Interrupt</p><p className="text-[9px] opacity-70 font-bold uppercase mt-2 leading-tight">{error}</p></div>
+          <div className="flex-1 space-y-1"><p className="text-[11px] font-black uppercase leading-none tracking-widest italic">Protocol_Interrupt</p><p className="text-[9px] opacity-70 font-bold uppercase mt-2 leading-tight">{error}</p></div>
           <button onClick={() => setError(null)} className="p-1 hover:bg-white/10 rounded-full transition-colors"><X size={18}/></button>
         </div>
       )}
@@ -4948,7 +4890,6 @@ BACKGROUND: should not be plain empty white, should also not be too overcomplica
     </div>
   );
 };
-
 
 
 
