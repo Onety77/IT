@@ -42,7 +42,7 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const appId = 'it-token-os';
 
-const CA_ADDRESS = "9RgsMRGBjJMhppZEV77iDa83KwfZbTmnXSuas2G1pump";
+const CA_ADDRESS = "IT is coming...";
 const ACCESS_THRESHOLD = 500000; // 500k IT tokens
 
 const RPC_ENDPOINTS = [
