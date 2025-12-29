@@ -23,7 +23,7 @@ import {
   ShieldCheck, Shield, Reply, Quote, CornerDownRight, Heart, ThumbsUp, ThumbsDown, Anchor, Crown, Bell, BellOff, ChevronDown,
   ExternalLink, ShoppingCart, Minimize2, Circle, Layers, Eye, EyeOff, Tv, Ghost, Scan, Square as SquareIcon, StickyNote,
   Shirt, Wind, ZapOff, Fingerprint, Crosshair, Dna, LayoutGrid, ChevronUp, Beer, Coffee, Pizza, Gift, Smile, PenTool, Image, 
-  Shuffle, Star, Glasses, Zap as AuraIcon
+  Shuffle, Star, Glasses, Zap as AuraIcon, Camera
 } from 'lucide-react';
 
 // --- CONFIGURATION ---
@@ -42,7 +42,7 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const appId = 'it-token-os';
 
-const CA_ADDRESS = "coming soon...";
+const CA_ADDRESS = "9RgsMRGBjJMhppZEV77iDa83KwfZbTmnXSuas2G1pump";
 const ACCESS_THRESHOLD = 500000; // 500k IT tokens
 
 const RPC_ENDPOINTS = [
@@ -2114,7 +2114,7 @@ const BASE_WIDTH = 220;
 const INITIAL_SPEED = 4;
 
 const NOTES = [261.63, 293.66, 329.63, 392.00, 523.25, 587.33, 659.25, 783.99];
-const SCALE = [130.81, 155.56, 174.61, 196.00, 233.08, 261.63, 311.13, 349.23, 392.00, 466.16];
+const SCALE = [130.81, 138.59, 155.56, 174.61, 185.00, 207.65, 233.08, 261.63]; 
 
 const BIOMES = [
   { score: 0, name: "THE TRENCHES", bgStart: '#050510', bgEnd: '#000000', text: '#00ff41', gridColor: 'rgba(0, 255, 65, 0.15)', freqMod: 1.0 },
@@ -2174,7 +2174,6 @@ const RugSweeperApp = () => {
       setTokenBalance(balance);
       setHasAccess(accessStatus);
       setConnectedWallet(wallet); 
-      console.log(`[PROTOCOL_SYNC] Wallet: ${wallet} | VIP: ${accessStatus}`);
     };
     window.addEventListener('IT_OS_BALANCE_UPDATE', handleKernelSync);
     return () => window.removeEventListener('IT_OS_BALANCE_UPDATE', handleKernelSync);
@@ -2237,21 +2236,21 @@ const RugSweeperApp = () => {
         const kickOsc = ctx.createOscillator();
         const kickGain = ctx.createGain();
         kickOsc.frequency.setValueAtTime(150, t);
-        kickOsc.frequency.exponentialRampToValueAtTime(40, t + 0.1);
-        kickGain.gain.setValueAtTime(0.7, t);
-        kickGain.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+        kickOsc.frequency.exponentialRampToValueAtTime(35, t + 0.12);
+        kickGain.gain.setValueAtTime(0.8, t);
+        kickGain.gain.exponentialRampToValueAtTime(0.001, t + 0.25);
         kickOsc.connect(kickGain); kickGain.connect(musicRef.current.master);
-        kickOsc.start(t); kickOsc.stop(t + 0.2);
+        kickOsc.start(t); kickOsc.stop(t + 0.25);
       }
       if (step === 4 || step === 12) {
-        const snareBuffer = ctx.createBuffer(1, ctx.sampleRate * 0.1, ctx.sampleRate);
+        const snareBuffer = ctx.createBuffer(1, ctx.sampleRate * 0.15, ctx.sampleRate);
         const data = snareBuffer.getChannelData(0);
-        for(let i=0; i<data.length; i++) data[i] = Math.random() * 2 - 1;
+        for(let i=0; i<data.length; i++) data[i] = (Math.random() * 2 - 1) * Math.exp(-i / 1500);
         const src = ctx.createBufferSource();
         src.buffer = snareBuffer;
         const snGain = ctx.createGain();
-        snGain.gain.setValueAtTime(0.12, t);
-        snGain.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+        snGain.gain.setValueAtTime(0.15, t);
+        snGain.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
         src.connect(snGain); snGain.connect(musicRef.current.master);
         src.start(t);
       }
@@ -2259,24 +2258,40 @@ const RugSweeperApp = () => {
         const hOsc = ctx.createOscillator();
         const hGain = ctx.createGain();
         hOsc.type = 'square';
-        hOsc.frequency.setValueAtTime(10000, t);
-        hGain.gain.setValueAtTime(0.02, t);
-        hGain.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
+        hOsc.frequency.setValueAtTime(step % 4 === 0 ? 12000 : 8000, t);
+        hGain.gain.setValueAtTime(0.03, t);
+        hGain.gain.exponentialRampToValueAtTime(0.001, t + 0.04);
         hOsc.connect(hGain); hGain.connect(musicRef.current.master);
-        hOsc.start(t); hOsc.stop(t + 0.05);
+        hOsc.start(t); hOsc.stop(t + 0.04);
       }
-      if (step % 4 !== 0) {
+      if (step % 4 !== 0 || step === 0) {
         const bassOsc = ctx.createOscillator();
         const bassGain = ctx.createGain();
+        const bassFilter = ctx.createBiquadFilter();
         bassOsc.type = 'sawtooth';
-        const note = SCALE[step % SCALE.length] / 2;
+        const note = SCALE[(step * 3) % SCALE.length] / 2;
         bassOsc.frequency.setValueAtTime(note, t);
-        bassGain.gain.setValueAtTime(0.06, t);
-        bassGain.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
-        bassOsc.connect(bassGain); bassGain.connect(musicRef.current.master);
-        bassOsc.start(t); bassOsc.stop(t + 0.15);
+        bassFilter.type = 'lowpass';
+        bassFilter.frequency.setValueAtTime(400 + (Math.sin(step) * 200), t);
+        bassFilter.Q.setValueAtTime(15, t);
+        bassGain.gain.setValueAtTime(0.08, t);
+        bassGain.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+        bassOsc.connect(bassFilter);
+        bassFilter.connect(bassGain);
+        bassGain.connect(musicRef.current.master);
+        bassOsc.start(t); bassOsc.stop(t + 0.18);
       }
-      const bpm = 128 + Math.min(score, 50);
+      if (step === 3 || step === 7 || step === 11 || step === 15) {
+        const leadOsc = ctx.createOscillator();
+        const leadGain = ctx.createGain();
+        leadOsc.type = 'triangle';
+        leadOsc.frequency.setValueAtTime(SCALE[(step) % SCALE.length] * 2.5, t);
+        leadGain.gain.setValueAtTime(0.02, t);
+        leadGain.gain.linearRampToValueAtTime(0, t + 0.1);
+        leadOsc.connect(leadGain); leadGain.connect(musicRef.current.master);
+        leadOsc.start(t); leadOsc.stop(t + 0.1);
+      }
+      const bpm = 132 + Math.min(score, 40);
       musicRef.current.nextNoteTime += 60 / bpm / 4; 
       musicRef.current.currentStep++;
     }
@@ -2290,7 +2305,6 @@ const RugSweeperApp = () => {
     const gain = ctx.createGain();
     osc.connect(gain);
     gain.connect(musicRef.current.master || ctx.destination);
-    
     if (type === 'perfect') {
       osc.type = 'square';
       const noteFreq = NOTES[game.current.perfectCount % NOTES.length] * 2;
@@ -2320,12 +2334,8 @@ const RugSweeperApp = () => {
       try {
         if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
           await signInWithCustomToken(auth, __initial_auth_token);
-        } else {
-          await signInAnonymously(auth);
-        }
-      } catch (err) {
-        console.error("Auth Failure", err);
-      }
+        } else { await signInAnonymously(auth); }
+      } catch (err) { console.error("Auth Failure", err); }
     };
     initAuth();
     game.current.stars = Array(120).fill(0).map(() => ({
@@ -2449,104 +2459,66 @@ const RugSweeperApp = () => {
     const g = game.current; scheduleMusic();
     const elapsed = timestamp - g.lastFrameTime; g.lastFrameTime = timestamp;
     const dt = Math.min(elapsed / 16.67, 3.0); g.time += 0.05 * dt;
-
     if (g.state === 'PLAYING') {
       const active = g.mirrorActive && g.isMirrorTurn ? g.mirrorCurrent : g.current;
-      if (active) {
-        active.x += (active.speed * dt) * active.dir;
-        if (active.x > GAME_WIDTH + 80) active.dir = -1;
-        if (active.x < -80 - active.w) active.dir = 1;
-      }
-      const targetY = Math.max(0, g.stack.length * BLOCK_HEIGHT - 140); 
-      g.cameraY += (targetY - g.cameraY) * 0.08 * dt;
+      if (active) { active.x += (active.speed * dt) * active.dir; if (active.x > GAME_WIDTH + 80) active.dir = -1; if (active.x < -80 - active.w) active.dir = 1; }
+      const targetY = Math.max(0, g.stack.length * BLOCK_HEIGHT - 140); g.cameraY += (targetY - g.cameraY) * 0.08 * dt;
     }
     g.shake *= Math.pow(0.88, dt); g.flash *= Math.pow(0.92, dt); g.warpLevel *= Math.pow(0.96, dt);
     g.worldRotation += (g.targetRotation - g.worldRotation) * 0.08 * dt;
     g.lastTap.power *= Math.pow(0.9, dt);
-
-    const shakeX = (Math.random() - 0.5) * g.shake;
-    const shakeY = (Math.random() - 0.5) * g.shake;
-
+    const shakeX = (Math.random() - 0.5) * g.shake; const shakeY = (Math.random() - 0.5) * g.shake;
     g.debris.forEach(d => { d.x += d.vx * dt; d.y += d.vy * dt; d.vy += 0.5 * dt; d.life -= 0.012 * dt; d.rot += d.vr * dt; });
     g.debris = g.debris.filter(d => d.life > 0);
     g.particles.forEach(p => { p.x += p.vx * dt; p.y += p.vy * dt; p.life -= 0.015 * dt; p.rotation += p.vr * dt; });
     g.particles = g.particles.filter(p => p.life > 0);
-
     ctx.fillStyle = '#000'; ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
-    const bgGrad = ctx.createLinearGradient(0, 0, 0, GAME_HEIGHT);
-    bgGrad.addColorStop(0, currentBiome.bgStart); bgGrad.addColorStop(1, currentBiome.bgEnd);
+    const bgGrad = ctx.createLinearGradient(0, 0, 0, GAME_HEIGHT); bgGrad.addColorStop(0, currentBiome.bgStart); bgGrad.addColorStop(1, currentBiome.bgEnd);
     ctx.fillStyle = bgGrad; ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
-
     g.stars.forEach(s => {
-      let sx = s.x + Math.sin(g.time * 0.3 + s.y) * 2;
-      let sy = (s.y + g.cameraY * s.p + g.time * 15 * s.p) % GAME_HEIGHT;
-      if (g.lastTap.power > 0.01) {
-          const dx = g.lastTap.x - sx; const dy = g.lastTap.y - sy;
-          const dist = Math.sqrt(dx*dx + dy*dy);
-          if (dist < 150) {
-              const force = (1 - dist/150) * g.lastTap.power * 25;
-              sx += (dx / dist) * force; sy += (dy / dist) * force;
-          }
-      }
-      ctx.fillStyle = `rgba(255, 255, 255, ${s.alpha})`;
-      ctx.fillRect(sx, sy, s.size, s.size + g.warpLevel * 45 * s.p);
+      let sx = s.x + Math.sin(g.time * 0.3 + s.y) * 2; let sy = (s.y + g.cameraY * s.p + g.time * 15 * s.p) % GAME_HEIGHT;
+      if (g.lastTap.power > 0.01) { const dx = g.lastTap.x - sx; const dy = g.lastTap.y - sy; const dist = Math.sqrt(dx*dx + dy*dy); if (dist < 150) { const force = (1 - dist/150) * g.lastTap.power * 25; sx += (dx / dist) * force; sy += (dy / dist) * force; } }
+      ctx.fillStyle = `rgba(255, 255, 255, ${s.alpha})`; ctx.fillRect(sx, sy, s.size, s.size + g.warpLevel * 45 * s.p);
     });
-
     ctx.save();
-    const gridOffset = (g.cameraY * 0.5 + g.time * 5) % 40;
-    const tapBend = (g.lastTap.x - GAME_WIDTH/2) * g.lastTap.power * 0.1;
-    ctx.translate(tapBend, 0); ctx.strokeStyle = currentBiome.gridColor; ctx.lineWidth = 1;
-    ctx.beginPath();
+    const gridOffset = (g.cameraY * 0.5 + g.time * 5) % 40; const tapBend = (g.lastTap.x - GAME_WIDTH/2) * g.lastTap.power * 0.1;
+    ctx.translate(tapBend, 0); ctx.strokeStyle = currentBiome.gridColor; ctx.lineWidth = 1; ctx.beginPath();
     for (let x = -40; x <= GAME_WIDTH + 40; x += 40) { ctx.moveTo(x, 0); ctx.lineTo(x, GAME_HEIGHT); }
     for (let y = -40; y <= GAME_HEIGHT + 40; y += 40) { ctx.moveTo(0, y + gridOffset); ctx.lineTo(GAME_WIDTH, y + gridOffset); }
     ctx.stroke(); ctx.restore();
-
-    if (g.mirrorActive) {
-        ctx.fillStyle = 'rgba(255,255,255,0.05)'; ctx.fillRect(0, GAME_HEIGHT/2 - 2, GAME_WIDTH, 4);
-        ctx.fillStyle = '#fff'; ctx.font = 'bold 10px monospace'; ctx.textAlign = 'center';
-        ctx.fillText("SYNC_ERROR: DUAL_STREAM_ACTIVE", GAME_WIDTH/2, GAME_HEIGHT/2 - 10);
-    }
-
-    ctx.save();
-    ctx.translate(GAME_WIDTH/2 + shakeX, GAME_HEIGHT/2 + shakeY); ctx.rotate(g.worldRotation); ctx.translate(-GAME_WIDTH/2, -GAME_HEIGHT/2);
+    if (g.mirrorActive) { ctx.fillStyle = 'rgba(255,255,255,0.05)'; ctx.fillRect(0, GAME_HEIGHT/2 - 2, GAME_WIDTH, 4); ctx.fillStyle = '#fff'; ctx.font = 'bold 10px monospace'; ctx.textAlign = 'center'; ctx.fillText("SYNC_ERROR: DUAL_STREAM_ACTIVE", GAME_WIDTH/2, GAME_HEIGHT/2 - 10); }
+    ctx.save(); ctx.translate(GAME_WIDTH/2 + shakeX, GAME_HEIGHT/2 + shakeY); ctx.rotate(g.worldRotation); ctx.translate(-GAME_WIDTH/2, -GAME_HEIGHT/2);
     ctx.save(); ctx.translate(0, GAME_HEIGHT + g.cameraY - 70);
     g.stack.forEach((b) => {
       const y = -b.y; if (b.perfect) { ctx.shadowBlur = 15; ctx.shadowColor = b.color; }
-      const fill = ctx.createLinearGradient(b.x, y - b.h, b.x, y);
-      fill.addColorStop(0, b.color); fill.addColorStop(1, '#000');
-      ctx.fillStyle = fill; ctx.fillRect(b.x, y - b.h, b.w, b.h);
-      ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.strokeRect(b.x, y - b.h, b.w, b.h);
-      ctx.shadowBlur = 0;
+      const fill = ctx.createLinearGradient(b.x, y - b.h, b.x, y); fill.addColorStop(0, b.color); fill.addColorStop(1, '#000');
+      ctx.fillStyle = fill; ctx.fillRect(b.x, y - b.h, b.w, b.h); ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.strokeRect(b.x, y - b.h, b.w, b.h); ctx.shadowBlur = 0;
     });
-    if (g.state === 'PLAYING' && g.current && (!g.mirrorActive || !g.isMirrorTurn)) {
-      ctx.fillStyle = g.current.color; ctx.fillRect(g.current.x, -g.current.y - g.current.h, g.current.w, g.current.h);
-    }
+    if (g.state === 'PLAYING' && g.current && (!g.mirrorActive || !g.isMirrorTurn)) { ctx.fillStyle = g.current.color; ctx.fillRect(g.current.x, -g.current.y - g.current.h, g.current.w, g.current.h); }
     ctx.restore();
-    if (g.mirrorActive) {
-        ctx.save();
-        g.mirrorStack.forEach((b) => { ctx.fillStyle = b.color; ctx.fillRect(b.x, (GAME_HEIGHT - b.y), b.w, b.h); ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.strokeRect(b.x, (GAME_HEIGHT - b.y), b.w, b.h); });
-        if (g.isMirrorTurn && g.mirrorCurrent) { ctx.fillStyle = '#ffffff'; ctx.fillRect(g.mirrorCurrent.x, (GAME_HEIGHT - g.mirrorCurrent.y), g.mirrorCurrent.w, g.mirrorCurrent.h); }
-        ctx.restore();
-    }
+    if (g.mirrorActive) { ctx.save(); g.mirrorStack.forEach((b) => { ctx.fillStyle = b.color; ctx.fillRect(b.x, (GAME_HEIGHT - b.y), b.w, b.h); ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.strokeRect(b.x, (GAME_HEIGHT - b.y), b.w, b.h); }); if (g.isMirrorTurn && g.mirrorCurrent) { ctx.fillStyle = '#ffffff'; ctx.fillRect(g.mirrorCurrent.x, (GAME_HEIGHT - g.mirrorCurrent.y), g.mirrorCurrent.w, g.mirrorCurrent.h); } ctx.restore(); }
     g.debris.forEach(d => { ctx.fillStyle = d.color; ctx.globalAlpha = d.life; ctx.fillRect(d.x, d.y, d.w, d.h); ctx.globalAlpha = 1; });
     ctx.restore();
-
     if (g.flash > 0.01) { ctx.fillStyle = `rgba(255,255,255,${g.flash})`; ctx.fillRect(0,0,GAME_WIDTH,GAME_HEIGHT); }
-    ctx.fillStyle = currentBiome.text; ctx.textAlign = 'center'; ctx.font = '900 60px Impact';
-    ctx.shadowBlur = 10; ctx.shadowColor = currentBiome.text; ctx.fillText(String(g.score), GAME_WIDTH/2, 80); ctx.shadowBlur = 0;
+    ctx.fillStyle = currentBiome.text; ctx.textAlign = 'center'; ctx.font = '900 60px Impact'; ctx.shadowBlur = 10; ctx.shadowColor = currentBiome.text; ctx.fillText(String(g.score), GAME_WIDTH/2, 80); ctx.shadowBlur = 0;
     ctx.font = 'bold 12px monospace'; ctx.fillText(String(currentBiome.name), GAME_WIDTH/2, 105);
-
-    if (highScore > 0) {
-      const athY = (GAME_HEIGHT + g.cameraY - 70) - (highScore * BLOCK_HEIGHT);
-      ctx.strokeStyle = '#ffff00'; ctx.lineWidth = 1; ctx.setLineDash([5, 5]);
-      ctx.beginPath(); ctx.moveTo(0, athY); ctx.lineTo(GAME_WIDTH, athY); ctx.stroke();
-      ctx.setLineDash([]); ctx.fillStyle = '#ffff00'; ctx.font = 'bold 10px monospace'; ctx.textAlign = 'left';
-      ctx.fillText('ATH', 10, athY - 5);
+    
+    // --- ATH LINE AND CORNER DISPLAY (RESTORED) ---
+    if (highScore > 0) { 
+        const athY = (GAME_HEIGHT + g.cameraY - 70) - (highScore * BLOCK_HEIGHT); 
+        ctx.strokeStyle = '#ffff00'; ctx.lineWidth = 1; ctx.setLineDash([5, 5]); 
+        ctx.beginPath(); ctx.moveTo(0, athY); ctx.lineTo(GAME_WIDTH, athY); ctx.stroke(); 
+        ctx.setLineDash([]); ctx.fillStyle = '#ffff00'; ctx.font = 'bold 10px monospace'; ctx.textAlign = 'left'; 
+        ctx.fillText('ATH_LINE', 10, athY - 5); 
+        
+        // Static Corner ATH Display
+        ctx.textAlign = 'right';
+        ctx.font = '900 14px monospace';
+        ctx.fillStyle = '#ffff00';
+        ctx.fillText(`ATH: ${highScore}`, GAME_WIDTH - 15, 30);
     }
-
-    if (g.combo > 1) {
-      ctx.fillStyle = `hsl(${g.time * 600}, 100%, 50%)`; ctx.font = 'italic 900 32px Arial'; ctx.textAlign = 'center'; ctx.fillText(`${g.combo}X COMBO!`, GAME_WIDTH/2, 160);
-    }
+    
+    if (g.combo > 1) { ctx.fillStyle = `hsl(${g.time * 600}, 100%, 50%)`; ctx.font = 'italic 900 32px Arial'; ctx.textAlign = 'center'; ctx.fillText(`${g.combo}X COMBO!`, GAME_WIDTH/2, 160); }
     requestRef.current = requestAnimationFrame(loop);
   };
 
@@ -2567,27 +2539,11 @@ const RugSweeperApp = () => {
   const saveScoreToDb = async (nameToUse, scoreToSave) => {
     if (!user || !hasAccess) return false;
     try {
-      const upperName = nameToUse.toUpperCase().trim(); 
-      const uid = user.uid;
+      const upperName = nameToUse.toUpperCase().trim(); const uid = user.uid;
       const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'stackit_scores', uid);
       const snap = await getDoc(docRef);
-      
-      const scoreData = {
-        username: upperName,
-        score: Number(scoreToSave),
-        timestamp: Date.now(),
-        walletAddress: connectedWallet || "NONE"
-      };
-
-      if (!snap.exists()) {
-        await setDoc(docRef, scoreData);
-      } else {
-        const existingScore = Number(snap.data().score || 0);
-        if (scoreToSave > existingScore) {
-            await updateDoc(docRef, scoreData);
-        }
-      }
-      
+      const scoreData = { username: upperName, score: Number(scoreToSave), timestamp: Date.now(), walletAddress: connectedWallet || "NONE" };
+      if (!snap.exists()) { await setDoc(docRef, scoreData); } else { const existingScore = Number(snap.data().score || 0); if (scoreToSave > existingScore) { await updateDoc(docRef, scoreData); } }
       localStorage.setItem('stackItUsername', upperName); setSavedName(upperName);
       return true;
     } catch (e) { console.error("DB Error:", e); return false; }
@@ -2602,17 +2558,11 @@ const RugSweeperApp = () => {
   const handleReturningSubmit = async (action) => {
     const name = savedName || localStorage.getItem('stackItUsername'); if (!name || !hasAccess) return; 
     setIsSubmitting(true); await saveScoreToDb(name, game.current.score); setIsSubmitting(false);
-    if (action === 'RETRY') startGame();
-    else if (action === 'RANK') { await fetchLeaderboard(); setGameState('LEADERBOARD'); }
+    if (action === 'RETRY') startGame(); else if (action === 'RANK') { await fetchLeaderboard(); setGameState('LEADERBOARD'); }
   };
 
   const openLeaderboard = (e) => { if(e) { e.stopPropagation(); e.preventDefault(); } initAudio(); fetchLeaderboard(); setGameState('LEADERBOARD'); game.current.state = 'LEADERBOARD'; };
-
-  const handleInteractionEvent = (e) => { 
-    initAudio(); const rect = canvasRef.current.getBoundingClientRect(); 
-    const scaleX = GAME_WIDTH / rect.width; const scaleY = GAME_HEIGHT / rect.height; 
-    handleInteraction((e.clientX - rect.left) * scaleX, (e.clientY - rect.top) * scaleY); 
-  };
+  const handleInteractionEvent = (e) => { initAudio(); const rect = canvasRef.current.getBoundingClientRect(); const scaleX = GAME_WIDTH / rect.width; const scaleY = GAME_HEIGHT / rect.height; handleInteraction((e.clientX - rect.left) * scaleX, (e.clientY - rect.top) * scaleY); };
   const handleRelease = () => { game.current.lastTap.active = false; };
 
   return (
@@ -2632,8 +2582,8 @@ const RugSweeperApp = () => {
             <h1 className="text-7xl font-black text-transparent bg-clip-text bg-gradient-to-t from-green-600 to-green-300 mb-2 drop-shadow-[0_4px_10px_rgba(0,255,0,0.5)] italic tracking-tighter uppercase">Stack IT</h1>
             <p className="text-[10px] font-bold text-green-500 mb-12 tracking-[0.4em] uppercase opacity-80 animate-pulse">Uplink Status: {hasAccess ? 'Verified' : 'Guest'}</p>
             <div className="flex flex-col gap-4 w-full max-w-[180px]">
-                <button onPointerDown={startGame} className="bg-white text-black py-3 font-black border-4 border-blue-500 shadow-[4px_4px_0_#0000ff] active:shadow-none active:translate-x-1 active:translate-y-1 transition-all uppercase italic text-xl">Send IT</button>
-                <button onPointerDown={openLeaderboard} className="bg-yellow-400 text-black py-2 font-black border-4 border-orange-500 shadow-[4px_4px_0_#ff0000] active:shadow-none active:translate-x-1 active:translate-y-1 transition-all uppercase italic text-sm">Leaderboard</button>
+                <button onPointerDown={startGame} className="bg-white text-black py-3 font-black border-4 border-blue-500 shadow-[4px_4px_0_#0000ff] active:shadow-none transition-all uppercase italic text-xl">Send IT</button>
+                <button onPointerDown={openLeaderboard} className="bg-yellow-400 text-black py-2 font-black border-4 border-orange-500 shadow-[4px_4px_0_#ff0000] active:shadow-none transition-all uppercase italic text-sm">Leaderboard</button>
             </div>
           </div>
         )}
@@ -2669,23 +2619,66 @@ const RugSweeperApp = () => {
                 <h2 className="text-4xl font-black text-yellow-400 uppercase">Top Stackers</h2>
                 {playerRank && <div className="bg-black/80 px-4 py-2 text-[10px] font-black border border-yellow-400 text-yellow-400 uppercase tracking-widest">Rank: #{playerRank}</div>}
             </div>
-            <div className="flex-1 w-full overflow-y-auto mb-8 bg-black/60 p-4 border-2 border-white/10 shadow-inner scrollbar-classic">
+            
+            <div className="flex-1 w-full overflow-y-auto mb-8 bg-black/60 p-4 border-2 border-white/10 shadow-inner no-scrollbar">
                 {loadingLB ? <div className="text-center mt-12 animate-pulse text-[12px] font-bold tracking-[0.5em] text-blue-400 uppercase">Synchronizing Nodes...</div> : (
-                    <table className="w-full text-left text-sm font-mono">
-                        <thead><tr className="text-gray-500 border-b border-gray-800 text-[10px] uppercase tracking-widest font-black"><th className="pb-4">#</th><th className="pb-4">Holder</th><th className="pb-4 text-right">Stack</th></tr></thead>
-                        <tbody>
-                            {leaderboard.map((entry, i) => {
-                                const isCurrentUser = savedName && String(entry.username) === savedName;
-                                return (
-                                    <tr key={i} className={`border-b border-white/5 transition-colors ${isCurrentUser ? 'bg-blue-400/20' : 'hover:bg-white/5'}`}>
-                                        <td className="py-4 text-[11px] font-black opacity-30">{i+1}</td>
-                                        <td className={`py-4 truncate max-w-[140px] font-black italic ${isCurrentUser ? 'text-orange-400' : 'text-gray-200'}`}>{String(entry.username)} {isCurrentUser && ' (YOU)'}</td>
-                                        <td className="py-4 text-right text-green-400 font-black tracking-tighter text-lg">+{Number(entry.score)}</td>
-                                    </tr>
-                                );
-                            })}
-                        </tbody>
-                    </table>
+                    <div className="flex flex-col gap-2">
+                        {leaderboard.map((entry, i) => {
+                            const isCurrentUser = savedName && String(entry.username) === savedName;
+                            const isTop3 = i < 3;
+                            
+                            return (
+                                <React.Fragment key={i}>
+                                    <div className={`flex items-center justify-between p-3 border-b border-white/5 transition-all
+                                        ${isCurrentUser ? 'bg-blue-400/10' : ''}
+                                        ${i === 0 ? 'bg-yellow-400/10 border-yellow-400/20 shadow-[0_0_15px_rgba(255,215,0,0.1)]' : ''}
+                                        ${i === 1 ? 'bg-zinc-400/10 border-zinc-400/20' : ''}
+                                        ${i === 2 ? 'bg-orange-800/10 border-orange-800/20' : ''}
+                                    `}>
+                                        <div className="flex items-center gap-4">
+                                            <div className={`font-black italic flex items-center justify-center w-8
+                                                ${i === 0 ? 'text-yellow-400' : ''}
+                                                ${i === 1 ? 'text-zinc-300' : ''}
+                                                ${i === 2 ? 'text-orange-500' : ''}
+                                                ${i > 2 ? 'text-gray-500 text-sm' : 'text-base'}
+                                            `}>
+                                                {i === 0 ? <Crown size={20} className="animate-bounce" /> : i + 1}
+                                            </div>
+                                            <div className="flex flex-col">
+                                                <span className={`font-black italic truncate max-w-[120px] uppercase text-sm
+                                                    ${i === 0 ? 'text-yellow-400 tracking-tighter' : ''}
+                                                    ${i === 1 ? 'text-zinc-100' : ''}
+                                                    ${i === 2 ? 'text-orange-200' : ''}
+                                                    ${i > 2 ? 'text-gray-200' : ''}
+                                                    ${isCurrentUser ? 'text-orange-400 font-black' : ''}
+                                                `}>
+                                                    {String(entry.username)}
+                                                </span>
+                                                {isCurrentUser && <span className="text-[8px] font-black text-orange-400 tracking-widest opacity-80 uppercase">Your Uplink</span>}
+                                            </div>
+                                        </div>
+                                        <div className={`font-black text-right text-sm
+                                            ${i === 0 ? 'text-green-400 tracking-widest' : ''}
+                                            ${i === 1 ? 'text-green-300' : ''}
+                                            ${i === 2 ? 'text-green-200' : ''}
+                                            ${i > 2 ? 'text-green-500/80' : ''}
+                                        `}>
+                                            +{Number(entry.score)}
+                                        </div>
+                                    </div>
+                                    
+                                    {/* NEURAL BOUNDARY DIVIDER */}
+                                    {i === 2 && (
+                                        <div className="py-4 px-2 flex items-center gap-3 opacity-40">
+                                            <div className="h-[1px] flex-1 border-t border-blue-400 border-dashed" />
+                                            <span className="text-[8px] font-black text-blue-400 uppercase tracking-[0.4em]">Free SOL</span>
+                                            <div className="h-[1px] flex-1 border-t border-blue-400 border-dashed" />
+                                        </div>
+                                    )}
+                                </React.Fragment>
+                            );
+                        })}
+                    </div>
                 )}
             </div>
             <button onPointerDown={(e) => { e.stopPropagation(); setGameState('MENU'); game.current.state='MENU'; }} className="w-full py-4 bg-white text-blue-950 font-black border-4 border-blue-500 shadow-2xl hover:bg-gray-200 transition-all uppercase italic text-xl shrink-0">Close IT</button>
@@ -2715,6 +2708,8 @@ const RugSweeperApp = () => {
         .scrollbar-classic::-webkit-scrollbar { width: 10px; background: #000; }
         .scrollbar-classic::-webkit-scrollbar-thumb { background: #111; border: 1px solid #444; }
         .text-glow { text-shadow: 0 0 20px rgba(255, 255, 0, 0.5); }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
       `}</style>
     </div>
   );
@@ -4357,7 +4352,7 @@ const LIMIT_GUEST = 2;
 const APP_ID = typeof __app_id !== 'undefined' ? __app_id : 'it-forge-cult';
 const BASE_CHARACTER_PATH = "main.jpg";
 
-// --- CURATED TRAIT LIBRARY (NO DESCRIPTIONS) ---
+// --- TRAIT LIBRARY ---
 const PFP_CATEGORIES = [
   { id: 'bg', label: 'WORLD', icon: Image },
   { id: 'head', label: 'HATS', icon: Star },
@@ -4368,6 +4363,7 @@ const PFP_CATEGORIES = [
   { id: 'glasses', label: 'SPECS', icon: Glasses },
   { id: 'aura', label: 'AURA', icon: Zap },
   { id: 'super', label: 'SUPER', icon: Shield },
+  { id: 'clone', label: 'CLONE', icon: Camera, elite: true },
 ];
 
 const PFP_TRAITS = {
@@ -4395,7 +4391,7 @@ const PFP_TRAITS = {
     { id: 'bucket', label: 'Bucket Hat', prompt: 'wearing a fabric bucket hat' },
     { id: 'cowboy', label: 'Cowboy Hat', prompt: 'wearing a classic brown cowboy hat' },
     { id: 'fish', label: 'Fisherman Hat', prompt: 'wearing a green outdoor fisherman hat' },
-    { id: 'helmet', label: 'Construction Helmet', prompt: 'wearing a bright yellow construction helmet' },
+    { id: 'helmet', label: 'Construction Helmet', prompt: 'wearing a yellow construction helmet' },
     { id: 'headset', label: 'Headphones', prompt: 'with large black headphones resting on the bag' },
     { id: 'paper_crown', label: 'Paper Crown', prompt: 'wearing a hand-drawn paper crown' },
     { id: 'diamond_crown', label: 'Diamond Crown', prompt: 'with a floating diamond crown above the head', vip: true },
@@ -4488,6 +4484,7 @@ const PFP_TRAITS = {
   ]
 };
 
+
 const ForgeItApp = () => {
   const [user, setUser] = useState(null);
   const [tokenBalance, setTokenBalance] = useState(0);
@@ -4496,12 +4493,19 @@ const ForgeItApp = () => {
   const [dailyCount, setDailyCount] = useState(0);
   const [showMobileBlueprint, setShowMobileBlueprint] = useState(false);
   const [isRandomizing, setIsRandomizing] = useState(false);
+  const [trustMode, setTrustMode] = useState(false);
+  const [cloneImage, setCloneImage] = useState(null);
+  const fileInputRef = useRef(null);
   
   // ROBUST API KEY RESOLUTION
   const apiKey = (() => {
     try {
       if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_APP_GEMINI) return import.meta.env.VITE_APP_GEMINI;
+    } catch (e) {}
+    try {
       if (typeof process !== 'undefined' && process.env?.VITE_APP_GEMINI) return process.env.VITE_APP_GEMINI;
+    } catch (e) {}
+    try {
       if (typeof window !== 'undefined' && window.VITE_APP_GEMINI) return window.VITE_APP_GEMINI;
     } catch (e) {}
     return typeof __apiKey !== 'undefined' ? __apiKey : "";
@@ -4557,12 +4561,12 @@ const ForgeItApp = () => {
         if (data.lastDate === today) {
           setDailyCount(data.count);
         } else {
-          setDailyCount(0); // It's a new day
+          setDailyCount(0);
         }
       } else {
-        setDailyCount(0); // Document doesn't exist yet
+        setDailyCount(0);
       }
-    }, (err) => console.error("Firestore Listen Error:", err));
+    });
     return () => unsub();
   }, [user]);
 
@@ -4578,16 +4582,21 @@ const ForgeItApp = () => {
         next.glasses = PFP_TRAITS.glasses[0];
         next.expression = PFP_TRAITS.expression[0];
         next.mask = PFP_TRAITS.mask[0];
+        setCloneImage(null);
       } 
       else if (['head', 'shirts', 'item', 'glasses', 'expression', 'mask'].includes(catId) && trait.id !== 'none') {
         next.super = PFP_TRAITS.super[0];
+        setCloneImage(null);
       }
+      setTrustMode(false);
       return next;
     });
   };
 
   const handleRandomize = () => {
     setIsRandomizing(true);
+    setTrustMode(false);
+    setCloneImage(null);
     addLog("SHUFFLING_MATRIX...");
     const iterations = 10;
     let count = 0;
@@ -4612,6 +4621,31 @@ const ForgeItApp = () => {
     }, 60);
   };
 
+  const handleTrustIt = () => {
+    setTrustMode(true);
+    setCloneImage(null);
+    addLog("GRANTING_SYSTEM_IMAGINATION...");
+    // Reset selections to defaults for UI feedback
+    const defaults = {};
+    Object.keys(PFP_TRAITS).forEach(k => defaults[k] = PFP_TRAITS[k][0]);
+    setSelections(defaults);
+    addLog("TRUST_VIBE_ACTIVE.");
+  };
+
+  const handleFileUpload = (e) => {
+    if (!hasEliteAccess) return;
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setCloneImage(reader.result.split(',')[1]);
+        setTrustMode(false);
+        addLog("SOURCE_PFP_LOADED. READY_TO_CLONE.");
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const getBaseCharacter64 = async () => {
     try {
       const response = await fetch(BASE_CHARACTER_PATH);
@@ -4634,31 +4668,65 @@ const ForgeItApp = () => {
     }
 
     if (!apiKey) {
-      setError("IDENTIFIER_ERROR: VITE_APP_GEMINI not detected. Check Env.");
+      setError("IDENTIFIER_ERROR: VITE_APP_GEMINI not detected.");
       return;
     }
 
     setIsForging(true); setGeneratedImg(null); setProgress(0); setError(null);
-    setLogs(["LOCKING_BLUEPRINT...", "PRESERVING_BODY_SHAPE...", "OVERLAYING_CURATED_TRAITS..."]);
+    setLogs(["LOCKING_BLUEPRINT...", "PRESERVING_BODY_SHAPE...", "CALCULATING_DECORATIONS..."]);
 
     const progTimer = setInterval(() => setProgress(prev => prev < 95 ? prev + Math.random() * 5 : prev), 600);
 
     try {
       const base64Image = await getBaseCharacter64();
-      if (!base64Image) throw new Error("Character base not found. Ensure main.jpg is in public folder.");
+      if (!base64Image) throw new Error("Character base not found.");
 
       let promptText = "";
-      if (selections.super.id !== 'none') {
+      const contentParts = [
+        { text: "" },
+        { inlineData: { mimeType: "image/png", data: base64Image } }
+      ];
+
+      if (cloneImage) {
+        contentParts.push({ inlineData: { mimeType: "image/png", data: cloneImage } });
+        promptText = `
+          CLONE PFP MODE.
+         ARTSY CLONE PFP SYSTEM.
+TEMPLATES: Image 1 is our STATIC character blueprint. Image 2 is the SOURCE PFP provided by the user.
+GOAL: Map the clothing style, item themes, and background colors from Image 2 onto our character in Image 1.
+
+STRICT CONSTRAINTS:
+DO NOT CHANGE the body shape, mask head, or silhouette of the character in Image 1.
+DO NOT crop the image; the character must remain full-bodied in the center.
+TRANSFORM the elements from Image 2 into our 90s hand-drawn artsy anime style with thick black outlines and flat colors.
+BRANDING: Apply a high-contrast 'IT' logo on the new outfit if there is clear space. same font style as in the base image. 
+BACKGROUND: Recreate the vibe of Image 2's background but in a hand-sketched, artsy style.
+        `;
+      } else if (trustMode) {
+        promptText = `
+        ARTSY FUN CREATIVE DECORATION.
+SOURCE: Use the attached character as the ABSOLUTE static blueprint.
+TASK: Use your imagination to decorate this character with fun, artsy, and lighthearted items. Think silly hats, colorful vests, playful accessories, or weird artsy props.
+
+STRICT CONSTRAINTS:
+YOU MUST maintain the exact paper bag mask head and cybernetic cat body shape from the source.
+DO NOT add human anatomy, human limbs, or human faces.
+DO NOT ATTEMPT  writing anything on the image if its not "IT"
+DO NOT over do the decoration, the less and simpler the better. 
+Treat this like an NFT layering system where the base body is locked.
+STYLE: 90s hand-drawn artsy anime style, thick ink outlines, flat vibrant colors.
+MANDATORY: Integrate the letters 'IT' clearly as a professional high-contrast logo on the clothing or a prominent item, same font style as the on in the base image. 
+VIBE: Playful, creative, and worth collecting as an artsy NFT.
+        `;
+      } else if (selections.super.id !== 'none') {
         promptText = `
           ARTSY SUPERHERO TRANSFORMATION.
           SOURCE: Use the attached character as the EXACT static blueprint.
           STRICT CONSTRAINTS: 
-          - DO NOT change the core body shape, silhouette, or anatomy of the original character.
-          - DO NOT add human features, human faces, or human limbs.
-          - Preserve the paper bag mask exactly as it appears in the source.
-          - TRANSFORM: ${selections.super.prompt} by layering hero suit details onto the existing static body template.
-          - BACKGROUND: High-contrast cinematic atmosphere matching the hero theme.
-          MANDATORY BRANDING: Draw a professional "IT" logo on the hero chest emblem ONLY IF the area is not blocked by props.
+          - DO NOT change body shape, silhouette, or pose.
+          - TRANSFORM: ${selections.super.prompt} by layering details onto the body.
+          - STYLE: 90s hand-drawn artsy anime.
+          - BRANDING: Professional "IT" logo on the hero chest.
         `;
       } else {
         const activeTraits = Object.entries(selections)
@@ -4668,83 +4736,65 @@ const ForgeItApp = () => {
 
         promptText = `
           ARTSY PFP FORGE SYSTEM.
-          SOURCE: Use the attached character with the bag-mask as the STATIC TEMPLATE.
-          LAYER SYSTEM: Treat this strictly as layering items onto a locked base character.
+          SOURCE: Use the attached character as the STATIC TEMPLATE.
           STRICT CONSTRAINTS: 
           - DO NOT CHANGE silhouette, pose, or proportions. 
-          - DO NOT ADD human features or realistic hands. 
-          - Maintain 90s hand-drawn artsy anime style with thick black outlines and flat vibrant colors.
+          - Maintain 90s hand-drawn artsy anime style.
           ADD TRAITS: ${activeTraits}.
-          BRANDING RULE: If there is plain, clear space on a shirt, draw the letters "IT" as a high-contrast clean logo. 
-          OCCLUSION RULE: If a held prop (like coffee, donut, phone) is in front of the chest area, SKIP drawing the "IT" branding to avoid mess.
+          BRANDING: If there is space on a shirt, draw the letters "IT" as a high-contrast clean logo. 
         `;
       }
+
+      contentParts[0].text = promptText;
 
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image-preview:generateContent?key=${apiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contents: [{
-            parts: [
-              { text: promptText },
-              { inlineData: { mimeType: "image/png", data: base64Image } }
-            ]
-          }],
+          contents: [{ parts: contentParts }],
           generationConfig: { responseModalities: ["TEXT", "IMAGE"] }
         })
       });
 
-      if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(`${response.status}: ${errData.error?.message || 'AI Network Down'}`);
-      }
+      if (!response.ok) throw new Error(`API_ERROR: ${response.status}`);
 
       const result = await response.json();
       const base64Result = result.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
 
       if (base64Result) {
-        // Safe success delay to prevent race condition blank screen
         setTimeout(async () => {
           setGeneratedImg(`data:image/png;base64,${base64Result}`);
           setProgress(100); 
           addLog("MATERIALIZATION_SUCCESS.");
           setError(null);
-          
           try {
             const today = new Date().toISOString().split('T')[0];
             const usageRef = doc(db, 'artifacts', APP_ID, 'users', user.uid, 'usage', 'forge_limits');
-            // USE FIRESTORE INCREMENT TO ENSURE RELIABLE LIMIT UPDATES
             await setDoc(usageRef, { count: increment(1), lastDate: today }, { merge: true });
           } catch (dbErr) { 
-            console.warn("Tracker update skip:", dbErr);
-            setDailyCount(prev => prev + 1); // Local fallback for UI if DB is slow
+            console.warn("Tracker failed:", dbErr);
+            setDailyCount(prev => prev + 1);
           }
-          
           setIsForging(false);
-        }, 100);
-      } else { 
-        throw new Error("AI_RETURNED_EMPTY_RESPONSE: Internal Materializer Error."); 
-      }
+        }, 150);
+      } else { throw new Error("AI_RETURNED_EMPTY_RESPONSE"); }
     } catch (err) {
       setError(err.message);
       addLog("ERROR: SYSTEM_HALTED");
       setIsForging(false);
-    } finally {
-      clearInterval(progTimer);
-    }
+    } finally { clearInterval(progTimer); }
   };
 
   const downloadPFP = () => {
     if (!generatedImg) return;
     const link = document.createElement('a');
     link.href = generatedImg;
-    link.download = `FORGED_IT_ID_${Date.now()}.png`;
+    link.download = `FORGED_IT_${Date.now()}.png`;
     link.click();
   };
 
   return (
     <div className="flex flex-col h-full bg-[#050505] text-zinc-300 font-mono overflow-hidden relative selection:bg-emerald-500 selection:text-black">
-      {/* CRT SCANLINE */}
       <div className="absolute inset-0 pointer-events-none opacity-[0.03] bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,252,0.06))] bg-[length:100%_2px,3px_100%] z-[100]" />
 
       <header className="h-12 border-b border-emerald-900/40 bg-black flex items-center justify-between px-4 shrink-0 z-[70]">
@@ -4752,7 +4802,7 @@ const ForgeItApp = () => {
           <div className="p-1 border border-emerald-500/40 rounded-sm bg-black relative"><Cpu size={14} className="text-emerald-400" /></div>
           <div className="flex flex-col">
             <h1 className="text-[9px] font-black uppercase tracking-[0.3em] text-white italic leading-none">Forge_IT_Cult</h1>
-            <span className="text-[6px] text-zinc-600 font-bold uppercase mt-1 tracking-tighter">Forge_Engine_v5.7</span>
+            <span className="text-[6px] text-zinc-600 font-bold uppercase mt-1 tracking-tighter">Forge_Engine_v5.8</span>
           </div>
         </div>
         <div className={`px-2 py-1 border rounded-sm transition-all flex items-center gap-2 ${hasEliteAccess ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-400 shadow-[0_0_10px_#10b98133]' : hasHolderAccess ? 'border-blue-500/40 bg-blue-500/10 text-blue-400' : 'border-yellow-600/40 bg-yellow-600/10 text-yellow-600'}`}>
@@ -4765,64 +4815,68 @@ const ForgeItApp = () => {
       </header>
 
       <main className="flex-1 flex flex-col md:flex-row min-h-0 relative">
-        
-        {/* MOBILE SENSOR */}
-        {!isForging && !generatedImg && (
-          <div onClick={() => setShowMobileBlueprint(!showMobileBlueprint)} className="md:hidden flex items-center justify-between px-4 py-2 bg-black border-b border-emerald-900/30 cursor-pointer shrink-0 z-30">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-sm overflow-hidden border border-emerald-500/40 relative"><img src={BASE_CHARACTER_PATH} className="w-full h-full object-cover grayscale opacity-60" /></div>
-              <span className="text-[8px] font-black text-emerald-500 uppercase tracking-widest">Blueprint_Active</span>
-            </div>
-            {showMobileBlueprint ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-          </div>
-        )}
-
-        {showMobileBlueprint && !isForging && !generatedImg && (
-          <div className="md:hidden h-[150px] w-full relative overflow-hidden bg-black border-b border-emerald-900/50 shrink-0 z-20">
-             <img src={BASE_CHARACTER_PATH} className="w-full h-full object-cover grayscale opacity-40" />
-             <div className="absolute inset-x-0 top-0 h-[1px] bg-emerald-500/40 animate-[blueprint-scan_3s_linear_infinite]" />
-          </div>
-        )}
-
-        {/* GEAR MATRIX */}
         <div className="flex-1 flex flex-col border-r border-emerald-900/20 bg-[#080808] relative min-h-0">
-          <div className="flex md:grid md:grid-cols-9 border-b border-emerald-900/40 shrink-0 overflow-x-auto no-scrollbar bg-black/60 sticky top-0 z-40">
-            {PFP_CATEGORIES.map(cat => (
-              <button key={cat.id} onClick={() => setActiveCat(cat.id)} className={`p-4 min-w-[65px] flex-1 flex flex-col items-center gap-1.5 transition-all relative group ${activeCat === cat.id ? 'bg-emerald-500/10 text-emerald-400' : 'text-zinc-600'}`}>
-                <cat.icon size={16} className={`${activeCat === cat.id ? 'scale-110' : ''}`} />
-                <span className="text-[6px] font-black uppercase tracking-widest leading-none mt-1">{cat.label}</span>
-                {activeCat === cat.id && <div className="absolute bottom-0 inset-x-0 h-1 bg-emerald-500 shadow-[0_0_15px_#10b981]" />}
-              </button>
-            ))}
+          <div className="flex md:grid md:grid-cols-10 border-b border-emerald-900/40 shrink-0 overflow-x-auto no-scrollbar bg-black/60 sticky top-0 z-40">
+            {PFP_CATEGORIES.map(cat => {
+              const isLockedCat = cat.elite && !hasEliteAccess;
+              return (
+                <button key={cat.id} disabled={isLockedCat} onClick={() => setActiveCat(cat.id)} className={`p-4 min-w-[65px] flex-1 flex flex-col items-center gap-1.5 transition-all relative group ${activeCat === cat.id ? 'bg-emerald-500/10 text-emerald-400' : 'text-zinc-600'} ${isLockedCat ? 'opacity-20 grayscale' : ''}`}>
+                  <cat.icon size={16} className={`${activeCat === cat.id ? 'scale-110' : ''}`} />
+                  <span className="text-[6px] font-black uppercase tracking-widest leading-none mt-1">{cat.label}</span>
+                  {activeCat === cat.id && <div className="absolute bottom-0 inset-x-0 h-1 bg-emerald-500 shadow-[0_0_15px_#10b981]" />}
+                </button>
+              );
+            })}
           </div>
 
           <div className="flex-1 overflow-y-auto p-3 md:p-5 custom-scrollbar bg-[#050505]">
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 pb-24 md:pb-0">
-              {PFP_TRAITS[activeCat].map(trait => {
-                const isLocked = trait.vip && !hasEliteAccess;
-                const isSelected = selections[activeCat]?.id === trait.id;
-                return (
-                  <button key={trait.id} disabled={isLocked} onClick={() => handleTraitSelect(activeCat, trait)}
-                    className={`group px-3 py-4 border rounded-sm text-center transition-all flex flex-col items-center justify-center relative overflow-hidden active:scale-95 ${
-                      isSelected ? 'bg-emerald-500/10 border-emerald-500 text-emerald-300' : 'bg-white/5 border-white/5 text-zinc-600 hover:border-white/20'
-                    } ${isLocked ? 'opacity-20 grayscale cursor-not-allowed border-dashed' : ''}`}>
-                    <span className="text-[9px] font-black uppercase tracking-tighter leading-none relative z-10">{trait.label}</span>
-                    {isSelected && <div className="absolute bottom-1 right-1 w-1 h-1 bg-emerald-400 rounded-full shadow-[0_0_8px_#10b981] animate-pulse" />}
-                    {isLocked && <Lock size={10} className="mt-2 text-yellow-600/50" />}
-                    {trait.vip && !isLocked && <Crown size={10} className="absolute top-1 right-1 text-yellow-500 opacity-40" />}
+            {activeCat === 'clone' ? (
+              <div className="flex flex-col items-center justify-center h-full gap-6 text-center animate-in fade-in duration-500">
+                <div className="p-8 border-2 border-dashed border-emerald-500/20 rounded-xl bg-black w-full max-w-sm">
+                  <Camera size={40} className="mx-auto text-emerald-500/40 mb-4" />
+                  <h3 className="text-sm font-black uppercase tracking-widest text-emerald-400">Clone Existing PFP</h3>
+                  <p className="text-[8px] text-zinc-500 mt-2 uppercase">AI will analyze Image and map outfit/vibes to template.</p>
+                  <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept="image/*" className="hidden" />
+                  <button onClick={() => fileInputRef.current.click()} className="mt-6 w-full py-3 bg-emerald-500 text-black font-black uppercase text-[10px] hover:bg-emerald-400 transition-all flex items-center justify-center gap-2">
+                    <Upload size={14} /> {cloneImage ? 'CHOOSE_ANOTHER' : 'UPLOAD_IMAGE'}
                   </button>
-                );
-              })}
-            </div>
+                </div>
+                {cloneImage && <div className="p-1 border border-emerald-500/40 bg-black rounded-sm"><img src={`data:image/png;base64,${cloneImage}`} className="w-32 h-32 object-cover grayscale opacity-60" /></div>}
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 pb-24 md:pb-0">
+                {PFP_TRAITS[activeCat]?.map(trait => {
+                  const isLocked = trait.vip && !hasEliteAccess;
+                  const isSelected = selections[activeCat]?.id === trait.id && !trustMode && !cloneImage;
+                  return (
+                    <button key={trait.id} disabled={isLocked} onClick={() => handleTraitSelect(activeCat, trait)}
+                      className={`group px-3 py-4 border rounded-sm text-center transition-all flex flex-col items-center justify-center relative overflow-hidden active:scale-95 ${
+                        isSelected ? 'bg-emerald-500/10 border-emerald-500 text-emerald-300' : 'bg-white/5 border-white/5 text-zinc-600 hover:border-white/20'
+                      } ${isLocked ? 'opacity-20 grayscale cursor-not-allowed border-dashed' : ''}`}>
+                      <span className="text-[9px] font-black uppercase tracking-tighter leading-none relative z-10">{trait.label}</span>
+                      {isSelected && <div className="absolute bottom-1 right-1 w-1 h-1 bg-emerald-400 rounded-full shadow-[0_0_8px_#10b981] animate-pulse" />}
+                      {isLocked && <Lock size={10} className="mt-2 text-yellow-600/50" />}
+                      {trait.vip && !isLocked && <Crown size={10} className="absolute top-1 right-1 text-yellow-500 opacity-40" />}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           <div className="p-2 md:p-4 bg-black border-t border-emerald-900/40 shrink-0 md:relative fixed bottom-0 left-0 right-0 z-[60] backdrop-blur-md flex flex-col gap-2">
-            <button onClick={handleRandomize} disabled={isForging || isRandomizing}
-              className="w-full py-2 border border-emerald-500/20 text-emerald-500/50 hover:text-emerald-400 hover:bg-emerald-500/5 flex items-center justify-center gap-2 text-[8px] font-black uppercase tracking-[0.3em] transition-all">
-              <Shuffle size={14} className={isRandomizing ? 'animate-spin' : ''} /> Randomize
-            </button>
+            <div className="flex gap-2">
+              <button onClick={handleRandomize} disabled={isForging || isRandomizing}
+                className="flex-1 py-2 border border-emerald-500/20 text-emerald-500/50 hover:text-emerald-400 hover:bg-emerald-500/5 flex items-center justify-center gap-2 text-[8px] font-black uppercase tracking-[0.3em] transition-all">
+                <Shuffle size={14} className={isRandomizing ? 'animate-spin' : ''} /> Randomize
+              </button>
+              <button onClick={handleTrustIt} disabled={isForging}
+                className={`flex-1 py-2 border flex items-center justify-center gap-2 text-[8px] font-black uppercase tracking-[0.3em] transition-all ${trustMode ? 'bg-blue-500/10 border-blue-500 text-blue-400' : 'border-zinc-800 text-zinc-600 hover:text-white hover:border-white/20'}`}>
+                <Ghost size={14} /> TRUST_IT
+              </button>
+            </div>
             <button onClick={handleForge} disabled={isForging || isRandomizing}
-              className={`w-full py-4 md:py-5 font-black italic text-base md:text-lg tracking-[0.4em] transition-all relative overflow-hidden group border-b-4 md:border-b-8 active:translate-y-1 active:border-b-0 ${
+              className={`w-full py-4 md:py-5 font-black italic text-base md:text-lg tracking-[0.4em] transition-all relative overflow-hidden group border-b-4 active:translate-y-1 active:border-b-0 ${
                 isForging ? 'bg-zinc-900 text-zinc-700 border-zinc-800' : 'bg-emerald-500 text-black hover:bg-emerald-400 border-emerald-700 shadow-[0_0_30px_rgba(16,185,129,0.3)]'
               }`}>
               <span className="relative z-10 flex items-center justify-center gap-3">
@@ -4833,17 +4887,8 @@ const ForgeItApp = () => {
           </div>
         </div>
 
-        {/* NEURAL CHAMBER */}
         <div className={`w-full md:w-[350px] lg:w-[420px] bg-black flex flex-col border-l border-emerald-900/40 shrink-0 min-h-0
           ${(isForging || generatedImg) ? 'fixed inset-0 z-[80] md:relative md:inset-auto md:z-0 flex' : 'hidden md:flex'}`}>
-          
-          <div className="hidden md:flex h-[50px] items-center px-4 justify-between bg-black border-b border-emerald-900/40 shrink-0">
-             <div className="flex items-center gap-2 opacity-50">
-               <Crosshair size={12}/> <span className="text-[7px] font-black uppercase tracking-widest">Pose_Locked</span>
-             </div>
-             <Shield size={12} className="text-emerald-900 animate-pulse" />
-          </div>
-
           <div className="flex-1 flex flex-col p-6 items-center justify-center relative overflow-hidden bg-[#020202]">
             {isForging ? (
               <div className="flex flex-col items-center gap-6 w-full animate-in fade-in duration-500">
@@ -4866,14 +4911,12 @@ const ForgeItApp = () => {
                 <div className="relative group p-1 bg-zinc-950 border border-white/10 shadow-[0_0_60px_rgba(0,0,0,1)] overflow-hidden">
                   <img src={generatedImg} className="w-full aspect-square object-cover relative z-10" />
                   <div className="absolute top-4 right-4 z-20 opacity-0 group-hover:opacity-100 transition-all duration-300">
-                     <button onClick={downloadPFP} className="p-3 bg-white text-black hover:bg-emerald-400 shadow-2xl active:scale-90">
-                        <Download size={20} />
-                     </button>
+                     <button onClick={downloadPFP} className="p-3 bg-white text-black hover:bg-emerald-400 shadow-2xl active:scale-90"><Download size={20} /></button>
                   </div>
                 </div>
-                <button onClick={downloadPFP} className="w-full py-4 bg-white text-black font-black uppercase text-[11px] hover:bg-emerald-400 shadow-xl flex items-center justify-center gap-3 tracking-[0.2em] transition-all"><Download size={16}/> Save_IT</button>
+                <button onClick={downloadPFP} className="w-full py-4 bg-white text-black font-black uppercase text-[11px] hover:bg-emerald-400 shadow-xl flex items-center justify-center gap-3 tracking-[0.2em] transition-all"><Download size={16}/> Save_to_Cult</button>
                 <button onClick={() => setGeneratedImg(null)} className="w-full py-2 text-[9px] font-black uppercase text-zinc-700 hover:text-white transition-all flex items-center justify-center gap-2 group">
-                  <X size={12} className="group-hover:rotate-90 transition-transform" /> Close_IT
+                  <X size={12} className="group-hover:rotate-90 transition-transform" /> Purge_Matrix
                 </button>
               </div>
             ) : (
@@ -4904,6 +4947,7 @@ const ForgeItApp = () => {
     </div>
   );
 };
+
 
 
 
