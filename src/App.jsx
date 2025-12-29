@@ -4348,6 +4348,7 @@ const HOLDER_THRESHOLD = 500000;
 const LIMIT_ELITE = 99999;
 const LIMIT_HOLDER = 4;
 const LIMIT_GUEST = 2;
+const REFRESH_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 Hours
 
 const APP_ID = typeof __app_id !== 'undefined' ? __app_id : 'it-forge-cult';
 const BASE_CHARACTER_PATH = "main.jpg";
@@ -4490,13 +4491,15 @@ const ForgeItApp = () => {
   const [tokenBalance, setTokenBalance] = useState(0);
   const [hasEliteAccess, setHasEliteAccess] = useState(false);
   const [hasHolderAccess, setHasHolderAccess] = useState(false);
-  const [dailyCount, setDailyCount] = useState(null); // NULL = Loading state
+  const [dailyCount, setDailyCount] = useState(0); 
+  const [isSyncing, setIsSyncing] = useState(true);
   const [showMobileBlueprint, setShowMobileBlueprint] = useState(false);
   const [isRandomizing, setIsRandomizing] = useState(false);
   const [trustMode, setTrustMode] = useState(false);
   const [cloneImage, setCloneImage] = useState(null);
   const fileInputRef = useRef(null);
   
+  // ROBUST API KEY RESOLUTION
   const apiKey = (() => {
     try {
       if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_APP_GEMINI) return import.meta.env.VITE_APP_GEMINI;
@@ -4521,21 +4524,18 @@ const ForgeItApp = () => {
 
   const currentLimit = hasEliteAccess ? LIMIT_ELITE : (hasHolderAccess ? LIMIT_HOLDER : LIMIT_GUEST);
 
-  // --- PERSISTENT AUTH & INITIALIZATION ---
+  // --- PERSISTENT AUTH ---
   useEffect(() => {
     const initAuth = async () => {
       if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
         await signInWithCustomToken(auth, __initial_auth_token);
       } else {
-        // SignInAnonymously persists by default in most browsers
         await signInAnonymously(auth);
       }
     };
     initAuth();
     const unsubscribe = onAuthStateChanged(auth, (u) => {
-      if (u) {
-        setUser(u);
-      }
+      if (u) setUser(u);
     });
     return () => unsubscribe();
   }, []);
@@ -4551,24 +4551,31 @@ const ForgeItApp = () => {
     return () => window.removeEventListener('IT_OS_BALANCE_UPDATE', handleKernelSync);
   }, []);
 
-  // --- DB SYNC (THE FIX) ---
+  // --- 6-HOUR PERSISTENT QUOTA SYNC ---
   useEffect(() => {
     if (!user) return;
-    const today = new Date().toISOString().split('T')[0];
+    setIsSyncing(true);
     const usageRef = doc(db, 'artifacts', APP_ID, 'users', user.uid, 'usage', 'forge_limits');
     
     const unsub = onSnapshot(usageRef, (snap) => {
       if (snap.exists()) {
         const data = snap.data();
-        if (data.lastDate === today) {
-          setDailyCount(data.count);
+        const now = Date.now();
+        const lastReset = data.lastReset || 0;
+        
+        if (now - lastReset > REFRESH_INTERVAL_MS) {
+          setDailyCount(0);
         } else {
-          setDailyCount(0); // It's a new day
+          setDailyCount(data.count || 0);
         }
       } else {
-        setDailyCount(0); // No record yet
+        setDailyCount(0);
       }
-    }, (err) => console.error("Quota Sync Error", err));
+      setIsSyncing(false);
+    }, (err) => {
+      console.error("Quota Sync Error", err);
+      setIsSyncing(false);
+    });
     return () => unsub();
   }, [user]);
 
@@ -4661,10 +4668,10 @@ const ForgeItApp = () => {
 
   const handleForge = async () => {
     if (isForging) return;
-    if (!user || dailyCount === null) { setError("SYNCING_QUOTA... WAIT."); return; }
+    if (!user || isSyncing) { setError("SYNCING_QUOTA... WAIT."); return; }
 
     if (dailyCount >= currentLimit) {
-      setError(`DAILY_LIMIT_REACHED: ${hasEliteAccess ? 'Unlimited' : hasHolderAccess ? '4/day' : '2/day'}`);
+      setError(`LIMIT_EXCEEDED: ${hasEliteAccess ? 'Unlimited' : hasHolderAccess ? '4/6h' : '2/6h'} Quota Hit.`);
       return;
     }
 
@@ -4691,7 +4698,7 @@ const ForgeItApp = () => {
       } else if (trustMode) {
         promptText = "ARTSY FUN CREATIVE DECORATION. SOURCE: Use attached character as ABSOLUTE static blueprint. TASK: Use imagination to decorate character with fun, artsy, lighthearted items. Think silly hats, playful props. STRICT CONSTRAINTS: MAINTAIN exact paper bag mask head and body shape. NO human anatomy or limbs. STYLE: 90s hand-drawn artsy anime. MANDATORY: Integrate letters 'IT' clearly as high-contrast logo.";
       } else if (selections.super.id !== 'none') {
-        promptText = `ARTSY SUPERHERO TRANSFORMATION. SOURCE: attached EXACT static blueprint. KEEP core mask and anatomy. TRANSFORM: ${selections.super.prompt} by layering suit details. MANDATORY BRANDING: professional "IT" logo on chest emblem.`;
+        promptText = `ARTSY SUPERHERO TRANSFORMATION. SOURCE: attached EXACT static blueprint. KEEP core mask and anatomy. TRANSFORM: ${selections.super.prompt} by layering suit details. MANDATORY BRANDING: professional "IT" logo on chest emblem. OCCLUSION RULE: skip if blocked by prop.`;
       } else {
         const activeTraits = Object.entries(selections)
           .filter(([cat, trait]) => trait.id !== 'none' && trait.id !== 'clean' && trait.id !== 'neutral')
@@ -4717,22 +4724,30 @@ const ForgeItApp = () => {
       const base64Result = result.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
 
       if (base64Result) {
-        setTimeout(async () => {
+        // --- ATOMIC QUOTA UPDATE ---
+        try {
+          const usageRef = doc(db, 'artifacts', APP_ID, 'users', user.uid, 'usage', 'forge_limits');
+          const snap = await getDoc(usageRef);
+          const now = Date.now();
+          
+          if (snap.exists() && (now - (snap.data().lastReset || 0) < REFRESH_INTERVAL_MS)) {
+             await updateDoc(usageRef, { count: increment(1) });
+          } else {
+             await setDoc(usageRef, { count: 1, lastReset: now }, { merge: true });
+          }
+        } catch (dbErr) { 
+          console.warn("Usage Tracker Fail", dbErr);
+          setDailyCount(prev => prev + 1);
+        }
+
+        // Delay display slightly to ensure state has settled
+        setTimeout(() => {
           setGeneratedImg(`data:image/png;base64,${base64Result}`);
           setProgress(100); 
           addLog("MATERIALIZATION_SUCCESS.");
           setError(null);
-          
-          try {
-            const today = new Date().toISOString().split('T')[0];
-            const usageRef = doc(db, 'artifacts', APP_ID, 'users', user.uid, 'usage', 'forge_limits');
-            await setDoc(usageRef, { count: increment(1), lastDate: today }, { merge: true });
-          } catch (dbErr) { 
-            console.warn("Usage Tracker Fail", dbErr);
-            setDailyCount(prev => prev + 1);
-          }
           setIsForging(false);
-        }, 150);
+        }, 200);
       } else { throw new Error("AI_RETURNED_EMPTY_RESPONSE"); }
     } catch (err) {
       setError(err.message);
@@ -4755,20 +4770,20 @@ const ForgeItApp = () => {
 
       <header className="h-12 border-b border-emerald-900/40 bg-black flex items-center justify-between px-4 shrink-0 z-[70]">
         <div className="flex items-center gap-2">
-          <div className="p-1 border border-emerald-500/40 rounded-sm bg-black relative"><Cpu size={14} className="text-emerald-400" /></div>
+          <div className="p-1 border border-emerald-500/40 rounded-sm bg-black relative shadow-[0_0_15px_#10b98122]"><Cpu size={14} className="text-emerald-400" /></div>
           <div className="flex flex-col">
             <h1 className="text-[9px] font-black uppercase tracking-[0.3em] text-white italic leading-none">Forge_IT_Cult</h1>
-            <span className="text-[6px] text-zinc-600 font-bold uppercase mt-1 tracking-tighter">Forge_Engine_v5.9</span>
+            <span className="text-[6px] text-zinc-600 font-bold uppercase mt-1 tracking-tighter">Forge_Engine_v6.0</span>
           </div>
         </div>
         <div className={`px-2 py-1 border rounded-sm transition-all flex items-center gap-2 ${hasEliteAccess ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-400 shadow-[0_0_10px_#10b98133]' : hasHolderAccess ? 'border-blue-500/40 bg-blue-500/10 text-blue-400' : 'border-yellow-600/40 bg-yellow-600/10 text-yellow-600'}`}>
           <div className="flex flex-col items-end">
             <span className="text-[8px] font-black uppercase tracking-tighter leading-none">{hasEliteAccess ? 'ELITE' : hasHolderAccess ? 'HOLDER' : 'GUEST'}</span>
             <span className="text-[6px] font-bold opacity-60 mt-0.5 tracking-widest uppercase italic">
-              REMAINING: {dailyCount === null ? '...' : (hasEliteAccess ? '∞' : Math.max(0, currentLimit - dailyCount))}
+              REMAINING: {isSyncing ? '...' : (hasEliteAccess ? '∞' : Math.max(0, currentLimit - dailyCount))}
             </span>
           </div>
-          {hasEliteAccess ? <Crown size={12} className="animate-pulse" /> : <Lock size={10} className="opacity-40" />}
+          {hasEliteAccess ? <Crown size={12} className="animate-pulse shadow-[0_0_10px_gold]" /> : <Lock size={10} className="opacity-40" />}
         </div>
       </header>
 
@@ -4790,16 +4805,16 @@ const ForgeItApp = () => {
           <div className="flex-1 overflow-y-auto p-3 md:p-5 custom-scrollbar bg-[#050505]">
             {activeCat === 'clone' ? (
               <div className="flex flex-col items-center justify-center h-full gap-6 text-center animate-in fade-in duration-500">
-                <div className="p-8 border-2 border-dashed border-emerald-500/20 rounded-xl bg-black w-full max-w-sm">
+                <div className="p-8 border-2 border-dashed border-emerald-500/20 rounded-xl bg-black w-full max-w-sm shadow-[0_0_30px_#10b98111]">
                   <Camera size={40} className="mx-auto text-emerald-500/40 mb-4" />
                   <h3 className="text-sm font-black uppercase tracking-widest text-emerald-400 italic">Clone Source PFP</h3>
-                  <p className="text-[8px] text-zinc-500 mt-2 uppercase tracking-tighter">AI will translate vibes & world to Character blueprint.</p>
+                  <p className="text-[8px] text-zinc-500 mt-2 uppercase tracking-tighter leading-relaxed">Elite holders only. Map vibes, world, and outfit from your image onto our Character blueprint.</p>
                   <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept="image/*" className="hidden" />
-                  <button onClick={() => fileInputRef.current.click()} className="mt-6 w-full py-3 bg-emerald-500 text-black font-black uppercase text-[10px] hover:bg-emerald-400 transition-all flex items-center justify-center gap-2">
-                    <Upload size={14} /> {cloneImage ? 'SWAP_SOURCE' : 'UPLOAD_IMAGE'}
+                  <button onClick={() => fileInputRef.current.click()} className="mt-6 w-full py-3 bg-emerald-500 text-black font-black uppercase text-[10px] hover:bg-emerald-400 transition-all flex items-center justify-center gap-2 shadow-lg">
+                    <Upload size={14} /> {cloneImage ? 'CHOOSE_ANOTHER' : 'UPLOAD_IMAGE'}
                   </button>
                 </div>
-                {cloneImage && <div className="p-1 border border-emerald-500/40 bg-black rounded-sm shadow-[0_0_20px_#10b98122]"><img src={`data:image/png;base64,${cloneImage}`} className="w-32 h-32 object-cover grayscale opacity-60" /></div>}
+                {cloneImage && <div className="p-1 border border-emerald-500/40 bg-black rounded-sm shadow-[0_0_20px_#10b98122] animate-in zoom-in-95"><img src={`data:image/png;base64,${cloneImage}`} className="w-32 h-32 object-cover grayscale opacity-60" /></div>}
               </div>
             ) : (
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 pb-24 md:pb-0">
@@ -4822,20 +4837,20 @@ const ForgeItApp = () => {
             )}
           </div>
 
-          <div className="p-2 md:p-4 bg-black border-t border-emerald-900/40 shrink-0 md:relative fixed bottom-0 left-0 right-0 z-[60] backdrop-blur-md flex flex-col gap-2">
+          <div className="p-2 md:p-4 bg-black border-t border-emerald-900/40 shrink-0 md:relative fixed bottom-0 left-0 right-0 z-[60] backdrop-blur-md flex flex-col gap-2 shadow-[0_-10px_30px_rgba(0,0,0,0.5)]">
             <div className="flex gap-2">
-              <button onClick={handleRandomize} disabled={isForging || isRandomizing}
+              <button onClick={handleRandomize} disabled={isForging || isRandomizing || isSyncing}
                 className="flex-1 py-2 border border-emerald-500/20 text-emerald-500/50 hover:text-emerald-400 hover:bg-emerald-500/5 flex items-center justify-center gap-2 text-[8px] font-black uppercase tracking-[0.3em] transition-all">
                 <Shuffle size={14} className={isRandomizing ? 'animate-spin' : ''} /> Randomize
               </button>
-              <button onClick={handleTrustIt} disabled={isForging}
+              <button onClick={handleTrustIt} disabled={isForging || isSyncing}
                 className={`flex-1 py-2 border flex items-center justify-center gap-2 text-[8px] font-black uppercase tracking-[0.3em] transition-all ${trustMode ? 'bg-blue-500/10 border-blue-500 text-blue-400 shadow-[0_0_10px_#3b82f633]' : 'border-zinc-800 text-zinc-600 hover:text-white hover:border-white/20'}`}>
                 <Ghost size={14} /> TRUST_IT
               </button>
             </div>
-            <button onClick={handleForge} disabled={isForging || isRandomizing || dailyCount === null}
+            <button onClick={handleForge} disabled={isForging || isRandomizing || isSyncing}
               className={`w-full py-4 md:py-5 font-black italic text-base md:text-lg tracking-[0.4em] transition-all relative overflow-hidden group border-b-4 active:translate-y-1 active:border-b-0 ${
-                isForging ? 'bg-zinc-900 text-zinc-700 border-zinc-800' : 'bg-emerald-500 text-black hover:bg-emerald-400 border-emerald-700 shadow-[0_0_30px_rgba(16,185,129,0.3)]'
+                isForging ? 'bg-zinc-900 text-zinc-700 border-zinc-800' : 'bg-emerald-500 text-black hover:bg-emerald-400 border-emerald-700 shadow-[0_0_40px_rgba(16,185,129,0.3)]'
               }`}>
               <span className="relative z-10 flex items-center justify-center gap-3">
                 {isForging ? <RefreshCw className="animate-spin" size={20}/> : <Zap size={20} />}
@@ -4880,7 +4895,7 @@ const ForgeItApp = () => {
             ) : (
               <div className="flex flex-col items-center gap-8 opacity-5">
                 <div className="p-20 border border-dashed border-emerald-900/50 rounded-full"><Palette size={80} strokeWidth={0.3} /></div>
-                <p className="text-[10px] font-black uppercase tracking-[0.4em] text-white italic">Matrix_Idle</p>
+                <p className="text-[10px] font-black uppercase tracking-[0.4em] text-white italic tracking-[0.5em]">Matrix_Idle</p>
               </div>
             )}
           </div>
@@ -4905,7 +4920,6 @@ const ForgeItApp = () => {
     </div>
   );
 };
-
 
 
 
