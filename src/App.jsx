@@ -75,7 +75,7 @@ const ASSETS = {
   }
 };
 
-const SOCIALS = { twitter: "https://x.com/ITonSol", community: "https://x.com/ITonSol" };
+const SOCIALS = { twitter: "https://x.com/ITonSol", community: "https://twitter.com/i/communities/2005689092994912490" };
 
 const TUNES_PLAYLIST = [
   { file: "GET_IT_STARTED.mp3", title: "LETS GET IT STARTED", duration: "1:37", artist: "CREW" },
@@ -4346,8 +4346,8 @@ const MergeItApp = () => {
 const UNLIMITED_THRESHOLD = 3000000; 
 const HOLDER_THRESHOLD = 500000;
 const LIMIT_ELITE = 99999;
-const LIMIT_HOLDER = 4;
-const LIMIT_GUEST = 2;
+const LIMIT_HOLDER = 22;
+const LIMIT_GUEST = 11;
 
 const APP_ID = typeof __app_id !== 'undefined' ? __app_id : 'it-forge-cult';
 const BASE_CHARACTER_PATH = "main.jpg";
@@ -4975,7 +4975,7 @@ export default function UltimateOS() {
   const { wallet, connect, connecting, balance: solBalance, refresh: refreshSol } = useWallet();
   const dexData = useDexData(CA_ADDRESS, wallet);
   const hasAccess = dexData.balance >= ACCESS_THRESHOLD;
-  const isForgeVip = dexData.balance >= 3000000;
+  const isForgeVip = dexData.balance >= 2500000;
 
   const showAlert = (msg) => {
     setSystemAlert(msg);
