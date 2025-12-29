@@ -42,7 +42,7 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const appId = 'it-token-os';
 
-const CA_ADDRESS = "9RgsMRGBjJMhppZEV77iDa83KwfZbTmnXSuas2G1pump";
+const CA_ADDRESS = "coming soon...";
 const ACCESS_THRESHOLD = 500000; // 500k IT tokens
 
 const RPC_ENDPOINTS = [
@@ -2725,9 +2725,6 @@ const RugSweeperApp = () => {
 
 const MemesApp = () => {
   // --- ASSET INTEGRATION ---
-  // We access ASSETS.memes directly. We use a safety check to ensure 
-  // we don't crash the entire OS if the main file hasn't finished 
-  // initializing the global constant yet.
   const memeData = useMemo(() => {
     try {
       if (typeof window !== 'undefined' && window.ASSETS?.memes) return window.ASSETS.memes;
@@ -2744,7 +2741,6 @@ const MemesApp = () => {
   const touchStartRef = useRef(null);
 
   // --- NAVIGATION LOGIC ---
-
   const navigate = (dir, e) => {
     e?.stopPropagation();
     setSelectedIndex((prev) => {
@@ -2756,7 +2752,6 @@ const MemesApp = () => {
     });
   };
 
-  // Keyboard Support (Arrows and ESC)
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (selectedIndex === null) return;
@@ -2768,7 +2763,6 @@ const MemesApp = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [selectedIndex, images.length]);
 
-  // Touch/Swipe Support
   const handleTouchStart = (e) => {
     if (e.touches && e.touches[0]) {
       touchStartRef.current = e.touches[0].clientX;
@@ -2779,17 +2773,14 @@ const MemesApp = () => {
     if (touchStartRef.current === null || !e.changedTouches) return;
     const touchEnd = e.changedTouches[0].clientX;
     const diff = touchStartRef.current - touchEnd;
-
-    // Threshold of 50px for a valid swipe
     if (Math.abs(diff) > 50) {
-      if (diff > 0) navigate(1); // Swipe left -> Next
-      else navigate(-1); // Swipe right -> Prev
+      if (diff > 0) navigate(1); 
+      else navigate(-1); 
     }
     touchStartRef.current = null;
   };
 
   // --- ACTIONS ---
-  
   const downloadImage = (src, name) => {
     try {
       const link = document.createElement('a');
@@ -2799,9 +2790,7 @@ const MemesApp = () => {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-    } catch (err) {
-      console.error("Download failed:", err);
-    }
+    } catch (err) { console.error("Download failed:", err); }
   };
 
   const shareToX = () => {
@@ -2809,93 +2798,77 @@ const MemesApp = () => {
     window.open(`https://twitter.com/intent/tweet?text=${text}`, '_blank');
   };
 
-  // --- VIEW: LIGHTBOX (SINGLE IMAGE) ---
+  // --- VIEW: NEURAL LIGHTBOX (SINGLE IMAGE) ---
   if (selectedIndex !== null) {
     const currentSrc = images[selectedIndex];
     const currentName = keys[selectedIndex];
 
     return (
       <div 
-        className="flex flex-col h-full bg-[#050505] text-white relative animate-in fade-in zoom-in-95 duration-300 font-mono"
+        className="flex flex-col h-full bg-black text-white relative animate-in fade-in zoom-in-95 duration-300 font-mono overflow-hidden"
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
-        // CLICK OUTSIDE TO CLOSE: Clicking the background wrapper closes the viewer
         onClick={() => setSelectedIndex(null)} 
       >
-        {/* Header Toolbar */}
+        {/* CRT Scanline Overlay */}
+        <div className="absolute inset-0 pointer-events-none z-50 opacity-[0.05] bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,252,0.06))] bg-[length:100%_2px,3px_100%]" />
+
+        {/* Toolbar */}
         <div 
-            className="bg-black/80 backdrop-blur-md p-2 border-b border-white/10 flex justify-between items-center z-20"
-            onClick={(e) => e.stopPropagation()} // Prevent close when clicking header
+            className="bg-[#c0c0c0] p-1.5 border-b-2 border-gray-600 flex justify-between items-center z-[60]"
+            onClick={(e) => e.stopPropagation()}
         >
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 px-2">
             <button 
               onClick={() => setSelectedIndex(null)}
-              className="p-2 hover:bg-white/10 rounded transition-colors text-gray-400 hover:text-white"
+              className="p-1 bg-[#d0d0d0] border border-white border-r-gray-800 border-b-gray-800 text-black hover:bg-white active:shadow-inner"
             >
-              <Grid size={18} />
+              <Grid size={14} />
             </button>
             <div className="flex flex-col">
-                <span className="text-[10px] font-black text-green-500 tracking-tighter uppercase leading-none">Media_Viewer</span>
-                <span className="text-xs font-bold truncate max-w-[120px] sm:max-w-[200px]">{currentName}</span>
+                <span className="text-[8px] font-black text-emerald-700 tracking-tighter uppercase leading-none">Neural_Viewer.EXE</span>
+                <span className="text-[10px] font-bold text-black truncate max-w-[150px]">{currentName}.JPG</span>
             </div>
           </div>
           
-          <div className="flex gap-2">
-            <button 
-                onClick={() => downloadImage(currentSrc, currentName)}
-                className="bg-white text-black px-3 py-1 rounded-sm text-[10px] font-black flex items-center gap-1 hover:bg-gray-200 transition-all active:scale-95"
-            >
-              <Download size={12} /> SAVE IT
+          <div className="flex gap-1 pr-1">
+            <button onClick={() => downloadImage(currentSrc, currentName)} className="bg-[#d0d0d0] text-black px-2 py-1 border border-white border-r-gray-800 border-b-gray-800 text-[9px] font-black flex items-center gap-1 hover:bg-white active:translate-y-0.5 transition-all uppercase">
+              <Download size={10} /> Save
             </button>
-            <button 
-                onClick={shareToX}
-                className="bg-[#1da1f2] text-white px-3 py-1 rounded-sm text-[10px] font-black flex items-center gap-1 hover:bg-opacity-90 transition-all active:scale-95"
-            >
-              <Share2 size={12} /> SHARE IT
+            <button onClick={shareToX} className="bg-[#1da1f2] text-white px-2 py-1 border border-blue-400 border-r-blue-900 border-b-blue-900 text-[9px] font-black flex items-center gap-1 hover:brightness-110 active:translate-y-0.5 transition-all uppercase">
+              <Share2 size={10} /> Share
             </button>
           </div>
         </div>
 
-        {/* Main Viewing Area */}
-        <div className="flex-1 relative flex items-center justify-center p-4 overflow-hidden group">
-          {/* Navigation Arrows (Desktop Only) */}
-          <button 
-            onClick={(e) => navigate(-1, e)}
-            className="absolute left-4 z-10 p-3 sm:p-4 rounded-full bg-black/50 hover:bg-white/20 text-white/50 hover:text-white transition-all md:opacity-0 md:group-hover:opacity-100 -translate-x-4 md:group-hover:translate-x-0"
-          >
-            <ChevronLeft size={32} strokeWidth={3} />
+        {/* Viewing Area */}
+        <div className="flex-1 relative flex items-center justify-center p-4 group bg-[#080808]">
+          <button onClick={(e) => navigate(-1, e)} className="absolute left-4 z-[70] p-4 bg-black/40 border border-emerald-500/20 text-emerald-500 rounded-full hover:bg-emerald-500 hover:text-black transition-all md:opacity-0 md:group-hover:opacity-100">
+            <ChevronLeft size={24} strokeWidth={3} />
           </button>
           
-          <button 
-            onClick={(e) => navigate(1, e)}
-            className="absolute right-4 z-10 p-3 sm:p-4 rounded-full bg-black/50 hover:bg-white/20 text-white/50 hover:text-white transition-all md:opacity-0 md:group-hover:opacity-100 translate-x-4 md:group-hover:translate-x-0"
-          >
-            <ChevronRight size={32} strokeWidth={3} />
+          <button onClick={(e) => navigate(1, e)} className="absolute right-4 z-[70] p-4 bg-black/40 border border-emerald-500/20 text-emerald-500 rounded-full hover:bg-emerald-500 hover:text-black transition-all md:opacity-0 md:group-hover:opacity-100">
+            <ChevronRight size={24} strokeWidth={3} />
           </button>
 
-          {/* The Image */}
           <div className="relative max-w-full max-h-full" onClick={(e) => e.stopPropagation()}>
-            <img 
-              src={currentSrc} 
-              className="max-w-full max-h-[70vh] object-contain border-2 border-white/20 shadow-[0_0_50px_rgba(0,0,0,0.8)]"
-              alt="Meme Content" 
-            />
-            <div className="absolute inset-0 pointer-events-none bg-gradient-to-tr from-white/5 to-transparent"></div>
+            <img src={currentSrc} className="max-w-full max-h-[65vh] object-contain border-2 border-emerald-500/30 shadow-[0_0_30px_rgba(16,185,129,0.1)]" alt="Meme" />
+            <div className="absolute top-2 right-2 flex items-center gap-2 bg-black/60 px-2 py-1 border border-emerald-500/20">
+                <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_5px_#10b981]" />
+                <span className="text-[8px] text-emerald-500 font-black tracking-widest uppercase">Signal_Stable</span>
+            </div>
           </div>
         </div>
 
-        {/* Footer Navigation Strip */}
+        {/* Thumb Strip */}
         <div 
-            className="h-20 bg-black/90 border-t border-white/10 p-2 flex gap-2 overflow-x-auto no-scrollbar items-center justify-center"
-            onClick={(e) => e.stopPropagation()} // Prevent close when clicking footer
+            className="h-24 bg-[#111] border-t border-emerald-900/30 p-3 flex gap-3 overflow-x-auto no-scrollbar items-center justify-center z-[60]"
+            onClick={(e) => e.stopPropagation()}
         >
             {images.map((img, i) => (
-                <div 
-                    key={i}
-                    onClick={(e) => { e.stopPropagation(); setSelectedIndex(i); }}
-                    className={`h-12 w-12 shrink-0 border-2 transition-all cursor-pointer overflow-hidden ${selectedIndex === i ? 'border-green-500 scale-110' : 'border-transparent opacity-40 hover:opacity-100'}`}
-                >
-                    <img src={img} className="w-full h-full object-cover" alt={`thumb-${i}`} />
+                <div key={i} onClick={(e) => { e.stopPropagation(); setSelectedIndex(i); }} 
+                    className={`h-16 w-16 shrink-0 border-2 transition-all cursor-pointer overflow-hidden ${selectedIndex === i ? 'border-emerald-500 scale-110 shadow-[0_0_15px_#10b981]' : 'border-zinc-800 opacity-30 hover:opacity-100'}`}>
+                    <img src={img} className="w-full h-full object-cover" alt="" />
                 </div>
             ))}
         </div>
@@ -2903,60 +2876,60 @@ const MemesApp = () => {
     );
   }
 
-  // --- VIEW: GRID GALLERY ---
+  // --- VIEW: REPOSITORY GRID ---
   return (
-    <div className="bg-[#f0f0f0] h-full flex flex-col overflow-hidden font-mono select-none">
-        {/* Gallery Header */}
-        <div className="bg-[#c0c0c0] p-2 border-b-2 border-white shadow-sm flex justify-between items-center px-4">
-            <div className="flex items-center gap-2">
-                <FileImage size={16} className="text-gray-700" />
-                <span className="text-xs font-black tracking-tight text-gray-800 uppercase">Meme_Repository_v1.0</span>
+    <div className="bg-[#050505] h-full flex flex-col overflow-hidden font-mono select-none border-t border-l border-zinc-800">
+        {/* Explorer Header */}
+        <div className="bg-gradient-to-r from-[#000080] to-[#0000aa] p-2 flex justify-between items-center border-b border-white/20">
+            <div className="flex items-center gap-2 px-2">
+                <FileImage size={16} className="text-white" />
+                <span className="text-[10px] font-black tracking-widest text-white uppercase italic">Meme_Repository_v4.0</span>
             </div>
-            <span className="text-[10px] font-bold text-gray-500">{images.length} Objects Found</span>
+            <div className="flex items-center gap-4 pr-2">
+                <span className="text-[9px] font-bold text-blue-300 uppercase tracking-tighter animate-pulse">{images.length} Objects Loaded</span>
+                <div className="flex gap-1">
+                    <div className="w-1 h-3 bg-blue-400/40" />
+                    <div className="w-1 h-3 bg-blue-400/40" />
+                    <div className="w-1 h-3 bg-blue-400/40" />
+                </div>
+            </div>
         </div>
 
         {/* The Grid */}
-        <div className="flex-1 p-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 overflow-y-auto content-start bg-[#808080] custom-scrollbar">
+        <div className="flex-1 p-6 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6 overflow-y-auto content-start bg-[#050505] win-scroll-container">
             {images.length === 0 ? (
-                <div className="col-span-full h-64 flex flex-col items-center justify-center text-white/40 uppercase tracking-widest text-[10px] font-black italic">
-                    <Grid size={32} className="mb-2 opacity-20" />
-                    Searching OS Kernel...
+                <div className="col-span-full h-64 flex flex-col items-center justify-center text-emerald-500/20 uppercase tracking-[0.5em] text-[10px] font-black italic">
+                    <Activity size={32} className="mb-4 animate-pulse" />
+                    Scanning_FileSystem...
                 </div>
             ) : images.map((src, i) => (
                 <div 
                     key={i} 
-                    className="group relative flex flex-col items-center gap-1 transition-all"
+                    className="group relative flex flex-col items-center gap-2"
                     onMouseEnter={() => setHoveredIndex(i)}
                     onMouseLeave={() => setHoveredIndex(null)}
                     onClick={() => setSelectedIndex(i)}
                 >
-                    {/* Thumbnail Wrapper */}
+                    {/* Retro Thumbnail Bezel */}
                     <div className={`
-                        w-full aspect-square bg-[#c0c0c0] p-1 cursor-pointer
-                        border-t-2 border-l-2 border-r-2 border-b-2
-                        transition-all duration-75 active:scale-95
+                        w-full aspect-square bg-[#111] p-1.5 cursor-pointer
+                        border-2 transition-all duration-200 active:scale-95
                         ${hoveredIndex === i 
-                            ? 'border-t-white border-l-white border-r-gray-700 border-b-gray-700 shadow-lg' 
-                            : 'border-transparent'}
+                            ? 'border-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.2)]' 
+                            : 'border-zinc-800'}
                     `}>
-                        <div className="w-full h-full bg-black flex items-center justify-center overflow-hidden border border-black/10 relative">
-                            <img 
-                                src={src} 
-                                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" 
-                                alt={keys[i]}
-                                loading="lazy"
-                            />
-                            {/* Hover Overlay */}
-                            <div className="absolute inset-0 bg-blue-600/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                <ZoomIn className="text-white drop-shadow-md" size={24} />
+                        <div className="w-full h-full bg-black flex items-center justify-center overflow-hidden relative border border-white/5">
+                            <img src={src} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-125 group-hover:rotate-2 opacity-80 group-hover:opacity-100" alt={keys[i]} loading="lazy" />
+                            <div className="absolute inset-0 bg-emerald-500/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                <ZoomIn className="text-emerald-400 drop-shadow-[0_0_10px_#10b981]" size={28} />
                             </div>
                         </div>
                     </div>
 
-                    {/* Label */}
+                    {/* Emerald Label */}
                     <div className={`
-                        text-center text-[9px] font-mono truncate w-full px-1 py-0.5 transition-colors
-                        ${hoveredIndex === i ? 'bg-[#000080] text-white' : 'text-gray-200'}
+                        text-center text-[9px] font-black truncate w-full px-2 py-1 transition-all uppercase tracking-tighter
+                        ${hoveredIndex === i ? 'bg-emerald-500 text-black translate-y-[-2px]' : 'bg-[#111] text-emerald-600 border border-emerald-900/30'}
                     `}>
                         {keys[i]}.JPG
                     </div>
@@ -2964,17 +2937,27 @@ const MemesApp = () => {
             ))}
         </div>
 
-        {/* Footer Status */}
-        <div className="bg-[#c0c0c0] border-t-2 border-white p-1 px-4 flex justify-between items-center text-[9px] font-bold text-gray-700">
-            <div className="flex gap-4">
-                <span>SYSTEM: STABLE</span>
-                <span>CONVICTION: BULLISH</span>
+        {/* Status Bar */}
+        <div className="bg-[#c0c0c0] border-t-2 border-white p-1.5 px-4 flex justify-between items-center text-[9px] font-black text-zinc-700 shadow-inner">
+            <div className="flex gap-6 items-center">
+                <span className="flex items-center gap-1.5"><Activity size={10} className="text-emerald-600"/> FS_SECURE</span>
+                <span className="opacity-40">BULLISH_SENTIMENT: 100%</span>
             </div>
-            <div className="flex items-center gap-1">
-                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-                NEURAL_LINK_ACTIVE
+            <div className="flex items-center gap-2 bg-emerald-900/10 px-2 py-0.5 rounded-sm border border-emerald-900/20">
+                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_5px_#10b981]"></div>
+                <span className="text-emerald-800 tracking-widest italic">ACTIVE</span>
             </div>
         </div>
+
+        <style>{`
+            .win-scroll-container::-webkit-scrollbar { width: 12px; background: #000; }
+            .win-scroll-container::-webkit-scrollbar-thumb { 
+                background: #111; 
+                border: 1px solid #333;
+                box-shadow: inset 1px 1px 0 #444;
+            }
+            .no-scrollbar::-webkit-scrollbar { display: none; }
+        `}</style>
     </div>
   );
 };
