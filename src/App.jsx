@@ -4490,28 +4490,22 @@ const ForgeItApp = () => {
   const [tokenBalance, setTokenBalance] = useState(0);
   const [hasEliteAccess, setHasEliteAccess] = useState(false);
   const [hasHolderAccess, setHasHolderAccess] = useState(false);
-  const [dailyCount, setDailyCount] = useState(0);
+  const [dailyCount, setDailyCount] = useState(null); // NULL = Loading state
   const [showMobileBlueprint, setShowMobileBlueprint] = useState(false);
   const [isRandomizing, setIsRandomizing] = useState(false);
   const [trustMode, setTrustMode] = useState(false);
   const [cloneImage, setCloneImage] = useState(null);
   const fileInputRef = useRef(null);
   
-  // ROBUST API KEY RESOLUTION
   const apiKey = (() => {
     try {
       if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_APP_GEMINI) return import.meta.env.VITE_APP_GEMINI;
-    } catch (e) {}
-    try {
       if (typeof process !== 'undefined' && process.env?.VITE_APP_GEMINI) return process.env.VITE_APP_GEMINI;
-    } catch (e) {}
-    try {
       if (typeof window !== 'undefined' && window.VITE_APP_GEMINI) return window.VITE_APP_GEMINI;
     } catch (e) {}
     return typeof __apiKey !== 'undefined' ? __apiKey : "";
   })();
 
-  // Forge State
   const [selections, setSelections] = useState({
     bg: PFP_TRAITS.bg[0], head: PFP_TRAITS.head[0], expression: PFP_TRAITS.expression[0],
     mask: PFP_TRAITS.mask[0], shirts: PFP_TRAITS.shirts[0], item: PFP_TRAITS.item[0],
@@ -4527,16 +4521,22 @@ const ForgeItApp = () => {
 
   const currentLimit = hasEliteAccess ? LIMIT_ELITE : (hasHolderAccess ? LIMIT_HOLDER : LIMIT_GUEST);
 
+  // --- PERSISTENT AUTH & INITIALIZATION ---
   useEffect(() => {
     const initAuth = async () => {
       if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
         await signInWithCustomToken(auth, __initial_auth_token);
       } else {
+        // SignInAnonymously persists by default in most browsers
         await signInAnonymously(auth);
       }
     };
     initAuth();
-    const unsubscribe = onAuthStateChanged(auth, setUser);
+    const unsubscribe = onAuthStateChanged(auth, (u) => {
+      if (u) {
+        setUser(u);
+      }
+    });
     return () => unsubscribe();
   }, []);
 
@@ -4551,22 +4551,24 @@ const ForgeItApp = () => {
     return () => window.removeEventListener('IT_OS_BALANCE_UPDATE', handleKernelSync);
   }, []);
 
+  // --- DB SYNC (THE FIX) ---
   useEffect(() => {
     if (!user) return;
     const today = new Date().toISOString().split('T')[0];
     const usageRef = doc(db, 'artifacts', APP_ID, 'users', user.uid, 'usage', 'forge_limits');
+    
     const unsub = onSnapshot(usageRef, (snap) => {
       if (snap.exists()) {
         const data = snap.data();
         if (data.lastDate === today) {
           setDailyCount(data.count);
         } else {
-          setDailyCount(0);
+          setDailyCount(0); // It's a new day
         }
       } else {
-        setDailyCount(0);
+        setDailyCount(0); // No record yet
       }
-    });
+    }, (err) => console.error("Quota Sync Error", err));
     return () => unsub();
   }, [user]);
 
@@ -4603,8 +4605,8 @@ const ForgeItApp = () => {
     const interval = setInterval(() => {
       const newSels = {};
       Object.keys(PFP_TRAITS).forEach(cat => {
-        if (cat === 'super') {
-          newSels[cat] = PFP_TRAITS.super[0];
+        if (cat === 'super' || cat === 'clone') {
+          newSels[cat] = PFP_TRAITS[cat][0];
           return;
         }
         const items = PFP_TRAITS[cat];
@@ -4625,7 +4627,6 @@ const ForgeItApp = () => {
     setTrustMode(true);
     setCloneImage(null);
     addLog("GRANTING_SYSTEM_IMAGINATION...");
-    // Reset selections to defaults for UI feedback
     const defaults = {};
     Object.keys(PFP_TRAITS).forEach(k => defaults[k] = PFP_TRAITS[k][0]);
     setSelections(defaults);
@@ -4660,20 +4661,17 @@ const ForgeItApp = () => {
 
   const handleForge = async () => {
     if (isForging) return;
-    if (!user) { setError("SYNCING_KERNEL... PLEASE WAIT."); return; }
+    if (!user || dailyCount === null) { setError("SYNCING_QUOTA... WAIT."); return; }
 
     if (dailyCount >= currentLimit) {
-      setError(`LIMIT_EXCEEDED: ${hasEliteAccess ? 'Unlimited' : hasHolderAccess ? '4/day' : '2/day'} Cycle Complete.`);
+      setError(`DAILY_LIMIT_REACHED: ${hasEliteAccess ? 'Unlimited' : hasHolderAccess ? '4/day' : '2/day'}`);
       return;
     }
 
-    if (!apiKey) {
-      setError("IDENTIFIER_ERROR: VITE_APP_GEMINI not detected.");
-      return;
-    }
+    if (!apiKey) { setError("IDENTIFIER_ERROR: VITE_APP_GEMINI missing."); return; }
 
     setIsForging(true); setGeneratedImg(null); setProgress(0); setError(null);
-    setLogs(["LOCKING_BLUEPRINT...", "PRESERVING_BODY_SHAPE...", "CALCULATING_DECORATIONS..."]);
+    setLogs(["LOCKING_BLUEPRINT...", "PRESERVING_BODY_SHAPE...", "OVERLAYING_CURATED_TRAITS..."]);
 
     const progTimer = setInterval(() => setProgress(prev => prev < 95 ? prev + Math.random() * 5 : prev), 600);
 
@@ -4689,61 +4687,18 @@ const ForgeItApp = () => {
 
       if (cloneImage) {
         contentParts.push({ inlineData: { mimeType: "image/png", data: cloneImage } });
-        promptText = `
-          CLONE PFP MODE.
-         ARTSY CLONE PFP SYSTEM.
-TEMPLATES: Image 1 is our STATIC character blueprint. Image 2 is the SOURCE PFP provided by the user.
-GOAL: Map the clothing style, item themes, and background colors from Image 2 onto our character in Image 1.
-
-STRICT CONSTRAINTS:
-DO NOT CHANGE the body shape, mask head, or silhouette of the character in Image 1.
-DO NOT crop the image; the character must remain full-bodied in the center.
-TRANSFORM the elements from Image 2 into our 90s hand-drawn artsy anime style with thick black outlines and flat colors.
-BRANDING: Apply a high-contrast 'IT' logo on the new outfit if there is clear space. same font style as in the base image. 
-BACKGROUND: Recreate the vibe of Image 2's background but in a hand-sketched, artsy style.
-        `;
+        promptText = "ARTSY CLONE PFP SYSTEM. TEMPLATES: Image 1 is our STATIC character blueprint. Image 2 is the SOURCE PFP. GOAL: Map clothing style, accessories, and vibe from Image 2 onto character in Image 1. STRICT CONSTRAINTS: DO NOT CHANGE body shape, mask head, or silhouette of Image 1. Character must remain full-bodied in center. TRANSFORM items into 90s artsy anime style. BRANDING: High-contrast 'IT' logo on outfit.";
       } else if (trustMode) {
-        promptText = `
-        ARTSY FUN CREATIVE DECORATION.
-SOURCE: Use the attached character as the ABSOLUTE static blueprint.
-TASK: Use your imagination to decorate this character with fun, artsy, and lighthearted items. Think silly hats, colorful vests, playful accessories, or weird artsy props.
-
-STRICT CONSTRAINTS:
-YOU MUST maintain the exact paper bag mask head and cybernetic cat body shape from the source.
-DO NOT add human anatomy, human limbs, or human faces.
-DO NOT ATTEMPT  writing anything on the image if its not "IT"
-DO NOT over do the decoration, the less and simpler the better. 
-Treat this like an NFT layering system where the base body is locked.
-STYLE: 90s hand-drawn artsy anime style, thick ink outlines, flat vibrant colors.
-MANDATORY: Integrate the letters 'IT' clearly as a professional high-contrast logo on the clothing or a prominent item, same font style as the on in the base image. 
-VIBE: Playful, creative, and worth collecting as an artsy NFT.
-BACKGROUND: should not be plain empty white, should also not be too overcomplicated, make something that fits and compliments the design. 
-        `;
+        promptText = "ARTSY FUN CREATIVE DECORATION. SOURCE: Use attached character as ABSOLUTE static blueprint. TASK: Use imagination to decorate character with fun, artsy, lighthearted items. Think silly hats, playful props. STRICT CONSTRAINTS: MAINTAIN exact paper bag mask head and body shape. NO human anatomy or limbs. STYLE: 90s hand-drawn artsy anime. MANDATORY: Integrate letters 'IT' clearly as high-contrast logo.";
       } else if (selections.super.id !== 'none') {
-        promptText = `
-          ARTSY SUPERHERO TRANSFORMATION.
-          SOURCE: Use the attached character as the EXACT static blueprint.
-          STRICT CONSTRAINTS: 
-          - DO NOT change body shape, silhouette, or pose.
-          - TRANSFORM: ${selections.super.prompt} by layering details onto the body.
-          - STYLE: 90s hand-drawn artsy anime.
-          - BRANDING: Professional "IT" logo on the hero chest.
-        `;
+        promptText = `ARTSY SUPERHERO TRANSFORMATION. SOURCE: attached EXACT static blueprint. KEEP core mask and anatomy. TRANSFORM: ${selections.super.prompt} by layering suit details. MANDATORY BRANDING: professional "IT" logo on chest emblem.`;
       } else {
         const activeTraits = Object.entries(selections)
           .filter(([cat, trait]) => trait.id !== 'none' && trait.id !== 'clean' && trait.id !== 'neutral')
           .map(([cat, trait]) => trait.prompt)
           .join(', ');
 
-        promptText = `
-          ARTSY PFP FORGE SYSTEM.
-          SOURCE: Use the attached character as the STATIC TEMPLATE.
-          STRICT CONSTRAINTS: 
-          - DO NOT CHANGE silhouette, pose, or proportions. 
-          - Maintain 90s hand-drawn artsy anime style.
-          ADD TRAITS: ${activeTraits}.
-          BRANDING: If there is space on a shirt, draw the letters "IT" as a high-contrast clean logo. 
-        `;
+        promptText = `ARTSY PFP FORGE. SOURCE: attached static template. LAYER SYSTEM. DO NOT CHANGE silhouette or proportions. Maintain 90s artsy anime style. ADD TRAITS: ${activeTraits}. BRANDING: clear high-contrast "IT" logo on garment. OCCLUSION RULE: skip if blocked by prop.`;
       }
 
       contentParts[0].text = promptText;
@@ -4758,7 +4713,6 @@ BACKGROUND: should not be plain empty white, should also not be too overcomplica
       });
 
       if (!response.ok) throw new Error(`API_ERROR: ${response.status}`);
-
       const result = await response.json();
       const base64Result = result.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
 
@@ -4768,12 +4722,13 @@ BACKGROUND: should not be plain empty white, should also not be too overcomplica
           setProgress(100); 
           addLog("MATERIALIZATION_SUCCESS.");
           setError(null);
+          
           try {
             const today = new Date().toISOString().split('T')[0];
             const usageRef = doc(db, 'artifacts', APP_ID, 'users', user.uid, 'usage', 'forge_limits');
             await setDoc(usageRef, { count: increment(1), lastDate: today }, { merge: true });
           } catch (dbErr) { 
-            console.warn("Tracker failed:", dbErr);
+            console.warn("Usage Tracker Fail", dbErr);
             setDailyCount(prev => prev + 1);
           }
           setIsForging(false);
@@ -4790,7 +4745,7 @@ BACKGROUND: should not be plain empty white, should also not be too overcomplica
     if (!generatedImg) return;
     const link = document.createElement('a');
     link.href = generatedImg;
-    link.download = `FORGED_IT_${Date.now()}.png`;
+    link.download = `CULT_FORGE_${Date.now()}.png`;
     link.click();
   };
 
@@ -4803,13 +4758,15 @@ BACKGROUND: should not be plain empty white, should also not be too overcomplica
           <div className="p-1 border border-emerald-500/40 rounded-sm bg-black relative"><Cpu size={14} className="text-emerald-400" /></div>
           <div className="flex flex-col">
             <h1 className="text-[9px] font-black uppercase tracking-[0.3em] text-white italic leading-none">Forge_IT_Cult</h1>
-            <span className="text-[6px] text-zinc-600 font-bold uppercase mt-1 tracking-tighter">Forge_Engine_v5.8</span>
+            <span className="text-[6px] text-zinc-600 font-bold uppercase mt-1 tracking-tighter">Forge_Engine_v5.9</span>
           </div>
         </div>
         <div className={`px-2 py-1 border rounded-sm transition-all flex items-center gap-2 ${hasEliteAccess ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-400 shadow-[0_0_10px_#10b98133]' : hasHolderAccess ? 'border-blue-500/40 bg-blue-500/10 text-blue-400' : 'border-yellow-600/40 bg-yellow-600/10 text-yellow-600'}`}>
           <div className="flex flex-col items-end">
             <span className="text-[8px] font-black uppercase tracking-tighter leading-none">{hasEliteAccess ? 'ELITE' : hasHolderAccess ? 'HOLDER' : 'GUEST'}</span>
-            <span className="text-[6px] font-bold opacity-60 mt-0.5 tracking-widest uppercase">FORGES: {hasEliteAccess ? '∞' : currentLimit - dailyCount}</span>
+            <span className="text-[6px] font-bold opacity-60 mt-0.5 tracking-widest uppercase italic">
+              REMAINING: {dailyCount === null ? '...' : (hasEliteAccess ? '∞' : Math.max(0, currentLimit - dailyCount))}
+            </span>
           </div>
           {hasEliteAccess ? <Crown size={12} className="animate-pulse" /> : <Lock size={10} className="opacity-40" />}
         </div>
@@ -4835,14 +4792,14 @@ BACKGROUND: should not be plain empty white, should also not be too overcomplica
               <div className="flex flex-col items-center justify-center h-full gap-6 text-center animate-in fade-in duration-500">
                 <div className="p-8 border-2 border-dashed border-emerald-500/20 rounded-xl bg-black w-full max-w-sm">
                   <Camera size={40} className="mx-auto text-emerald-500/40 mb-4" />
-                  <h3 className="text-sm font-black uppercase tracking-widest text-emerald-400">Clone Existing PFP</h3>
-                  <p className="text-[8px] text-zinc-500 mt-2 uppercase">AI will analyze Image and map outfit/vibes to template.</p>
+                  <h3 className="text-sm font-black uppercase tracking-widest text-emerald-400 italic">Clone Source PFP</h3>
+                  <p className="text-[8px] text-zinc-500 mt-2 uppercase tracking-tighter">AI will translate vibes & world to Character blueprint.</p>
                   <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept="image/*" className="hidden" />
                   <button onClick={() => fileInputRef.current.click()} className="mt-6 w-full py-3 bg-emerald-500 text-black font-black uppercase text-[10px] hover:bg-emerald-400 transition-all flex items-center justify-center gap-2">
-                    <Upload size={14} /> {cloneImage ? 'CHOOSE_ANOTHER' : 'UPLOAD_IMAGE'}
+                    <Upload size={14} /> {cloneImage ? 'SWAP_SOURCE' : 'UPLOAD_IMAGE'}
                   </button>
                 </div>
-                {cloneImage && <div className="p-1 border border-emerald-500/40 bg-black rounded-sm"><img src={`data:image/png;base64,${cloneImage}`} className="w-32 h-32 object-cover grayscale opacity-60" /></div>}
+                {cloneImage && <div className="p-1 border border-emerald-500/40 bg-black rounded-sm shadow-[0_0_20px_#10b98122]"><img src={`data:image/png;base64,${cloneImage}`} className="w-32 h-32 object-cover grayscale opacity-60" /></div>}
               </div>
             ) : (
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 pb-24 md:pb-0">
@@ -4872,11 +4829,11 @@ BACKGROUND: should not be plain empty white, should also not be too overcomplica
                 <Shuffle size={14} className={isRandomizing ? 'animate-spin' : ''} /> Randomize
               </button>
               <button onClick={handleTrustIt} disabled={isForging}
-                className={`flex-1 py-2 border flex items-center justify-center gap-2 text-[8px] font-black uppercase tracking-[0.3em] transition-all ${trustMode ? 'bg-blue-500/10 border-blue-500 text-blue-400' : 'border-zinc-800 text-zinc-600 hover:text-white hover:border-white/20'}`}>
+                className={`flex-1 py-2 border flex items-center justify-center gap-2 text-[8px] font-black uppercase tracking-[0.3em] transition-all ${trustMode ? 'bg-blue-500/10 border-blue-500 text-blue-400 shadow-[0_0_10px_#3b82f633]' : 'border-zinc-800 text-zinc-600 hover:text-white hover:border-white/20'}`}>
                 <Ghost size={14} /> TRUST_IT
               </button>
             </div>
-            <button onClick={handleForge} disabled={isForging || isRandomizing}
+            <button onClick={handleForge} disabled={isForging || isRandomizing || dailyCount === null}
               className={`w-full py-4 md:py-5 font-black italic text-base md:text-lg tracking-[0.4em] transition-all relative overflow-hidden group border-b-4 active:translate-y-1 active:border-b-0 ${
                 isForging ? 'bg-zinc-900 text-zinc-700 border-zinc-800' : 'bg-emerald-500 text-black hover:bg-emerald-400 border-emerald-700 shadow-[0_0_30px_rgba(16,185,129,0.3)]'
               }`}>
@@ -4915,15 +4872,15 @@ BACKGROUND: should not be plain empty white, should also not be too overcomplica
                      <button onClick={downloadPFP} className="p-3 bg-white text-black hover:bg-emerald-400 shadow-2xl active:scale-90"><Download size={20} /></button>
                   </div>
                 </div>
-                <button onClick={downloadPFP} className="w-full py-4 bg-white text-black font-black uppercase text-[11px] hover:bg-emerald-400 shadow-xl flex items-center justify-center gap-3 tracking-[0.2em] transition-all"><Download size={16}/> Save_IT</button>
+                <button onClick={downloadPFP} className="w-full py-4 bg-white text-black font-black uppercase text-[11px] hover:bg-emerald-400 shadow-xl flex items-center justify-center gap-3 tracking-[0.2em] transition-all"><Download size={16}/> Save_to_Cult</button>
                 <button onClick={() => setGeneratedImg(null)} className="w-full py-2 text-[9px] font-black uppercase text-zinc-700 hover:text-white transition-all flex items-center justify-center gap-2 group">
-                  <X size={12} className="group-hover:rotate-90 transition-transform" /> CLOSE_IT
+                  <X size={12} className="group-hover:rotate-90 transition-transform" /> Purge_Matrix
                 </button>
               </div>
             ) : (
               <div className="flex flex-col items-center gap-8 opacity-5">
                 <div className="p-20 border border-dashed border-emerald-900/50 rounded-full"><Palette size={80} strokeWidth={0.3} /></div>
-                <p className="text-[10px] font-black uppercase tracking-[0.4em] text-white">Chamber_Idle</p>
+                <p className="text-[10px] font-black uppercase tracking-[0.4em] text-white italic">Matrix_Idle</p>
               </div>
             )}
           </div>
@@ -4933,7 +4890,7 @@ BACKGROUND: should not be plain empty white, should also not be too overcomplica
       {error && (
         <div className="fixed bottom-24 md:bottom-10 right-4 left-4 md:left-auto md:w-[400px] bg-red-950/90 border-l-4 border-red-500 p-5 flex items-start gap-4 text-white z-[200] backdrop-blur-xl animate-in slide-in-from-right-10 shadow-2xl">
           <AlertTriangle size={24} className="shrink-0 text-red-500" />
-          <div className="flex-1 space-y-1"><p className="text-[11px] font-black uppercase leading-none tracking-widest">Protocol_Interrupt</p><p className="text-[9px] opacity-70 font-bold uppercase mt-2 leading-tight">{error}</p></div>
+          <div className="flex-1 space-y-1"><p className="text-[11px] font-black uppercase leading-none tracking-widest italic">Protocol_Interrupt</p><p className="text-[9px] opacity-70 font-bold uppercase mt-2 leading-tight">{error}</p></div>
           <button onClick={() => setError(null)} className="p-1 hover:bg-white/10 rounded-full transition-colors"><X size={18}/></button>
         </div>
       )}
