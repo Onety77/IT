@@ -42,7 +42,7 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const appId = 'it-token-os';
 
-const CA_ADDRESS = "AkoSPgG2bSrWLjTrxQ57AXEtpBwk1wkCVRkEnCiupump";
+const CA_ADDRESS = "Coming Soon...";
 const ACCESS_THRESHOLD = 500000; // 500k IT tokens
 
 const RPC_ENDPOINTS = [
@@ -75,7 +75,7 @@ const ASSETS = {
   }
 };
 
-const SOCIALS = { twitter: "https://x.com/ITonSol", community: "https://twitter.com/i/communities/2005689092994912490" };
+const SOCIALS = { twitter: "https://x.com/it_mascot", community: "https://x.com/" };
 
 const TUNES_PLAYLIST = [
   { file: "GET_IT_STARTED.mp3", title: "LETS GET IT STARTED", duration: "1:37", artist: "CREW" },
@@ -4678,7 +4678,7 @@ const ForgeItApp = () => {
 
       if (cloneImage) {
         contentParts.push({ inlineData: { mimeType: "image/png", data: cloneImage } });
-        promptText = `ARTSY CLONE PFP SYSTEM. Map vibe/clothing from Image 2 to Image 1. DO NOT CHANGE Image 1 body shape or mask. 90s Artsy style. High-contrast IT branding.`;
+        promptText = `ARTSY CLONE PFP SYSTEM. Map vibe/clothing/items/accessories from Image 2 to Image 1 (paper head guy). DO NOT CHANGE Image 1 body shape or mask or pose. 90s Artsy style. High-contrast IT branding.`;
       } else if (trustMode) {
         promptText = `ARTSY FUN CREATIVE DECORATION. Use imagination for silly hats/vests. MAINTAIN exact paper bag mask head and body shape. NO human anatomy. 90s Artsy style. High-contrast IT branding logo.`;
       } else if (selections.super.id !== 'none') {
@@ -4694,7 +4694,7 @@ const ForgeItApp = () => {
 
       contentParts[0].text = promptText;
 
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image-preview:generateContent?key=${apiKey}`, {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${apiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
