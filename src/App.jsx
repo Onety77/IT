@@ -75,7 +75,7 @@ const ASSETS = {
   }
 };
 
-const SOCIALS = { twitter: "https://x.com/it_mascot", community: "https://x.com/i/communities/2013482060254499136" };
+const SOCIALS = { twitter: "https://x.com/itcoin6900", community: "https://twitter.com/i/communities/2038652004394799319" };
 
 const TUNES_PLAYLIST = [
   { file: "GET_IT_STARTED.mp3", title: "LETS GET IT STARTED", duration: "1:37", artist: "CREW" },
