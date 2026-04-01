@@ -5169,7 +5169,7 @@ export default function UltimateOS() {
             className={`h-6 text-[10px] font-mono px-2 border border-gray-600 shadow-sm transition-all active:shadow-inner ${caCopied ? 'bg-green-200 text-green-800 border-green-700' : 'bg-[#d0d0d0] text-black'}`} 
             onClick={handleCopyCA}
           >
-            {caCopied ? 'COPIED!' : 'CA_KEY'}
+            {caCopied ? 'COPIED!' : 'CA'}
           </button>
 
           <button 
